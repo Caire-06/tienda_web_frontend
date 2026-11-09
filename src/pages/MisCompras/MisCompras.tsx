@@ -1,17 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useAuth } from "../../context/AuthContext";
 import { leerPedidos } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
+import { listarMisCompras } from "../../services/pedidosApi";
 
 function MisCompras() {
     const navigate = useNavigate();
-    const { usuario } = useAuth();
+    const { usuario, token } = useAuth();
 
     // Pedido seleccionado para ver su detalle en el modal
     const [detalle, setDetalle] = useState<Pedido | null>(null);
+
+    // Historial real guardado en PostgreSQL (vía GET /api/pedidos/mis-compras)
+    const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
+    const [cargando, setCargando] = useState(false);
+    const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!usuario || !token) {
+            setPedidosBackend([]);
+            return;
+        }
+        let activo = true;
+        setCargando(true);
+        setErrorCarga(null);
+        listarMisCompras(token)
+            .then((lista) => { if (activo) setPedidosBackend(lista); })
+            .catch(() => { if (activo) setErrorCarga("No se pudo cargar tu historial desde el servidor."); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [usuario, token]);
 
     if (!usuario) {
         return (
@@ -32,7 +53,9 @@ function MisCompras() {
         );
     }
 
-    const pedidos = leerPedidos().filter((p) => p.usuarioId === usuario.id);
+    // Historial del backend + pedidos locales anteriores de esta misma cuenta (compatibilidad)
+    const locales = leerPedidos().filter((p) => p.usuarioId === usuario.id);
+    const pedidos = [...pedidosBackend, ...locales.filter((loc) => !pedidosBackend.some((b) => b.numero === loc.numero))];
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
@@ -47,6 +70,15 @@ function MisCompras() {
                             : `${pedidos.length} pedido${pedidos.length !== 1 ? "s" : ""} registrado${pedidos.length !== 1 ? "s" : ""}`}
                     </p>
                 </div>
+
+                {cargando && (
+                    <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold">Cargando tu historial…</p>
+                )}
+                {errorCarga && (
+                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3.5 text-xs text-amber-900 dark:text-amber-200">
+                        {errorCarga} Se muestran solo tus pedidos guardados localmente.
+                    </div>
+                )}
 
                 {pedidos.length === 0 ? (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3 shadow-sm">

@@ -4,6 +4,8 @@ import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useAuth } from "../../context/AuthContext";
 import { leerPedidos } from "../../data/pedidos";
+import type { Pedido } from "../../data/pedidos";
+import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
 
 interface Perfil {
@@ -46,6 +48,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaD
     const [error, setError] = useState("");
     const [editando, setEditando] = useState(false);
     const [guardado, setGuardado] = useState(false);
+    const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
     useEffect(() => {
         let activo = true;
         fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
@@ -63,7 +66,16 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaD
         return () => { activo = false; };
     }, [token]);
 
-    const pedidos = leerPedidos().filter((p) => p.usuarioId === usuario.id);
+    useEffect(() => {
+        if (!token) return;
+        let activo = true;
+        listarMisCompras(token)
+            .then((lista) => { if (activo) setPedidosBackend(lista); })
+            .catch(() => { if (activo) setPedidosBackend([]); });
+        return () => { activo = false; };
+    }, [token]);
+
+    const pedidos = [...pedidosBackend, ...leerPedidos().filter((p) => p.usuarioId === usuario.id)];
     const totalGastado = pedidos.reduce((acc, p) => acc + p.total, 0);
     const unidades = pedidos.reduce((acc, p) => acc + p.items.reduce((a, it) => a + it.cantidad, 0), 0);
     const ultimoPedido = pedidos[0] ?? null;

@@ -1,9 +1,8 @@
-import { useState } from "react";
-import { useInventario } from "../../../context/InventarioContext";
-import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import { listarProductos, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
 import { CATEGORIAS } from "../../../data/productos";
-
-const IMG_DEFECTO = "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&auto=format&fit=crop";
+import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 
 type FiltroEstado = "todos" | "disponible" | "bajo" | "sin" | "inactivo";
 
@@ -24,7 +23,9 @@ const VACIO: DatosProducto = {
 };
 
 function Productos() {
-    const { productos, guardarProducto, cambiarActivo } = useInventario();
+    const { token } = useAuth();
+    const [productos, setProductos] = useState<ProductoInv[]>([]);
+    const [cargando, setCargando] = useState(true);
 
     const [busqueda, setBusqueda] = useState("");
     const [categoria, setCategoria] = useState("Todas");
@@ -32,6 +33,35 @@ function Productos() {
 
     const [formId, setFormId] = useState<number | null | undefined>(undefined);
     const [form, setForm] = useState<DatosProducto>(VACIO);
+    const [guardando, setGuardando] = useState(false);
+    const [archivo, setArchivo] = useState<File | null>(null);
+    const [subiendo, setSubiendo] = useState(false);
+    const [preview, setPreview] = useState("");
+
+    const refrescar = async () => {
+        if (!token) return;
+        try {
+            const lista = await listarProductos(token);
+            setProductos(lista);
+        } catch {
+            setProductos([]);
+        }
+    };
+
+    useEffect(() => {
+        let activo = true;
+        if (!token) {
+            setProductos([]);
+            setCargando(false);
+            return;
+        }
+        setCargando(true);
+        listarProductos(token)
+            .then((lista) => { if (activo) setProductos(lista); })
+            .catch(() => { if (activo) setProductos([]); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [token]);
 
     const filtrados = productos.filter((p) => {
         if (categoria !== "Todas" && p.categoria !== categoria) return false;
@@ -47,6 +77,8 @@ function Productos() {
     const abrirNuevo = () => {
         setFormId(null);
         setForm(VACIO);
+        setArchivo(null);
+        setPreview("");
     };
 
     const abrirEditar = (p: ProductoInv) => {
@@ -59,17 +91,60 @@ function Productos() {
             imagen: p.imagen,
             descripcion: p.descripcion,
         });
+        setArchivo(null);
+        setPreview("");
     };
 
-    const guardar = (e: React.FormEvent) => {
+    const guardar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.nombre.trim() || form.precio < 0 || form.stock < 0) return;
-        guardarProducto(formId ?? null, {
-            ...form,
-            nombre: form.nombre.trim(),
-            imagen: form.imagen.trim() || IMG_DEFECTO,
-        });
-        setFormId(undefined);
+        if (!token) return;
+        setGuardando(true);
+        try {
+            let imagenFinal: string | undefined = form.imagen.trim() || undefined;
+            if (archivo) {
+                setSubiendo(true);
+                const subida = await subirImagen(token, archivo);
+                imagenFinal = subida.url;
+                setSubiendo(false);
+            }
+            if (formId === null) {
+                await crearProducto(token, {
+                    nombre: form.nombre.trim(),
+                    categoria: form.categoria,
+                    precio: Number(form.precio),
+                    stock: Number(form.stock),
+                    imagen: imagenFinal,
+                    descripcion: form.descripcion,
+                });
+            } else if (formId !== undefined) {
+                await actualizarProducto(token, formId, {
+                    nombre: form.nombre.trim(),
+                    categoria: form.categoria,
+                    precio: Number(form.precio),
+                    stock: Number(form.stock),
+                    imagen: imagenFinal,
+                    descripcion: form.descripcion,
+                    activo: editando?.activo ?? true,
+                });
+            }
+            setFormId(undefined);
+            await refrescar();
+        } catch (err) {
+            console.error("Error al guardar producto", err);
+        } finally {
+            setGuardando(false);
+        }
+    };
+
+    const cambiarActivo = async (id: number, activo: boolean) => {
+        if (!token) return;
+        try {
+            await actualizarProducto(token, id, { activo });
+            await refrescar();
+        } catch (err) {
+            console.error("Error al cambiar estado del producto", err);
+        }
     };
 
     const editando = formId !== undefined ? productos.find((p) => p.id === formId) : undefined;
@@ -164,7 +239,7 @@ function Productos() {
                 </table>
                 {filtrados.length === 0 && (
                     <div className="text-center py-10 text-sm text-slate-500">
-                        Sin productos para los filtros seleccionados.
+                        {cargando ? "Cargando productos…" : "Sin productos para los filtros seleccionados."}
                     </div>
                 )}
             </div>
@@ -209,8 +284,23 @@ function Productos() {
                                     <input className={inputClass} type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} required disabled={formId !== null} />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Imagen (URL)</label>
-                                    <input className={inputClass} value={form.imagen} onChange={(e) => setForm({ ...form, imagen: e.target.value })} placeholder="Vacío = imagen por defecto" />
+                                    <label className="text-xs font-semibold text-slate-500">Imagen (subir desde PC)</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0] ?? null;
+                                            setArchivo(f);
+                                            setPreview(f ? URL.createObjectURL(f) : "");
+                                        }}
+                                        className={inputClass}
+                                        disabled={subiendo}
+                                    />
+                                    {preview && (
+                                        <div className="mt-2">
+                                            <img src={preview} alt="Vista previa" className="w-full h-28 object-contain rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2" />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="space-y-1">
@@ -221,7 +311,7 @@ function Productos() {
                                 <button type="button" className="btn-mini sec" onClick={() => setFormId(undefined)}>
                                     Cancelar
                                 </button>
-                                <button type="submit" className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer">
+                                <button type="submit" disabled={guardando} className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer disabled:opacity-60">
                                     {formId === null ? "Crear producto" : "Guardar cambios"}
                                 </button>
                             </div>

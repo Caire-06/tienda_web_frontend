@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Secrets / tokens de APIs locales (no subir al repo)
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

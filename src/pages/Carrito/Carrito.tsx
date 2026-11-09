@@ -7,6 +7,7 @@ import { useCarrito } from "../../context/CarritoContext";
 import { useInventario } from "../../context/InventarioContext";
 import { useAuth } from "../../context/AuthContext";
 import { generarNumeroPedido, guardarPedido } from "../../data/pedidos";
+import { crearPedidoBackend } from "../../services/pedidosApi";
 import type { TipoComprobante, MetodoPago, ComprobanteInfo } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 
@@ -18,7 +19,7 @@ function Carrito() {
     const navigate = useNavigate();
     const { items, cambiarCantidad, quitar, vaciar, subtotal } = useCarrito();
     const { productos, registrarSalida } = useInventario();
-    const { usuario } = useAuth();
+    const { usuario, token } = useAuth();
 
     // Pedido confirmado (solo frontend): guarda el total y muestra éxito
     const [pedidoOk, setPedidoOk] = useState<string | null>(null);
@@ -66,8 +67,8 @@ function Carrito() {
     const total = subtotal + envio;
 
     // Cálculo tributario SUNAT (18% IGV incluido)
-    const baseImponible = Math.round((total / 1.18) * 100) / 100;
-    const igv = Math.round((total - baseImponible) * 100) / 100;
+    const baseImponible = Math.round((subtotal / 1.18) * 100) / 100;
+    const igv = Math.round((subtotal - baseImponible) * 100) / 100;
 
     // Barra de progreso hacia el envío gratis
     const progreso = Math.min(100, Math.round((subtotal / UMBRAL_ENVIO_GRATIS) * 100));
@@ -131,8 +132,7 @@ function Carrito() {
 
         setProcesandoPago(true);
 
-        setTimeout(() => {
-            const numero = generarNumeroPedido();
+        setTimeout(async () => {
             const fecha = new Date().toLocaleDateString("es-PE");
 
             const infoComprobante: ComprobanteInfo = {
@@ -145,6 +145,60 @@ function Carrito() {
                 total,
             };
 
+            const itemsPedido = lineas.map((l) => ({
+                id: l.producto.id,
+                nombre: l.producto.nombre,
+                precio: l.producto.precio,
+                cantidad: l.cantidad,
+                imagen: l.producto.imagen,
+            }));
+
+            let numero = generarNumeroPedido();
+
+            if (token) {
+                // Usuario con sesión iniciada: el pedido se registra en PostgreSQL (backend).
+                try {
+                    const creado = await crearPedidoBackend(token, {
+                        items: itemsPedido,
+                        total,
+                        metodoPago,
+                        comprobante: {
+                            tipo: infoComprobante.tipo,
+                            documento: infoComprobante.documento,
+                            nombreRazonSocial: infoComprobante.nombreRazonSocial,
+                            direccion: infoComprobante.direccion ?? null,
+                            subtotal: infoComprobante.subtotal,
+                            igv: infoComprobante.igv,
+                            total: infoComprobante.total,
+                        },
+                        tipoEntrega,
+                        correoContacto,
+                        celularContacto,
+                        direccionEnvio,
+                        referenciaEnvio,
+                        distritoEnvio,
+                    });
+                    numero = creado.numero;
+                } catch {
+                    setProcesandoPago(false);
+                    alert("No se pudo registrar tu pedido en el servidor. Revisa tu conexión e inténtalo de nuevo.");
+                    return;
+                }
+            } else {
+                // Compra de invitado (sin sesión): se guarda solo en el navegador, como antes.
+                guardarPedido({
+                    numero,
+                    fecha,
+                    usuarioId: "invitado",
+                    items: itemsPedido,
+                    total,
+                    metodoPago,
+                    comprobante: infoComprobante,
+                    tipoEntrega,
+                    estado: "Pendiente",
+                });
+            }
+
             // Venta confirmada: genera la salida automática en Kardex y reduce el stock
             lineas.forEach((l) =>
                 registrarSalida(
@@ -154,25 +208,6 @@ function Carrito() {
                     usuario?.nombre ?? nombreRazonSocial
                 )
             );
-
-            // Guarda el pedido con comprobante y método de pago
-            guardarPedido({
-                numero,
-                fecha,
-                usuarioId: usuario?.id ?? "invitado",
-                items: lineas.map((l) => ({
-                    id: l.producto.id,
-                    nombre: l.producto.nombre,
-                    precio: l.producto.precio,
-                    cantidad: l.cantidad,
-                    imagen: l.producto.imagen,
-                })),
-                total,
-                metodoPago,
-                comprobante: infoComprobante,
-                tipoEntrega,
-                estado: "Pendiente"
-            });
 
             setComprobanteEmitido(infoComprobante);
             setTotalPagado(total);
@@ -226,7 +261,7 @@ function Carrito() {
                         </p>
 
                         {comprobanteEmitido && (
-                            <div className="bg-slate-50 dark:bg-slate-850/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
+                            <div className="bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
                                 <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
                                     <span className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                                         {comprobanteEmitido.tipo} Electrónica
@@ -442,7 +477,7 @@ function Carrito() {
                 {/* ===== MODAL DE PASARELA DE PAGOS Y FACTURACIÓN SUNAT ===== */}
                 {mostrarCheckout && (
                     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={() => setMostrarCheckout(false)}>
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                             <div className="flex items-start justify-between pb-4 mb-4 border-b border-slate-200 dark:border-slate-800">
                                 <div>
                                     <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -572,9 +607,12 @@ function Carrito() {
                                             </label>
                                             <input 
                                                 type="tel" 
-                                                placeholder="Ej. 999 888 777" 
+                                                inputMode="numeric" 
+                                                pattern="[0-9]*" 
+                                                maxLength={9}
+                                                placeholder="Ej. 999888777" 
                                                 value={celularContacto}
-                                                onChange={(e) => setCelularContacto(e.target.value)}
+                                                onChange={(e) => setCelularContacto(e.target.value.replace(/\D/g, "").slice(0, 9))}
                                                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                                                 required
                                             />
@@ -700,6 +738,8 @@ function Carrito() {
                                             <div className="flex gap-2">
                                                 <input
                                                     type="text"
+                                                    inputMode="numeric"
+                                                    pattern="[0-9]*"
                                                     maxLength={tipoComprobante === "Boleta" ? 8 : 11}
                                                     placeholder={tipoComprobante === "Boleta" ? "Ej. 72819402" : "Ej. 20601234567"}
                                                     value={documento}

@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useAuth } from "../../context/AuthContext";
 import { leerPedidos } from "../../data/pedidos";
+import type { Pedido } from "../../data/pedidos";
+import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
 
 interface Perfil {
@@ -16,62 +18,15 @@ interface Perfil {
     miembroDesde: string;
 }
 
-const CLAVE_PERFILES = "techstore-perfiles";
-
-const PERFILES_DEMO: Record<string, Perfil> = {
-    cliente: {
-        nombre: "Juan Pérez",
-        correo: "juan.perez@gmail.com",
-        telefono: "+51 987 654 321",
-        documento: "DNI 72849510",
-        direccion: "Av. Los Olivos 456, Dpto. 302",
-        ciudad: "Lima, Perú",
-        miembroDesde: "Marzo 2024",
-    },
-    admin: {
-        nombre: "Gustavo Blas Asto",
-        correo: "admin@techstore.com",
-        telefono: "+51 999 111 222",
-        documento: "Código U22300144",
-        direccion: "Av. Próceres de la Independencia 2450",
-        ciudad: "San Juan de Lurigancho, Lima",
-        miembroDesde: "2026",
-    },
-    almacen: {
-        nombre: "Diego Armando Caire Quino",
-        correo: "almacen@techstore.com",
-        telefono: "+51 988 222 333",
-        documento: "Código U23231103",
-        direccion: "Av. Próceres de la Independencia 2450, Almacén Central",
-        ciudad: "San Juan de Lurigancho, Lima",
-        miembroDesde: "2026",
-    },
+type PerfilBackend = {
+    idUsuario: number; nombres: string; apellidos: string; documento: string;
+    correo: string; telefono: string; direccion: string; ciudad: string; rol: string;
 };
-
-function leerPerfil(id: string, nombreSesion: string, acceso: string): Perfil {
-    try {
-        const todos = JSON.parse(localStorage.getItem(CLAVE_PERFILES) ?? "{}");
-        if (todos[id]) return todos[id];
-    } catch {
-        // Fallback
-    }
-    if (PERFILES_DEMO[id]) return PERFILES_DEMO[id];
-    const fecha = new Date().toLocaleDateString("es-PE", { month: "long", year: "numeric" });
-    let direccion = "";
-    try {
-        const lista = JSON.parse(localStorage.getItem("techstore-usuarios") ?? "[]");
-        direccion = lista.find((u: { correo: string }) => u.correo === id)?.direccion ?? "";
-    } catch {
-        // No hay
-    }
+function desdeBackend(data: PerfilBackend): Perfil {
     return {
-        nombre: nombreSesion,
-        correo: acceso,
-        telefono: "",
-        documento: "",
-        direccion,
-        ciudad: "",
-        miembroDesde: fecha,
+        nombre: `${data.nombres || ""} ${data.apellidos || ""}`.trim(),
+        correo: data.correo || "", telefono: data.telefono || "", documento: data.documento || "",
+        direccion: data.direccion || "", ciudad: data.ciudad || "", miembroDesde: "2026",
     };
 }
 
@@ -79,34 +34,71 @@ interface MiCuentaDetalleProps {
     usuario: Usuario;
     logout: () => void;
     actualizarNombre: (nombre: string) => void;
+    token: string;
 }
 
-function MiCuentaDetalle({ usuario, logout, actualizarNombre }: MiCuentaDetalleProps) {
+function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaDetalleProps) {
     const navigate = useNavigate();
-    const [perfil, setPerfil] = useState<Perfil>(() =>
-        leerPerfil(usuario.id, usuario.nombre, usuario.acceso)
-    );
+    const [perfil, setPerfil] = useState<Perfil>({ nombre: usuario.nombre, correo: usuario.acceso,
+        telefono: "", documento: "", direccion: "", ciudad: "", miembroDesde: "2026" });
+    const [nombres, setNombres] = useState("");
+    const [apellidos, setApellidos] = useState("");
+    const [cargando, setCargando] = useState(true);
+    const [guardando, setGuardando] = useState(false);
+    const [error, setError] = useState("");
     const [editando, setEditando] = useState(false);
     const [guardado, setGuardado] = useState(false);
+    const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
+    useEffect(() => {
+        let activo = true;
+        fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
+            .then(async r => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data.error || "No se pudo consultar el perfil");
+                return data as PerfilBackend;
+            })
+            .then(data => {
+                if (!activo) return;
+                setPerfil(desdeBackend(data)); setNombres(data.nombres || ""); setApellidos(data.apellidos || "");
+            })
+            .catch(e => { if (activo) setError(e instanceof Error ? e.message : "Error al cargar el perfil"); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [token]);
 
-    const pedidos = leerPedidos().filter((p) => p.usuarioId === usuario.id);
+    useEffect(() => {
+        if (!token) return;
+        let activo = true;
+        listarMisCompras(token)
+            .then((lista) => { if (activo) setPedidosBackend(lista); })
+            .catch(() => { if (activo) setPedidosBackend([]); });
+        return () => { activo = false; };
+    }, [token]);
+
+    const pedidos = [...pedidosBackend, ...leerPedidos().filter((p) => p.usuarioId === usuario.id)];
     const totalGastado = pedidos.reduce((acc, p) => acc + p.total, 0);
     const unidades = pedidos.reduce((acc, p) => acc + p.items.reduce((a, it) => a + it.cantidad, 0), 0);
     const ultimoPedido = pedidos[0] ?? null;
 
-    const guardar = (e: React.FormEvent) => {
-        e.preventDefault();
+    const guardar = async (e: React.FormEvent) => {
+        e.preventDefault(); setError(""); setGuardado(false); setGuardando(true);
         try {
-            const todos = JSON.parse(localStorage.getItem(CLAVE_PERFILES) ?? "{}");
-            todos[usuario.id] = perfil;
-            localStorage.setItem(CLAVE_PERFILES, JSON.stringify(todos));
-        } catch {
-            // En memoria
-        }
-        actualizarNombre(perfil.nombre);
-        setEditando(false);
-        setGuardado(true);
-        setTimeout(() => setGuardado(false), 2500);
+            const resp = await fetch("/api/perfil", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ nombres: nombres.trim(), apellidos: apellidos.trim(),
+                    documento: perfil.documento.trim(), telefono: perfil.telefono.trim(),
+                    direccion: perfil.direccion.trim() }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(data.error || data.message || "No se pudo guardar el perfil");
+            const nuevo = desdeBackend(data as PerfilBackend);
+            setPerfil(nuevo); setNombres(data.nombres || ""); setApellidos(data.apellidos || "");
+            actualizarNombre(nuevo.nombre);
+            setEditando(false); setGuardado(true);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "No se pudo guardar el perfil");
+        } finally { setGuardando(false); }
     };
 
     const cambiar = (campo: keyof Perfil, valor: string) =>
@@ -175,18 +167,22 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre }: MiCuentaDetalleP
                     <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                             <h2 className="text-base font-bold">Datos personales</h2>
-                            {!editando && (
+                            {!editando && !cargando && !error && (
                                 <button className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer" onClick={() => setEditando(true)}>
                                     Editar
                                 </button>
                             )}
                         </div>
 
-                        {editando ? (
+                        {cargando ? <p className="text-sm text-slate-500">Cargando datos desde PostgreSQL...</p> : editando ? (
                             <form onSubmit={guardar} className="space-y-3.5">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Nombre completo</label>
-                                    <input className={inputClass} value={perfil.nombre} onChange={(e) => cambiar("nombre", e.target.value)} required />
+                                    <label className="text-xs font-semibold text-slate-500">Nombres</label>
+                                    <input className={inputClass} value={nombres} onChange={(e) => setNombres(e.target.value)} required />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-500">Apellidos</label>
+                                    <input className={inputClass} value={apellidos} onChange={(e) => setApellidos(e.target.value)} required />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Teléfono</label>
@@ -202,11 +198,11 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre }: MiCuentaDetalleP
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Ciudad</label>
-                                    <input className={inputClass} value={perfil.ciudad} onChange={(e) => cambiar("ciudad", e.target.value)} placeholder="Lima, Perú" />
+                                    <input className={inputClass} value={perfil.ciudad} readOnly title="La ciudad procede del distrito registrado en PostgreSQL" />
                                 </div>
                                 <div className="flex gap-2 pt-2">
-                                    <button type="submit" className="btn-mini">Guardar</button>
-                                    <button type="button" className="btn-mini sec" onClick={() => setEditando(false)}>Cancelar</button>
+                                    <button type="submit" className="btn-mini" disabled={guardando}>{guardando ? "Guardando..." : "Guardar"}</button>
+                                    <button type="button" className="btn-mini sec" onClick={() => { setEditando(false); setError(""); }}>Cancelar</button>
                                 </div>
                             </form>
                         ) : (
@@ -220,6 +216,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre }: MiCuentaDetalleP
                             </dl>
                         )}
 
+                        {error && <p role="alert" className="text-xs text-red-600 font-semibold">{error}</p>}
                         {guardado && <p className="text-xs text-emerald-600 font-semibold">Cambios guardados correctamente.</p>}
                     </section>
 
@@ -274,9 +271,9 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre }: MiCuentaDetalleP
 
 function MiCuenta() {
     const navigate = useNavigate();
-    const { usuario, logout, actualizarNombre } = useAuth();
+    const { usuario, token, logout, actualizarNombre } = useAuth();
 
-    if (!usuario) {
+    if (!usuario || !token) {
         return (
             <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
                 <Header />
@@ -301,6 +298,7 @@ function MiCuenta() {
             usuario={usuario}
             logout={logout}
             actualizarNombre={actualizarNombre}
+            token={token}
         />
     );
 }

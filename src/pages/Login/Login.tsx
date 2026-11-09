@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SubmitEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -16,7 +16,24 @@ function Login() {
     const [acceso, setAcceso] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
-    const [bloqueado, setBloqueado] = useState(false);
+    const [segundosRestantes, setSegundosRestantes] = useState(0);
+    const [bloqueadoHasta, setBloqueadoHasta] = useState<number | null>(null);
+    const bloqueado = segundosRestantes > 0;
+
+    useEffect(() => {
+        if (bloqueadoHasta === null) return;
+        const actualizar = () => {
+            const restantes = Math.max(0, Math.ceil((bloqueadoHasta - Date.now()) / 1000));
+            setSegundosRestantes(restantes);
+            if (restantes === 0) {
+                setBloqueadoHasta(null);
+                setError("");
+            }
+        };
+        actualizar();
+        const intervalo = window.setInterval(actualizar, 250);
+        return () => window.clearInterval(intervalo);
+    }, [bloqueadoHasta]);
     const [cargando, setCargando] = useState(false);
 
     const navigate = useNavigate();
@@ -26,10 +43,7 @@ function Login() {
         e.preventDefault();
         setError("");
 
-        if (bloqueado) {
-            setError("Cuenta bloqueada por seguridad tras 3 intentos erróneos.");
-            return;
-        }
+        if (bloqueado) return;
 
         if (acceso.trim() === "") {
             setError("Ingresa tu usuario o correo");
@@ -45,8 +59,10 @@ function Login() {
         setCargando(false);
 
         if (!res.ok || !res.usuario) {
-            if (res.bloqueado) {
-                setBloqueado(true);
+            if (res.bloqueado && (res.segundosEspera ?? 0) > 0) {
+                const segundos = Math.ceil(res.segundosEspera!);
+                setSegundosRestantes(segundos);
+                setBloqueadoHasta(Date.now() + segundos * 1000);
             }
             setError(res.error ?? "No se pudo iniciar sesión");
             return;
@@ -163,7 +179,9 @@ function Login() {
                                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
-                                    <span>{error}</span>
+                                    <span>{bloqueado
+                                        ? `Demasiados intentos. Vuelve a intentarlo en ${segundosRestantes} segundo(s).`
+                                        : error}</span>
                                 </div>
                             )}
 
@@ -173,7 +191,7 @@ function Login() {
                                 className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm shadow-sm hover:shadow transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={bloqueado || cargando}
                             >
-                                {cargando ? "Verificando credenciales..." : (bloqueado ? "Acceso Bloqueado" : "Iniciar sesión")}
+                                {cargando ? "Verificando credenciales..." : "Iniciar sesión"}
                             </button>
                         </form>
 

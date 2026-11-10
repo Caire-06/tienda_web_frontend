@@ -8,6 +8,12 @@ import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
 import FormularioCambioPassword from "../../components/FormularioCambioPassword/FormularioCambioPassword";
+import {
+    esDocumentoPeruanoValido,
+    esTelefonoValido,
+    limpiarSoloDigitos,
+    limpiarSoloLetras,
+} from "../../utils/validaciones";
 
 interface Perfil {
     nombre: string;
@@ -85,7 +91,22 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
     const ultimoPedido = pedidos[0] ?? null;
 
     const guardar = async (e: React.FormEvent) => {
-        e.preventDefault(); setError(""); setGuardado(false); setGuardando(true);
+        e.preventDefault(); setError(""); setGuardado(false);
+        if (nombres.trim().length < 2 || apellidos.trim().length < 2) {
+            setError("Nombres y apellidos deben tener al menos 2 caracteres.");
+            return;
+        }
+        const telLimpio = perfil.telefono.trim();
+        if (telLimpio && !esTelefonoValido(telLimpio)) {
+            setError("El teléfono debe contener de 7 a 9 dígitos numéricos.");
+            return;
+        }
+        const docCheck = esDocumentoPeruanoValido(perfil.documento);
+        if (!docCheck.valido) {
+            setError(docCheck.mensaje || "Documento inválido.");
+            return;
+        }
+        setGuardando(true);
         try {
             const resp = await fetch("/api/perfil", {
                 method: "PUT",
@@ -187,19 +208,19 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                             <form onSubmit={guardar} className="space-y-3.5">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Nombres</label>
-                                    <input className={inputClass} value={nombres} onChange={(e) => setNombres(e.target.value)} required />
+                                    <input className={inputClass} value={nombres} onChange={(e) => setNombres(limpiarSoloLetras(e.target.value, 80))} required />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Apellidos</label>
-                                    <input className={inputClass} value={apellidos} onChange={(e) => setApellidos(e.target.value)} required />
+                                    <input className={inputClass} value={apellidos} onChange={(e) => setApellidos(limpiarSoloLetras(e.target.value, 80))} required />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Teléfono</label>
-                                    <input className={inputClass} value={perfil.telefono} onChange={(e) => cambiar("telefono", e.target.value)} placeholder="+51 987654321" />
+                                    <input className={inputClass + " font-mono"} type="text" inputMode="numeric" maxLength={9} value={perfil.telefono} onChange={(e) => cambiar("telefono", limpiarSoloDigitos(e.target.value, 9))} placeholder="987654321" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Documento (DNI/RUC)</label>
-                                    <input className={inputClass} value={perfil.documento} onChange={(e) => cambiar("documento", e.target.value)} placeholder="72345678" />
+                                    <input className={inputClass + " font-mono"} type="text" inputMode="numeric" maxLength={11} value={perfil.documento} onChange={(e) => cambiar("documento", limpiarSoloDigitos(e.target.value, 11))} placeholder="72345678" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Dirección</label>

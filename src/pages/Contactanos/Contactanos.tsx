@@ -1,17 +1,31 @@
 import { useState } from "react";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import { esCorreoValido, limpiarSoloLetras } from "../../utils/validaciones";
 
 function Contactanos() {
     const [nombre, setNombre] = useState("");
     const [correo, setCorreo] = useState("");
     const [asunto, setAsunto] = useState("Consulta general");
     const [mensaje, setMensaje] = useState("");
+    const [errorForm, setErrorForm] = useState("");
     const [enviado, setEnviado] = useState(false);
 
     const enviar = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!nombre.trim() || !correo.trim() || !mensaje.trim()) return;
+        setErrorForm("");
+        if (nombre.trim().length < 2) {
+            setErrorForm("Ingresa tu nombre completo (mínimo 2 caracteres).");
+            return;
+        }
+        if (!esCorreoValido(correo)) {
+            setErrorForm("Ingresa un correo electrónico válido.");
+            return;
+        }
+        if (mensaje.trim().length < 10) {
+            setErrorForm("Describe tu consulta con al menos 10 caracteres.");
+            return;
+        }
         setEnviado(true);
     };
 
@@ -116,7 +130,7 @@ function Contactanos() {
                                         type="text"
                                         placeholder="Tu nombre completo"
                                         value={nombre}
-                                        onChange={(e) => setNombre(e.target.value)}
+                                        onChange={(e) => setNombre(limpiarSoloLetras(e.target.value, 100))}
                                         required
                                     />
                                 </div>
@@ -164,6 +178,12 @@ function Contactanos() {
                                         required
                                     />
                                 </div>
+
+                                {errorForm && (
+                                    <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                                        {errorForm}
+                                    </div>
+                                )}
 
                                 <button
                                     type="submit"

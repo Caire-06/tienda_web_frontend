@@ -4,6 +4,11 @@ import { listarProductos } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 import { listarEntradas, registrarEntradaBackend } from "../../../services/entradasApi";
 import type { Entrada } from "../../../services/entradasApi";
+import {
+    limpiarDecimal,
+    limpiarEnteroNoNegativo,
+    parsearNumeroSeguro,
+} from "../../../utils/validaciones";
 
 function Entradas() {
     const { token, usuario } = useAuth();
@@ -12,10 +17,11 @@ function Entradas() {
     const [cargando, setCargando] = useState(true);
 
     const [productoId, setProductoId] = useState(0);
-    const [cantidad, setCantidad] = useState(20);
-    const [costo, setCosto] = useState(0);
+    const [cantidadTexto, setCantidadTexto] = useState("20");
+    const [costoTexto, setCostoTexto] = useState("");
     const [motivo, setMotivo] = useState("Ingreso de mercadería");
     const [ok, setOk] = useState("");
+    const [errorForm, setErrorForm] = useState("");
 
     const refrescar = async () => {
         if (!token) return;
@@ -40,6 +46,10 @@ function Entradas() {
                 if (!activo) return;
                 setProductos(listaProductos);
                 setEntradas(listaEntradas);
+                const primerActivo = listaProductos.find((p) => p.activo);
+                if (primerActivo) {
+                    setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));
+                }
             })
             .catch(() => {
                 if (activo) setProductos([]);
@@ -54,23 +64,39 @@ function Entradas() {
 
     const activos = productos.filter((p) => p.activo);
 
-    const prod = productos.find((p) => p.id === productoId);
+    const cantidad = parsearNumeroSeguro(cantidadTexto);
+    const costo = parsearNumeroSeguro(costoTexto);
+    const prod = productos.find((p) => p.id === productoId) ?? activos[0];
     const stockActual = prod?.stock ?? 0;
     const nuevoStock = stockActual + Math.max(0, cantidad);
 
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!token || !prod || cantidad <= 0) return;
+        setErrorForm("");
+        setOk("");
+        if (!token) return;
+        if (!prod) {
+            setErrorForm("Selecciona un producto válido para registrar la entrada.");
+            return;
+        }
+        if (cantidad <= 0) {
+            setErrorForm("La cantidad a ingresar debe ser mayor a 0.");
+            return;
+        }
+        if (costo < 0) {
+            setErrorForm("El costo unitario no puede ser negativo.");
+            return;
+        }
         try {
             await registrarEntradaBackend(token, [{ idProducto: prod.id, cantidad, costoUnitario: costo }]);
             setOk(`✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)})`);
-            setCantidad(20);
-            setCosto(0);
+            setCantidadTexto("20");
+            setCostoTexto("");
             setMotivo("Ingreso de mercadería");
             await refrescar();
         } catch (err) {
             console.error("Error al registrar entrada", err);
-            setOk(`✗ Error al registrar la entrada: ${err instanceof Error ? err.message : "No se pudo conectar con el servidor"}`);
+            setErrorForm(err instanceof Error ? err.message : "No se pudo conectar con el servidor.");
         }
         setTimeout(() => setOk(""), 6000);
     };
@@ -92,11 +118,12 @@ function Entradas() {
                     </label>
                     <select
                         className={inputClass + " cursor-pointer"}
-                        value={productoId}
-                        onChange={(e) => setProductoId(Number(e.target.value))}
+                        value={prod?.id ?? 0}
+                        onChange={(e) => setProductoId(Number(e.target.value) || 0)}
                         disabled={cargando}
                     >
                         {cargando && <option value={0}>Cargando productos...</option>}
+                        {!cargando && activos.length === 0 && <option value={0}>Sin productos activos</option>}
                         {activos.map((p) => (
                             <option key={p.id} value={p.id}>
                                 {p.nombre} (Stock actual: {p.stock})
@@ -114,9 +141,10 @@ function Entradas() {
                             className={inputClass}
                             type="text"
                             inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={cantidad}
-                            onChange={(e) => setCantidad(e.target.value === "" ? 0 : Number(e.target.value))}
+                            placeholder="Ej. 20"
+                            value={cantidadTexto}
+                            onChange={(e) => setCantidadTexto(limpiarEnteroNoNegativo(e.target.value))}
+                            required
                         />
                     </div>
                     <div className="space-y-1.5">
@@ -127,9 +155,8 @@ function Entradas() {
                             className={inputClass}
                             type="text"
                             inputMode="decimal"
-                            pattern="[0-9.]*"
-                            value={costo}
-                            onChange={(e) => setCosto(Number(e.target.value))}
+                            value={costoTexto}
+                            onChange={(e) => setCostoTexto(limpiarDecimal(e.target.value))}
                             placeholder="0.00"
                         />
                     </div>
@@ -170,6 +197,12 @@ function Entradas() {
                     Operador: <strong className="text-slate-600 dark:text-slate-300">{usuario?.nombre ?? "Almacén"}</strong> · Asiento inmediato en Kardex
                 </p>
 
+                {errorForm && (
+                    <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-semibold text-xs border border-red-200 dark:border-red-800/60">
+                        {errorForm}
+                    </div>
+                )}
+
                 {ok && (
                     <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-200 dark:border-emerald-800/60">
                         {ok}
@@ -181,9 +214,10 @@ function Entradas() {
                         type="button"
                         className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-all cursor-pointer"
                         onClick={() => {
-                            setCantidad(20);
-                            setCosto(0);
+                            setCantidadTexto("20");
+                            setCostoTexto("");
                             setMotivo("Ingreso de mercadería");
+                            setErrorForm("");
                             setOk("");
                         }}
                     >

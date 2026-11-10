@@ -12,6 +12,11 @@ import { crearPedidoBackend } from "../../services/pedidosApi";
 import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido, Pedido } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 import { descargarComprobantePdf } from "../../services/comprobantePdf";
+import {
+    esCorreoValido,
+    limpiarCodigoAlfanumerico,
+    limpiarSoloLetras,
+} from "../../utils/validaciones";
 
 // Envío gratis desde este monto para Delivery Propio en zona; si no, tarifa zonal fija
 const UMBRAL_ENVIO_GRATIS = 499;
@@ -854,7 +859,7 @@ function Carrito() {
                                                 className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer"
                                                 onClick={() => {
                                                     setErrorEnvio(null);
-                                                    if (!correoContacto.trim() || !correoContacto.includes("@")) {
+                                                    if (!esCorreoValido(correoContacto)) {
                                                         setErrorEnvio("Ingresa un correo electrónico válido.");
                                                         return;
                                                     }
@@ -1127,7 +1132,7 @@ function Carrito() {
                                                         type="text"
                                                         placeholder="Como figura en la tarjeta"
                                                         value={nombreTitular}
-                                                        onChange={(e) => setNombreTitular(e.target.value)}
+                                                        onChange={(e) => setNombreTitular(limpiarSoloLetras(e.target.value, 80))}
                                                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                                                         required
                                                     />
@@ -1243,7 +1248,7 @@ function Carrito() {
                                                         maxLength={30}
                                                         placeholder="Ej. 00481920"
                                                         value={numeroOperacionTransf}
-                                                        onChange={(e) => setNumeroOperacionTransf(e.target.value)}
+                                                        onChange={(e) => setNumeroOperacionTransf(limpiarCodigoAlfanumerico(e.target.value, 30, true))}
                                                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
                                                         required
                                                     />

@@ -2,7 +2,9 @@ export interface UsuarioDTO {
     id: number;
     username: string;
     nombre: string;
+    nombreCompleto?: string;
     email: string;
+    correo?: string;
     telefono: string;
     rol: string;
     bloqueado: boolean;
@@ -10,6 +12,29 @@ export interface UsuarioDTO {
     fechaRegistro: string;
     ultimoAcceso: string;
     requiereCambioPassword?: boolean;
+}
+
+type UsuarioBackendRaw = Record<string, unknown>;
+
+function normalizarUsuarioDTO(raw: UsuarioBackendRaw): UsuarioDTO {
+    const username = String(raw.username || "");
+    const nombre = String(raw.nombreCompleto || raw.nombre || username);
+    const email = String(raw.correo || raw.email || "");
+    return {
+        id: Number(raw.id),
+        username,
+        nombre,
+        nombreCompleto: nombre,
+        email,
+        correo: email,
+        telefono: String(raw.telefono || "—"),
+        rol: String(raw.rol || "CLIENTE"),
+        bloqueado: Boolean(raw.bloqueado),
+        estado: raw.estado ? String(raw.estado) : undefined,
+        fechaRegistro: String(raw.fechaRegistro || ""),
+        ultimoAcceso: String(raw.ultimoAcceso || "—"),
+        requiereCambioPassword: Boolean(raw.requiereCambioPassword),
+    };
 }
 
 export interface CrearUsuarioDatos {
@@ -35,7 +60,8 @@ export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
         headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) throw new Error("Error al listar usuarios");
-    return res.json();
+    const data = (await res.json()) as UsuarioBackendRaw[];
+    return Array.isArray(data) ? data.map(normalizarUsuarioDTO) : [];
 }
 
 export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Promise<UsuarioCreadoAdmin> {
@@ -49,7 +75,10 @@ export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Pro
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || data.message || "Error al crear usuario");
-    return data as UsuarioCreadoAdmin;
+    return {
+        usuario: normalizarUsuarioDTO((data.usuario || {}) as UsuarioBackendRaw),
+        passwordTemporal: String(data.passwordTemporal || ""),
+    };
 }
 
 export async function cambiarPasswordPerfil(
@@ -81,7 +110,7 @@ export async function cambiarRolUsuario(token: string, id: number, rol: string):
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Error al cambiar rol");
-    return data;
+    return normalizarUsuarioDTO(data as UsuarioBackendRaw);
 }
 
 export async function cambiarEstadoUsuario(token: string, id: number, bloqueado: boolean): Promise<UsuarioDTO> {
@@ -95,7 +124,7 @@ export async function cambiarEstadoUsuario(token: string, id: number, bloqueado:
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Error al cambiar estado");
-    return data;
+    return normalizarUsuarioDTO(data as UsuarioBackendRaw);
 }
 
 export async function darDeBajaLogicaUsuario(token: string, id: number): Promise<UsuarioDTO> {
@@ -105,7 +134,7 @@ export async function darDeBajaLogicaUsuario(token: string, id: number): Promise
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Error al dar de baja lógica al usuario");
-    return data;
+    return normalizarUsuarioDTO(data as UsuarioBackendRaw);
 }
 
 export async function eliminarUsuario(token: string, id: number): Promise<void> {

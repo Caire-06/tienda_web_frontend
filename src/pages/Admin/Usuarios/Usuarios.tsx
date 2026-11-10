@@ -74,7 +74,7 @@ function Usuarios() {
     const [guardando, setGuardando] = useState(false);
     const [errorForm, setErrorForm] = useState("");
     const [credencialesCreadas, setCredencialesCreadas] = useState<UsuarioCreadoAdmin | null>(null);
-    const [copiado, setCopiado] = useState(false);
+    const [campoCopiado, setCampoCopiado] = useState<"usuario" | "password" | null>(null);
 
     const [nuevoForm, setNuevoForm] = useState<CrearUsuarioDatos>(FORM_INICIAL);
 
@@ -141,7 +141,7 @@ function Usuarios() {
         setNuevoForm(FORM_INICIAL);
         setErrorForm("");
         setCredencialesCreadas(null);
-        setCopiado(false);
+        setCampoCopiado(null);
         setModalCrear(true);
     };
 
@@ -149,7 +149,7 @@ function Usuarios() {
         setModalCrear(false);
         setErrorForm("");
         setCredencialesCreadas(null);
-        setCopiado(false);
+        setCampoCopiado(null);
     };
 
     const handleCrearUsuario = async (e: React.FormEvent) => {
@@ -183,7 +183,7 @@ function Usuarios() {
             });
             setLista((prev) => [creado.usuario, ...prev]);
             setCredencialesCreadas(creado);
-            setCopiado(false);
+            setCampoCopiado(null);
             setNuevoForm(FORM_INICIAL);
         } catch (err: unknown) {
             setErrorForm(err instanceof Error ? err.message : "Error al crear usuario");
@@ -192,21 +192,13 @@ function Usuarios() {
         }
     };
 
-    const handleCopiarCredenciales = async () => {
-        if (!credencialesCreadas) return;
-        const { usuario, passwordTemporal } = credencialesCreadas;
-        const texto = [
-            "Credenciales de acceso - TechStore",
-            `Nombre: ${usuario.nombre}`,
-            `Rol: ${usuario.rol}`,
-            `Usuario: ${usuario.username}`,
-            `Contraseña temporal: ${passwordTemporal}`,
-            "Nota: Al iniciar sesión por primera vez deberás actualizar tu contraseña.",
-        ].join("\n");
-        const ok = await copiarTexto(texto);
+    const handleCopiarDato = async (campo: "usuario" | "password", valor: string) => {
+        const ok = await copiarTexto(valor);
         if (ok) {
-            setCopiado(true);
-            window.setTimeout(() => setCopiado(false), 2500);
+            setCampoCopiado(campo);
+            window.setTimeout(() => {
+                setCampoCopiado((actual) => (actual === campo ? null : actual));
+            }, 2200);
         }
     };
 
@@ -433,10 +425,12 @@ function Usuarios() {
                                     Usuario registrado correctamente. Entrega estas credenciales al usuario.
                                 </div>
 
-                                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-2.5 text-xs">
+                                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3 text-xs">
                                     <div className="flex items-center justify-between gap-3">
                                         <span className="text-slate-500 dark:text-slate-400 font-medium">Nombre completo</span>
-                                        <strong className="text-slate-900 dark:text-white">{credencialesCreadas.usuario.nombre}</strong>
+                                        <strong className="text-slate-900 dark:text-white">
+                                            {credencialesCreadas.usuario.nombre || credencialesCreadas.usuario.username}
+                                        </strong>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
                                         <span className="text-slate-500 dark:text-slate-400 font-medium">Rol asignado</span>
@@ -444,17 +438,43 @@ function Usuarios() {
                                             {credencialesCreadas.usuario.rol}
                                         </span>
                                     </div>
-                                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                                    <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
                                         <span className="text-slate-500 dark:text-slate-400 font-medium">Usuario</span>
-                                        <code className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white select-all">
-                                            {credencialesCreadas.usuario.username}
-                                        </code>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white select-all">
+                                                {credencialesCreadas.usuario.username}
+                                            </code>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopiarDato("usuario", credencialesCreadas.usuario.username)}
+                                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg cursor-pointer transition-colors ${
+                                                    campoCopiado === "usuario"
+                                                        ? "bg-emerald-600 text-white"
+                                                        : "bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white"
+                                                }`}
+                                            >
+                                                {campoCopiado === "usuario" ? "✓ Copiado" : "Copiar usuario"}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center justify-between gap-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
                                         <span className="text-slate-500 dark:text-slate-400 font-medium">Contraseña temporal</span>
-                                        <code className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 font-mono font-bold text-amber-900 dark:text-amber-200 select-all">
-                                            {credencialesCreadas.passwordTemporal}
-                                        </code>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 font-mono font-bold text-amber-900 dark:text-amber-200 select-all">
+                                                {credencialesCreadas.passwordTemporal}
+                                            </code>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopiarDato("password", credencialesCreadas.passwordTemporal)}
+                                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg cursor-pointer transition-colors ${
+                                                    campoCopiado === "password"
+                                                        ? "bg-emerald-600 text-white"
+                                                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                                                }`}
+                                            >
+                                                {campoCopiado === "password" ? "✓ Copiada" : "Copiar contraseña"}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -462,39 +482,25 @@ function Usuarios() {
                                     Al iniciar sesión por primera vez con esta cuenta, el sistema mostrará un aviso solicitando actualizar su contraseña temporal.
                                 </p>
 
-                                <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
                                     <button
                                         type="button"
-                                        onClick={handleCopiarCredenciales}
-                                        className={`px-4 py-2 text-xs font-bold rounded-xl shadow-xs cursor-pointer transition-all ${
-                                            copiado
-                                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                                : "bg-blue-600 hover:bg-blue-700 text-white"
-                                        }`}
+                                        onClick={() => {
+                                            setCredencialesCreadas(null);
+                                            setCampoCopiado(null);
+                                            setErrorForm("");
+                                        }}
+                                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
                                     >
-                                        {copiado ? "✓ Credenciales copiadas" : "Copiar credenciales"}
+                                        Crear otro
                                     </button>
-
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCredencialesCreadas(null);
-                                                setCopiado(false);
-                                                setErrorForm("");
-                                            }}
-                                            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
-                                        >
-                                            Crear otro
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={cerrarModalCrear}
-                                            className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                                        >
-                                            Cerrar
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={cerrarModalCrear}
+                                        className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white cursor-pointer"
+                                    >
+                                        Cerrar
+                                    </button>
                                 </div>
                             </div>
                         ) : (

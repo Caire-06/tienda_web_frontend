@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { cambiarPasswordPerfil } from "../../services/usuariosApi";
+import IndicadorSeguridadPassword from "../IndicadorSeguridadPassword/IndicadorSeguridadPassword";
 
 interface FormularioCambioPasswordProps {
     token: string;
@@ -92,6 +93,7 @@ function FormularioCambioPassword({
                         value={nueva}
                         onChange={(e) => setNueva(e.target.value)}
                     />
+                    <IndicadorSeguridadPassword password={nueva} />
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">

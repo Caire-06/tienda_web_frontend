@@ -22,10 +22,6 @@ function Productos() {
 
     useEffect(() => {
         let activo = true;
-        if (!token) {
-            setCargando(false);
-            return;
-        }
         setCargando(true);
         listarProductos(token)
             .then((lista) => { if (activo) setBackendProductos(lista); })

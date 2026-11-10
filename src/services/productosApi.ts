@@ -27,17 +27,22 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
     };
 }
 
-/** GET /api/productos — listar productos para el módulo de Almacén. */
-export async function listarProductos(token: string): Promise<ProductoInv[]> {
-    const resp = await fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` } });
+/** Cabeceras para endpoints públicos: solo envía el token si existe una sesión. */
+function cabecerasOpcionales(token?: string | null): HeadersInit {
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** GET /api/productos — listar productos (endpoint público, funciona con o sin sesión). */
+export async function listarProductos(token?: string | null): Promise<ProductoInv[]> {
+    const resp = await fetch("/api/productos", { headers: cabecerasOpcionales(token) });
     if (!resp.ok) throw new Error("No se pudo listar productos");
     const data = (await resp.json()) as ProductoBackend[];
     return (Array.isArray(data) ? data : []).map(aProductoInv);
 }
 
-/** GET /api/productos/{id} — detalle del producto. */
-export async function obtenerProducto(token: string, id: number): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+/** GET /api/productos/{id} — detalle del producto (endpoint público, funciona con o sin sesión). */
+export async function obtenerProducto(token: string | null | undefined, id: number): Promise<ProductoInv> {
+    const resp = await fetch(`/api/productos/${id}`, { headers: cabecerasOpcionales(token) });
     if (!resp.ok) throw new Error("No se pudo obtener el producto");
     const data = (await resp.json()) as ProductoBackend;
     return aProductoInv(data);

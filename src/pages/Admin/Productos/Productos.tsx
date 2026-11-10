@@ -8,7 +8,6 @@ import {
 } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 
-// Catálogos 3FN Relacionales Normalizados
 const CATALOGO_CATEGORIAS = [
     { id: 1, nombre: "Laptops", codigo: "CAT-01" },
     { id: 2, nombre: "Smartphones", codigo: "CAT-02" },
@@ -81,7 +80,7 @@ function Productos() {
             const data = await listarProductos(token);
             setProductos(data);
         } catch (err: any) {
-            setError(err.message || "Error al cargar productos desde PostgreSQL");
+            setError(err.message || "Error al cargar productos");
         } finally {
             setCargando(false);
         }
@@ -141,7 +140,7 @@ function Productos() {
                     descripcion: form.descripcion,
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
-                alert("Producto actualizado exitosamente en PostgreSQL.");
+                alert("Producto actualizado exitosamente.");
             } else {
                 const creado = await crearProducto(token, {
                     nombre: form.nombre,
@@ -152,7 +151,7 @@ function Productos() {
                     descripcion: form.descripcion,
                 });
                 setProductos((prev) => [creado, ...prev]);
-                alert("Producto registrado exitosamente en PostgreSQL (3FN).");
+                alert("Producto registrado exitosamente.");
             }
             setModalAbierto(false);
         } catch (err: any) {
@@ -164,17 +163,17 @@ function Productos() {
 
     const handleBajaLogica = async (p: ProductoInv) => {
         if (!token) return;
-        if (!window.confirm(`¿Confirmar baja lógica para el producto "${p.nombre}"? Se mantendrá el registro en auditoría e histórico de kardex.`)) return;
+        if (!window.confirm(`¿Confirmar baja para el producto "${p.nombre}"?`)) return;
         try {
             const actualizado = await darDeBajaLogicaProducto(token, p.id);
             setProductos((prev) => prev.map((item) => (item.id === p.id ? actualizado : item)));
         } catch (err: any) {
-            alert(err.message || "No se pudo dar de baja lógica al producto");
+            alert(err.message || "No se pudo dar de baja al producto");
         }
     };
 
     const estadoDe = (stock: number, activo: boolean) =>
-        !activo ? "Inactivo" : stock === 0 ? "Sin stock" : stock < 10 ? "Stock crítico" : "Disponible";
+        !activo ? "Inactivo" : stock === 0 ? "Sin stock" : stock < 10 ? "Stock bajo" : "Disponible";
 
     const filtrados = productos.filter((p) => {
         if (filtroCategoria !== "Todas" && p.categoria !== filtroCategoria) return false;
@@ -192,10 +191,10 @@ function Productos() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-                        Gestión Administrativa de Catálogo (3FN)
+                        Catálogo de Productos
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Control total de catálogo: creación, edición, asignación de maestros relacionales y baja lógica.
+                        Control general de catálogo: inventario físico, precios, categorías y disponibilidad.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -209,7 +208,7 @@ function Productos() {
                         onClick={abrirCrear}
                         className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                     >
-                        <span>+</span> Nuevo Producto (3FN)
+                        <span>+</span> Nuevo Producto
                     </button>
                 </div>
             </div>
@@ -237,23 +236,23 @@ function Productos() {
                 <select className={selectClass} value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
                     <option value="Todos">Todos los Estados</option>
                     <option value="Disponible">Disponible</option>
-                    <option value="Stock crítico">Stock crítico (&lt;10)</option>
+                    <option value="Stock bajo">Stock bajo (&lt;10)</option>
                     <option value="Sin stock">Sin stock (0)</option>
-                    <option value="Inactivo">Inactivo / Baja</option>
+                    <option value="Inactivo">Inactivo</option>
                 </select>
             </div>
 
-            {/* Tabla Administrativa */}
+            {/* Tabla de Productos */}
             <div className="tabla-wrap">
                 <table className="tabla">
                     <thead>
                         <tr>
                             <th>Producto</th>
-                            <th>Categoría (3FN)</th>
+                            <th>Categoría</th>
                             <th>Precio Unitario</th>
                             <th>Stock Físico</th>
                             <th>Vendidos</th>
-                            <th>Estado Operativo</th>
+                            <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -261,7 +260,7 @@ function Productos() {
                         {cargando ? (
                             <tr>
                                 <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
-                                    Consultando catálogo en PostgreSQL...
+                                    Cargando catálogo...
                                 </td>
                             </tr>
                         ) : filtrados.length === 0 ? (
@@ -274,7 +273,7 @@ function Productos() {
                             filtrados.map((p) => {
                                 const est = estadoDe(p.stock, p.activo);
                                 const badgeClass =
-                                    est === "Disponible" ? "ok" : est === "Stock crítico" ? "pend" : "off";
+                                    est === "Disponible" ? "ok" : est === "Stock bajo" ? "pend" : "off";
                                 return (
                                     <tr key={p.id}>
                                         <td>
@@ -322,7 +321,7 @@ function Productos() {
                                                     <button
                                                         onClick={() => handleBajaLogica(p)}
                                                         className="btn-mini text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                                                        title="Baja lógica (Desactivar)"
+                                                        title="Dar de baja"
                                                     >
                                                         Baja
                                                     </button>
@@ -342,7 +341,7 @@ function Productos() {
                 <div className="modal-fondo">
                     <div className="modal-mediano max-w-xl" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
-                            <h2>{modoEdicion ? "Editar Producto" : "+ Nuevo Producto (Catálogos 3FN)"}</h2>
+                            <h2>{modoEdicion ? "Editar Producto" : "+ Nuevo Producto"}</h2>
                             <button className="modal-cerrar" onClick={() => setModalAbierto(false)}>
                                 ✕
                             </button>
@@ -364,7 +363,7 @@ function Productos() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Categoría (3FN) *
+                                        Categoría *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
@@ -378,7 +377,7 @@ function Productos() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Marca (3FN) *
+                                        Marca *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
@@ -392,7 +391,7 @@ function Productos() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Unidad Medida (SUNAT) *
+                                        Unidad de Medida *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
@@ -423,7 +422,7 @@ function Productos() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Stock Físico Inicial *
+                                        Stock Físico *
                                     </label>
                                     <input
                                         required
@@ -438,7 +437,7 @@ function Productos() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    URL Imagen (o Cloudinary)
+                                    URL de Imagen
                                 </label>
                                 <input
                                     type="url"
@@ -456,7 +455,7 @@ function Productos() {
                                 <textarea
                                     rows={2}
                                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                                    placeholder="Especificaciones técnicas..."
+                                    placeholder="Especificaciones del producto..."
                                     value={form.descripcion}
                                     onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                                 />

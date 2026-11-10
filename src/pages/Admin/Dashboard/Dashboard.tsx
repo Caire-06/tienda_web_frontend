@@ -20,17 +20,13 @@ function Dashboard() {
 
     const [kpis, setKpis] = useState<DashboardKpis | null>(null);
     const [cargando, setCargando] = useState(true);
-    const [error, setError] = useState<string | null>(null);
 
     const cargarDatos = async () => {
         if (!token) return;
         setCargando(true);
-        setError(null);
         try {
             const data = await obtenerDashboardKpis(token);
             setKpis(data);
-        } catch (err: any) {
-            setError(err.message || "Error al sincronizar KPIs con el backend");
         } finally {
             setCargando(false);
         }
@@ -58,24 +54,18 @@ function Dashboard() {
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Dashboard General</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Métricas y KPIs calculados y centralizados en el servidor backend (PostgreSQL 3FN).
+                        Métricas y resumen operativo general en tiempo real.
                     </p>
                 </div>
                 <button
                     onClick={cargarDatos}
                     className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                 >
-                    ↻ Actualizar Métricas (Backend)
+                    ↻ Actualizar Métricas
                 </button>
             </div>
 
-            {error && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-                    {error}
-                </div>
-            )}
-
-            {/* Tarjetas KPI calculadas en servidor */}
+            {/* Tarjetas KPI */}
             <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
                 <div className="admin-card">
                     <span>Ventas hoy</span>
@@ -94,18 +84,18 @@ function Dashboard() {
                     <strong>{totalProductos}</strong>
                 </div>
                 <div className="admin-card">
-                    <span>Usuarios BD</span>
+                    <span>Usuarios</span>
                     <strong>{totalUsuarios}</strong>
                 </div>
                 <div className="admin-card alerta">
-                    <span>Stock crítico (&lt;10)</span>
+                    <span>Stock bajo (&lt;10)</span>
                     <strong>{stockCriticoCount}</strong>
                 </div>
             </section>
 
             {cargando && (
                 <div className="text-center py-4 text-xs text-slate-400">
-                    Sincronizando KPIs consolidados con PostgreSQL...
+                    Actualizando métricas...
                 </div>
             )}
 
@@ -188,9 +178,9 @@ function Dashboard() {
                 </section>
             </div>
 
-            {/* Alertas de Inventario Crítico */}
+            {/* Alertas de Inventario */}
             <section className="space-y-3">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">Alertas de inventario crítico (&lt; 10 unidades)</h2>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Alertas de inventario</h2>
                 {criticos.length === 0 ? (
                     <p className="text-sm text-slate-500">Todo el stock físico está en niveles seguros (&gt;= 10 unidades).</p>
                 ) : (
@@ -200,9 +190,9 @@ function Dashboard() {
                                 <tr>
                                     <th>Producto</th>
                                     <th>Categoría</th>
-                                    <th>Stock Físico</th>
+                                    <th>Stock Actual</th>
                                     <th>Precio</th>
-                                    <th>Estado Crítico</th>
+                                    <th>Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -214,7 +204,7 @@ function Dashboard() {
                                         <td className="font-mono">S/ {Number(p.precio).toFixed(2)}</td>
                                         <td>
                                             <span className={`badge ${p.stock === 0 ? "off" : "pend"}`}>
-                                                {p.stock === 0 ? "Agotado (0)" : `Crítico (${p.stock})`}
+                                                {p.stock === 0 ? "Agotado (0)" : `Stock bajo (${p.stock})`}
                                             </span>
                                         </td>
                                     </tr>

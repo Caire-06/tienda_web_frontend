@@ -19,7 +19,7 @@ function Reportes() {
             const data = await obtenerReporteParametrizado(token, tipo);
             setDatos(data);
         } catch (err: any) {
-            setError(err.message || "Error al cargar reporte desde PostgreSQL");
+            setError(err.message || "Error al cargar reporte");
         } finally {
             setCargando(false);
         }
@@ -53,7 +53,7 @@ function Reportes() {
                 Number(r.total).toFixed(2),
             ]);
         } else if (tipoActivo === "inventario") {
-            headers = ["ID", "Producto", "Categoría", "Precio (S/)", "Stock Físico", "Vendidos", "Stock Valorizado (S/)", "Rotación Crítica", "Estado"];
+            headers = ["ID", "Producto", "Categoría", "Precio (S/)", "Stock Físico", "Vendidos", "Stock Valorizado (S/)", "Stock Bajo", "Estado"];
             rows = datos.filas.map((r: any) => [
                 r.id,
                 `"${r.nombre}"`,
@@ -95,10 +95,10 @@ function Reportes() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-                        Reportería Estratégica (Etapa 7)
+                        Reportes del Sistema
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Consultas analíticas consolidadas en PostgreSQL. Integración con motor analítico Apache ECharts y exportación obligatoria a Excel.
+                        Consultas analíticas consolidadas de ventas, inventario y usuarios con exportación a Excel.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ function Reportes() {
                 </div>
             </div>
 
-            {/* Pestañas de Selección de Reporte de Cátedra */}
+            {/* Pestañas de Selección de Reporte */}
             <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
                 <button
                     onClick={() => setTipoActivo("ventas")}
@@ -127,7 +127,7 @@ function Reportes() {
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                 >
-                    1. Ventas &amp; Facturación
+                    1. Ventas y Facturación
                 </button>
                 <button
                     onClick={() => setTipoActivo("inventario")}
@@ -137,7 +137,7 @@ function Reportes() {
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                 >
-                    2. Inventario Valorizado &amp; Rotación
+                    2. Inventario y Rotación
                 </button>
                 <button
                     onClick={() => setTipoActivo("usuarios")}
@@ -147,7 +147,7 @@ function Reportes() {
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                 >
-                    3. Usuarios &amp; Auditoría de Seguridad
+                    3. Usuarios y Accesos
                 </button>
             </div>
 
@@ -159,11 +159,11 @@ function Reportes() {
 
             {cargando ? (
                 <div className="text-center py-12 text-sm text-slate-500">
-                    Procesando reporte analítico en servidor PostgreSQL...
+                    Procesando reporte analítico...
                 </div>
             ) : datos ? (
                 <div className="space-y-6">
-                    {/* RESUMEN ANALÍTICO SEGÚN TIPO */}
+                    {/* RESUMEN ANALÍTICO */}
                     {tipoActivo === "ventas" && (
                         <>
                             <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -181,16 +181,11 @@ function Reportes() {
                                 </div>
                             </section>
 
-                            {/* Panel Visual ECharts: Ventas Agrupadas por Fecha */}
+                            {/* Ventas Agrupadas por Fecha */}
                             <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                        Tablero Analítico Apache ECharts: Ventas por Día (S/)
-                                    </h3>
-                                    <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
-                                        Motor Gráfico: Apache ECharts Interactive
-                                    </span>
-                                </div>
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Ventas por Día (S/)
+                                </h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-2">
                                     {Object.entries(datos.ventasPorDia || {}).map(([fecha, tot]: any) => (
                                         <div key={fecha} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-center">
@@ -236,7 +231,7 @@ function Reportes() {
                                     <strong className="text-emerald-600">{datos.activos || 0}</strong>
                                 </div>
                                 <div className="admin-card">
-                                    <span>Inactivos / Baja</span>
+                                    <span>Inactivos</span>
                                     <strong className="text-slate-500">{datos.inactivos || 0}</strong>
                                 </div>
                                 <div className="admin-card alerta">
@@ -253,7 +248,7 @@ function Reportes() {
                             <thead>
                                 {tipoActivo === "ventas" && (
                                     <tr>
-                                        <th>N° Transacción</th>
+                                        <th>N° Venta</th>
                                         <th>Cliente</th>
                                         <th>Comprobante</th>
                                         <th>Fecha</th>
@@ -274,7 +269,7 @@ function Reportes() {
                                 {tipoActivo === "usuarios" && (
                                     <tr>
                                         <th>ID</th>
-                                        <th>Usuario Técnico</th>
+                                        <th>Usuario</th>
                                         <th>Rol</th>
                                         <th>Estado</th>
                                         <th>Intentos Fallidos</th>
@@ -322,7 +317,7 @@ function Reportes() {
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${f.rotacionCritica ? "off" : "ok"}`}>
-                                                            {f.rotacionCritica ? "Crítica (<10)" : "Normal"}
+                                                            {f.rotacionCritica ? "Stock bajo (<10)" : "Normal"}
                                                         </span>
                                                     </td>
                                                 </tr>

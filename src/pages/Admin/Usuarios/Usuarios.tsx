@@ -18,7 +18,7 @@ function Usuarios() {
     const [modalCrear, setModalCrear] = useState(false);
     const [guardando, setGuardando] = useState(false);
 
-    // Formulario de nuevo usuario respetando 3FN
+    // Formulario de nuevo usuario
     const [nuevoForm, setNuevoForm] = useState<CrearUsuarioDatos & {
         dni?: string;
         sexo?: string;
@@ -87,13 +87,13 @@ function Usuarios() {
 
     const handleBajaLogica = async (u: UsuarioDTO) => {
         if (!token) return;
-        if (!window.confirm(`¿Confirmar baja lógica para el usuario "${u.username}"? Su estado pasará a "Inactivo" preservando la integridad referencial y auditoría.`)) return;
+        if (!window.confirm(`¿Confirmar baja para el usuario "${u.username}"? El usuario pasará al estado "Inactivo".`)) return;
         try {
             const actualizado = await darDeBajaLogicaUsuario(token, u.id);
             setLista((prev) => prev.map((item) => (item.id === u.id ? actualizado : item)));
             if (detalle?.id === u.id) setDetalle(actualizado);
         } catch (err: any) {
-            alert(err.message || "No se pudo dar de baja lógica al usuario");
+            alert(err.message || "No se pudo dar de baja al usuario");
         }
     };
 
@@ -125,7 +125,7 @@ function Usuarios() {
                 departamento: "Lima",
                 distrito: "Miraflores",
             });
-            alert(`Usuario ${creado.username} registrado exitosamente bajo estándar 3FN.`);
+            alert(`Usuario ${creado.username} registrado exitosamente.`);
         } catch (err: any) {
             alert(err.message || "Error al crear usuario");
         } finally {
@@ -137,9 +137,9 @@ function Usuarios() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Gestión de Usuarios (3FN &amp; Auditoría)</h1>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Gestión de Usuarios</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        {lista.length} cuentas registradas. Identidad civil y contacto desacoplados según 3FN con trazabilidad completa.
+                        {lista.length} cuentas registradas en el sistema.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ function Usuarios() {
                         onClick={() => setModalCrear(true)}
                         className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                     >
-                        <span>+</span> Nuevo Usuario (3FN)
+                        <span>+</span> Nuevo Usuario
                     </button>
                 </div>
             </div>
@@ -168,11 +168,11 @@ function Usuarios() {
                 <table className="tabla">
                     <thead>
                         <tr>
-                            <th>Identidad Civil (DatosPersonales)</th>
-                            <th>Cuenta Técnica</th>
-                            <th>Contacto (3FN)</th>
+                            <th>Nombre Completo</th>
+                            <th>Usuario</th>
+                            <th>Contacto</th>
                             <th>Rol</th>
-                            <th>Estado (Auditoría)</th>
+                            <th>Estado</th>
                             <th>Último Acceso</th>
                             <th>Acciones</th>
                         </tr>
@@ -181,13 +181,13 @@ function Usuarios() {
                         {cargando ? (
                             <tr>
                                 <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
-                                    Consultando base de datos PostgreSQL...
+                                    Cargando usuarios...
                                 </td>
                             </tr>
                         ) : lista.length === 0 ? (
                             <tr>
                                 <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
-                                    No se encontraron usuarios en la base de datos.
+                                    No se encontraron usuarios registrados.
                                 </td>
                             </tr>
                         ) : (
@@ -221,7 +221,7 @@ function Usuarios() {
                                         </td>
                                         <td>
                                             <span className={`badge ${activo ? "ok" : "off"}`}>
-                                                {activo ? "Activo" : "Inactivo / Baja"}
+                                                {activo ? "Activo" : "Inactivo"}
                                             </span>
                                             {u.bloqueado && (
                                                 <span className="ml-1 badge off text-[10px]">Bloqueado</span>
@@ -238,7 +238,7 @@ function Usuarios() {
                                                         <button
                                                             className="btn-mini sec"
                                                             onClick={() => handleToggleEstado(u)}
-                                                            title="Alternar bloqueo temporal"
+                                                            title="Alternar bloqueo"
                                                         >
                                                             {u.bloqueado ? "Desbloquear" : "Bloquear"}
                                                         </button>
@@ -246,7 +246,7 @@ function Usuarios() {
                                                             <button
                                                                 className="btn-mini text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                                                                 onClick={() => handleBajaLogica(u)}
-                                                                title="Baja lógica (Inactivar en 3FN)"
+                                                                title="Dar de baja"
                                                             >
                                                                 Baja
                                                             </button>
@@ -263,45 +263,45 @@ function Usuarios() {
                 </table>
             </div>
 
-            {/* Modal Detalle Usuario 3FN */}
+            {/* Modal Detalle Usuario */}
             {detalle && (
                 <div className="modal-fondo">
                     <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
-                            <h2>Ficha de Usuario 3FN</h2>
+                            <h2>Detalle de Usuario</h2>
                             <button className="modal-cerrar" onClick={() => setDetalle(null)}>
                                 ✕
                             </button>
                         </div>
                         <dl className="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Nombre de Usuario (Técnico)</dt>
+                                <dt className="text-slate-500 font-medium">Nombre de Usuario</dt>
                                 <dd className="font-semibold text-slate-900 dark:text-white font-mono text-xs">
                                     {detalle.username}
                                 </dd>
                             </div>
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Identidad Civil (DatosPersonales)</dt>
+                                <dt className="text-slate-500 font-medium">Nombre Completo</dt>
                                 <dd className="font-semibold text-slate-900 dark:text-white text-xs">
                                     {detalle.nombre || detalle.username}
                                 </dd>
                             </div>
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Correo Electrónico (Tabla Hija 3FN)</dt>
+                                <dt className="text-slate-500 font-medium">Correo Electrónico</dt>
                                 <dd className="font-semibold text-slate-900 dark:text-white text-xs">{detalle.email}</dd>
                             </div>
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Teléfono (Tabla Hija 3FN)</dt>
+                                <dt className="text-slate-500 font-medium">Teléfono</dt>
                                 <dd className="font-semibold text-slate-900 dark:text-white text-xs">{detalle.telefono}</dd>
                             </div>
                             <div className="py-2.5 flex justify-between items-center">
-                                <dt className="text-slate-500 font-medium">Rol en Sistema</dt>
+                                <dt className="text-slate-500 font-medium">Rol en el Sistema</dt>
                                 <dd>
                                     <span className={`badge rol-${detalle.rol.toLowerCase()}`}>{detalle.rol}</span>
                                 </dd>
                             </div>
                             <div className="py-2.5 flex justify-between items-center">
-                                <dt className="text-slate-500 font-medium">Estado de Auditoría</dt>
+                                <dt className="text-slate-500 font-medium">Estado</dt>
                                 <dd>
                                     <span className={`badge ${detalle.estado === "Inactivo" ? "off" : "ok"}`}>
                                         {detalle.estado || (!detalle.bloqueado ? "Activo" : "Inactivo")}
@@ -325,19 +325,19 @@ function Usuarios() {
                 </div>
             )}
 
-            {/* Modal Crear Usuario con Campos 3FN */}
+            {/* Modal Crear Usuario */}
             {modalCrear && (
                 <div className="modal-fondo">
                     <div className="modal-mediano max-w-xl" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
-                            <h2>+ Nuevo Usuario (3FN Normalizado)</h2>
+                            <h2>+ Nuevo Usuario</h2>
                             <button className="modal-cerrar" onClick={() => setModalCrear(false)}>
                                 ✕
                             </button>
                         </div>
                         <form onSubmit={handleCrearUsuario} className="space-y-4">
                             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                1. Credenciales Técnicas (Tabla Usuarios)
+                                1. Credenciales de Acceso
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
@@ -367,7 +367,7 @@ function Usuarios() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Rol Asignado *
+                                        Rol *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
@@ -383,7 +383,7 @@ function Usuarios() {
                             </div>
 
                             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
-                                2. Identidad Civil (Tabla DatosPersonales)
+                                2. Datos Personales
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
@@ -425,12 +425,12 @@ function Usuarios() {
                             </div>
 
                             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
-                                3. Tablas Hijas de Contacto &amp; Geografía (3FN)
+                                3. Información de Contacto
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Correo Electrónico (Tabla CorreoElectronico)
+                                        Correo Electrónico
                                     </label>
                                     <div className="flex gap-2">
                                         <input
@@ -452,7 +452,7 @@ function Usuarios() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Teléfono (Tabla Telefono)
+                                        Teléfono
                                     </label>
                                     <div className="flex gap-2">
                                         <input
@@ -486,7 +486,7 @@ function Usuarios() {
                                     disabled={guardando}
                                     className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm cursor-pointer disabled:opacity-50"
                                 >
-                                    {guardando ? "Persistiendo en 3FN..." : "Crear Usuario"}
+                                    {guardando ? "Guardando..." : "Crear Usuario"}
                                 </button>
                             </div>
                         </form>

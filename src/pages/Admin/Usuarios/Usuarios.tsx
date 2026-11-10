@@ -8,6 +8,12 @@ import {
     darDeBajaLogicaUsuario,
 } from "../../../services/usuariosApi";
 import type { UsuarioDTO, CrearUsuarioDatos, UsuarioCreadoAdmin } from "../../../services/usuariosApi";
+import {
+    esCorreoValido,
+    esTelefonoValido,
+    limpiarSoloDigitos,
+    limpiarSoloLetras,
+} from "../../../utils/validaciones";
 
 const FORM_INICIAL: CrearUsuarioDatos = {
     username: "",
@@ -157,16 +163,26 @@ function Usuarios() {
         if (!token) return;
         setErrorForm("");
 
-        if (!nuevoForm.username.trim()) {
-            setErrorForm("El nombre de usuario es obligatorio.");
+        if (nuevoForm.username.trim().length < 3 || /\s/.test(nuevoForm.username.trim())) {
+            setErrorForm("El nombre de usuario debe tener al menos 3 caracteres y sin espacios.");
             return;
         }
-        if (!nuevoForm.nombres.trim() || !nuevoForm.apellidos.trim()) {
-            setErrorForm("Nombres y apellidos son obligatorios.");
+        if (nuevoForm.nombres.trim().length < 2 || nuevoForm.apellidos.trim().length < 2) {
+            setErrorForm("Nombres y apellidos son obligatorios (mínimo 2 caracteres).");
             return;
         }
         if (!/^\d{8}$/.test(nuevoForm.dni.trim())) {
             setErrorForm("El DNI debe contener exactamente 8 dígitos numéricos.");
+            return;
+        }
+        const correoLimpio = nuevoForm.correo?.trim() || "";
+        if (correoLimpio && !esCorreoValido(correoLimpio)) {
+            setErrorForm("Ingresa un correo electrónico válido.");
+            return;
+        }
+        const telLimpio = nuevoForm.telefono?.trim() || "";
+        if (telLimpio && !esTelefonoValido(telLimpio)) {
+            setErrorForm("El teléfono debe contener de 7 a 9 dígitos numéricos.");
             return;
         }
 
@@ -518,7 +534,9 @@ function Usuarios() {
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400"
                                         placeholder="Nombres"
                                         value={nuevoForm.nombres}
-                                        onChange={(e) => setNuevoForm({ ...nuevoForm, nombres: e.target.value })}
+                                        onChange={(e) =>
+                                            setNuevoForm({ ...nuevoForm, nombres: limpiarSoloLetras(e.target.value, 80) })
+                                        }
                                     />
                                 </div>
                                 <div>
@@ -530,7 +548,9 @@ function Usuarios() {
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400"
                                         placeholder="Apellidos"
                                         value={nuevoForm.apellidos}
-                                        onChange={(e) => setNuevoForm({ ...nuevoForm, apellidos: e.target.value })}
+                                        onChange={(e) =>
+                                            setNuevoForm({ ...nuevoForm, apellidos: limpiarSoloLetras(e.target.value, 80) })
+                                        }
                                     />
                                 </div>
                                 <div>
@@ -586,10 +606,18 @@ function Usuarios() {
                                     </label>
                                     <div className="flex gap-2">
                                         <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={9}
                                             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono placeholder-slate-400"
                                             placeholder="987654321"
                                             value={nuevoForm.telefono}
-                                            onChange={(e) => setNuevoForm({ ...nuevoForm, telefono: e.target.value })}
+                                            onChange={(e) =>
+                                                setNuevoForm({
+                                                    ...nuevoForm,
+                                                    telefono: limpiarSoloDigitos(e.target.value, 9),
+                                                })
+                                            }
                                         />
                                         <select
                                             className="px-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"

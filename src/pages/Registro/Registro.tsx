@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
+import { esCorreoValido, limpiarSoloLetras } from "../../utils/validaciones";
 
 function Registro() {
     const [nombre, setNombre] = useState("");
@@ -39,8 +40,8 @@ function Registro() {
             setError("Ingresa tu apellido");
             return;
         }
-        if (!correo.includes("@") || !correo.includes(".")) {
-            setError("Ingresa un correo válido");
+        if (!esCorreoValido(correo)) {
+            setError("Ingresa un correo electrónico válido");
             return;
         }
         if (password.length < 6) {
@@ -187,7 +188,7 @@ function Registro() {
                                             className={inputClass}
                                             type="text"
                                             value={nombre}
-                                            onChange={(e) => setNombre(e.target.value)}
+                                            onChange={(e) => setNombre(limpiarSoloLetras(e.target.value, 80))}
                                             placeholder="Juan"
                                         />
                                     </div>
@@ -199,7 +200,7 @@ function Registro() {
                                             className={inputClass}
                                             type="text"
                                             value={apellido}
-                                            onChange={(e) => setApellido(e.target.value)}
+                                            onChange={(e) => setApellido(limpiarSoloLetras(e.target.value, 80))}
                                             placeholder="Pérez"
                                         />
                                     </div>

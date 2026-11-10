@@ -8,9 +8,17 @@ import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
 import FormularioCambioPassword from "../../components/FormularioCambioPassword/FormularioCambioPassword";
+import {
+    esDocumentoPeruanoValido,
+    esTelefonoValido,
+    limpiarSoloDigitos,
+    limpiarSoloLetras,
+} from "../../utils/validaciones";
 
 interface Perfil {
     nombre: string;
+    nombres: string;
+    apellidos: string;
     correo: string;
     telefono: string;
     documento: string;
@@ -19,15 +27,37 @@ interface Perfil {
     miembroDesde: string;
 }
 
+interface BorradorPerfil {
+    nombres: string;
+    apellidos: string;
+    telefono: string;
+    documento: string;
+    direccion: string;
+}
+
 type PerfilBackend = {
     idUsuario: number; nombres: string; apellidos: string; documento: string;
     correo: string; telefono: string; direccion: string; ciudad: string; rol: string;
 };
 function desdeBackend(data: PerfilBackend): Perfil {
+    const nombres = data.nombres || "";
+    const apellidos = data.apellidos || "";
     return {
-        nombre: `${data.nombres || ""} ${data.apellidos || ""}`.trim(),
+        nombre: `${nombres} ${apellidos}`.trim(),
+        nombres,
+        apellidos,
         correo: data.correo || "", telefono: data.telefono || "", documento: data.documento || "",
         direccion: data.direccion || "", ciudad: data.ciudad || "", miembroDesde: "2026",
+    };
+}
+
+function aBorrador(p: Perfil): BorradorPerfil {
+    return {
+        nombres: p.nombres,
+        apellidos: p.apellidos,
+        telefono: p.telefono,
+        documento: p.documento,
+        direccion: p.direccion,
     };
 }
 
@@ -41,11 +71,21 @@ interface MiCuentaDetalleProps {
 
 function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActualizada, token }: MiCuentaDetalleProps) {
     const navigate = useNavigate();
-    const [perfil, setPerfil] = useState<Perfil>({ nombre: usuario.nombre, correo: usuario.acceso,
-        telefono: "", documento: "", direccion: "", ciudad: "", miembroDesde: "2026" });
-    const [nombres, setNombres] = useState("");
-    const [apellidos, setApellidos] = useState("");
+    const perfilInicial: Perfil = {
+        nombre: usuario.nombre,
+        nombres: "",
+        apellidos: "",
+        correo: usuario.acceso,
+        telefono: "",
+        documento: "",
+        direccion: "",
+        ciudad: "",
+        miembroDesde: "2026",
+    };
+    const [perfil, setPerfil] = useState<Perfil>(perfilInicial);
+    const [borrador, setBorrador] = useState<BorradorPerfil>(aBorrador(perfilInicial));
     const [cargando, setCargando] = useState(true);
+    const [errorCarga, setErrorCarga] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [error, setError] = useState("");
     const [editando, setEditando] = useState(false);
@@ -63,9 +103,12 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
             })
             .then(data => {
                 if (!activo) return;
-                setPerfil(desdeBackend(data)); setNombres(data.nombres || ""); setApellidos(data.apellidos || "");
+                const cargado = desdeBackend(data);
+                setPerfil(cargado);
+                setBorrador(aBorrador(cargado));
+                setErrorCarga("");
             })
-            .catch(e => { if (activo) setError(e instanceof Error ? e.message : "Error al cargar el perfil"); })
+            .catch(e => { if (activo) setErrorCarga(e instanceof Error ? e.message : "Error al cargar el perfil"); })
             .finally(() => { if (activo) setCargando(false); });
         return () => { activo = false; };
     }, [token]);
@@ -85,19 +128,35 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
     const ultimoPedido = pedidos[0] ?? null;
 
     const guardar = async (e: React.FormEvent) => {
-        e.preventDefault(); setError(""); setGuardado(false); setGuardando(true);
+        e.preventDefault(); setError(""); setGuardado(false);
+        if (borrador.nombres.trim().length < 2 || borrador.apellidos.trim().length < 2) {
+            setError("Nombres y apellidos deben tener al menos 2 caracteres.");
+            return;
+        }
+        const telLimpio = borrador.telefono.trim();
+        if (telLimpio && !esTelefonoValido(telLimpio)) {
+            setError("El teléfono debe contener de 7 a 9 dígitos numéricos.");
+            return;
+        }
+        const docCheck = esDocumentoPeruanoValido(borrador.documento);
+        if (!docCheck.valido) {
+            setError(docCheck.mensaje || "Documento inválido.");
+            return;
+        }
+        setGuardando(true);
         try {
             const resp = await fetch("/api/perfil", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ nombres: nombres.trim(), apellidos: apellidos.trim(),
-                    documento: perfil.documento.trim(), telefono: perfil.telefono.trim(),
-                    direccion: perfil.direccion.trim() }),
+                body: JSON.stringify({ nombres: borrador.nombres.trim(), apellidos: borrador.apellidos.trim(),
+                    documento: borrador.documento.trim(), telefono: borrador.telefono.trim(),
+                    direccion: borrador.direccion.trim() }),
             });
             const data = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(data.error || data.message || "No se pudo guardar el perfil");
             const nuevo = desdeBackend(data as PerfilBackend);
-            setPerfil(nuevo); setNombres(data.nombres || ""); setApellidos(data.apellidos || "");
+            setPerfil(nuevo);
+            setBorrador(aBorrador(nuevo));
             actualizarNombre(nuevo.nombre);
             setEditando(false); setGuardado(true);
         } catch (e) {
@@ -105,8 +164,21 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
         } finally { setGuardando(false); }
     };
 
-    const cambiar = (campo: keyof Perfil, valor: string) =>
-        setPerfil((prev) => ({ ...prev, [campo]: valor }));
+    const cambiarBorrador = (campo: keyof BorradorPerfil, valor: string) =>
+        setBorrador((prev) => ({ ...prev, [campo]: valor }));
+
+    const iniciarEdicion = () => {
+        setBorrador(aBorrador(perfil));
+        setError("");
+        setGuardado(false);
+        setEditando(true);
+    };
+
+    const cancelarEdicion = () => {
+        setBorrador(aBorrador(perfil));
+        setError("");
+        setEditando(false);
+    };
 
     const salir = () => {
         logout();
@@ -176,8 +248,8 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                     <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                             <h2 className="text-base font-bold">Datos personales</h2>
-                            {!editando && !cargando && !error && (
-                                <button className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer" onClick={() => setEditando(true)}>
+                            {!editando && !cargando && !errorCarga && (
+                                <button type="button" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer" onClick={iniciarEdicion}>
                                     Editar
                                 </button>
                             )}
@@ -187,23 +259,23 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                             <form onSubmit={guardar} className="space-y-3.5">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Nombres</label>
-                                    <input className={inputClass} value={nombres} onChange={(e) => setNombres(e.target.value)} required />
+                                    <input className={inputClass} value={borrador.nombres} onChange={(e) => cambiarBorrador("nombres", limpiarSoloLetras(e.target.value, 80))} required />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Apellidos</label>
-                                    <input className={inputClass} value={apellidos} onChange={(e) => setApellidos(e.target.value)} required />
+                                    <input className={inputClass} value={borrador.apellidos} onChange={(e) => cambiarBorrador("apellidos", limpiarSoloLetras(e.target.value, 80))} required />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Teléfono</label>
-                                    <input className={inputClass} value={perfil.telefono} onChange={(e) => cambiar("telefono", e.target.value)} placeholder="+51 987654321" />
+                                    <input className={inputClass + " font-mono"} type="text" inputMode="numeric" maxLength={9} value={borrador.telefono} onChange={(e) => cambiarBorrador("telefono", limpiarSoloDigitos(e.target.value, 9))} placeholder="987654321" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Documento (DNI/RUC)</label>
-                                    <input className={inputClass} value={perfil.documento} onChange={(e) => cambiar("documento", e.target.value)} placeholder="72345678" />
+                                    <input className={inputClass + " font-mono"} type="text" inputMode="numeric" maxLength={11} value={borrador.documento} onChange={(e) => cambiarBorrador("documento", limpiarSoloDigitos(e.target.value, 11))} placeholder="72345678" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Dirección</label>
-                                    <input className={inputClass} value={perfil.direccion} onChange={(e) => cambiar("direccion", e.target.value)} placeholder="Av. Los Olivos 123" />
+                                    <input className={inputClass} value={borrador.direccion} onChange={(e) => cambiarBorrador("direccion", e.target.value)} placeholder="Av. Los Olivos 123" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Ciudad</label>
@@ -211,7 +283,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                     <button type="submit" className="btn-mini" disabled={guardando}>{guardando ? "Guardando..." : "Guardar"}</button>
-                                    <button type="button" className="btn-mini sec" onClick={() => { setEditando(false); setError(""); }}>Cancelar</button>
+                                    <button type="button" className="btn-mini sec" onClick={cancelarEdicion}>Cancelar</button>
                                 </div>
                             </form>
                         ) : (
@@ -225,6 +297,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                             </dl>
                         )}
 
+                        {errorCarga && <p role="alert" className="text-xs text-red-600 font-semibold">{errorCarga}</p>}
                         {error && <p role="alert" className="text-xs text-red-600 font-semibold">{error}</p>}
                         {guardado && <p className="text-xs text-emerald-600 font-semibold">Cambios guardados correctamente.</p>}
 

@@ -54,6 +54,25 @@ export function etiquetaTipoEntrega(tipo?: string): string {
     return tipo;
 }
 
+export function etiquetaMetodoPago(metodo?: string): string {
+    if (metodo === "yape") return "Yape / Plin";
+    if (metodo === "transferencia") return "Transferencia Bancaria";
+    return "Tarjeta Débito / Crédito";
+}
+
+export function obtenerSerieComprobante(pedido: Pick<Pedido, "numero" | "comprobante">): {
+    serie: string;
+    tipo: "BOLETA" | "FACTURA";
+} {
+    const esFactura = pedido.comprobante?.tipo?.toUpperCase() === "FACTURA";
+    const prefijo = esFactura ? "F001-" : "B001-";
+    const numeroLimpio = pedido.numero.replace(/^PED-/, "");
+    return {
+        serie: prefijo + numeroLimpio,
+        tipo: esFactura ? "FACTURA" : "BOLETA",
+    };
+}
+
 export function formatearFechaHora(fechaStr?: string | null): string {
     if (!fechaStr) return "—";
     try {

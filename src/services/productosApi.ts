@@ -35,6 +35,14 @@ export async function listarProductos(token: string): Promise<ProductoInv[]> {
     return (Array.isArray(data) ? data : []).map(aProductoInv);
 }
 
+/** GET /api/productos/{id} — detalle del producto. */
+export async function obtenerProducto(token: string, id: number): Promise<ProductoInv> {
+    const resp = await fetch(`/api/productos/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!resp.ok) throw new Error("No se pudo obtener el producto");
+    const data = (await resp.json()) as ProductoBackend;
+    return aProductoInv(data);
+}
+
 /** POST /api/productos — registrar producto (con imagen ya subida a Cloudinary). */
 export async function crearProducto(
     token: string,
@@ -72,6 +80,15 @@ export async function subirImagen(token: string, archivo: File): Promise<{ url: 
     if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo subir la imagen"));
     const subida = data as { url?: string; publicId?: string };
     return { url: subida.url || "", publicId: subida.publicId || "" };
+}
+
+/** DELETE /api/productos/{id} -> eliminar producto. */
+export async function eliminarProducto(token: string, id: number): Promise<void> {
+    const resp = await fetch(`/api/productos/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error("No se pudo eliminar el producto");
 }
 
 /** PUT /api/productos/{id} — editar o activar/desactivar producto. */

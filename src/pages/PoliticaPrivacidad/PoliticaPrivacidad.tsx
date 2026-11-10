@@ -62,3 +62,4 @@ function PoliticaPrivacidad() {
 }
 
 export default PoliticaPrivacidad;
+

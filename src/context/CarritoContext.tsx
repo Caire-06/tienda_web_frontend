@@ -1,9 +1,12 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useInventario } from "./InventarioContext";
+import type { ProductoInv } from "./InventarioContext";
+import { useCatalogo } from "../hooks/useCatalogo";
 
 // Un item del carrito solo guarda id + cantidad.
-// Los datos (precio, stock, imagen) se leen de PRODUCTOS.
+// Los datos (precio, stock, imagen) se resuelven contra el catálogo del backend
+// y, como respaldo, contra el inventario local de demostración.
 export interface ItemCarrito {
     id: number;
     cantidad: number;
@@ -11,6 +14,7 @@ export interface ItemCarrito {
 
 interface CarritoContexto {
     items: ItemCarrito[];
+    catalogo: ProductoInv[];
     agregar: (id: number, cantidad?: number) => void;
     quitar: (id: number) => void;
     cambiarCantidad: (id: number, cantidad: number) => void;
@@ -42,7 +46,17 @@ function leerInicial(): ItemCarrito[] {
 
 export function CarritoProvider({ children }: { children: ReactNode }) {
     const [items, setItems] = useState<ItemCarrito[]>(leerInicial);
-    const { productos } = useInventario();
+    const { productos: productosLocales } = useInventario();
+    const { productos: productosBackend } = useCatalogo();
+
+    // El catálogo público (backend) tiene prioridad; el inventario local cubre los productos demo.
+    // Así cualquier producto visible en la tienda puede agregarse al carrito, con o sin sesión.
+    const productos = useMemo(() => {
+        const mapa = new Map<number, ProductoInv>();
+        productosLocales.forEach((p) => mapa.set(p.id, p));
+        productosBackend.forEach((p) => mapa.set(p.id, p));
+        return Array.from(mapa.values());
+    }, [productosLocales, productosBackend]);
 
     // Guarda cada cambio en el navegador
     useEffect(() => {
@@ -90,7 +104,7 @@ export function CarritoProvider({ children }: { children: ReactNode }) {
 
     return (
         <CarritoContext.Provider
-            value={{ items, agregar, quitar, cambiarCantidad, vaciar, totalItems, subtotal }}
+            value={{ items, catalogo: productos, agregar, quitar, cambiarCantidad, vaciar, totalItems, subtotal }}
         >
             {children}
         </CarritoContext.Provider>

@@ -138,7 +138,7 @@ function MisCompras() {
 
                 {/* Modal con el detalle de la compra */}
                 {detalle && (
-                    <div className="modal-fondo" onClick={() => setDetalle(null)}>
+                    <div className="modal-fondo">
                         <div className="modal" onClick={(e) => e.stopPropagation()}>
                             <div className="modal-head">
                                 <div>

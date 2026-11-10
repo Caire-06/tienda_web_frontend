@@ -476,7 +476,7 @@ function Carrito() {
 
                 {/* ===== MODAL DE PASARELA DE PAGOS Y FACTURACIÓN SUNAT ===== */}
                 {mostrarCheckout && (
-                    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={() => setMostrarCheckout(false)}>
+                    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                             <div className="flex items-start justify-between pb-4 mb-4 border-b border-slate-200 dark:border-slate-800">
                                 <div>

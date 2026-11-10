@@ -48,7 +48,7 @@ export async function listarPedidosPendientesDespacho(token: string): Promise<Pe
     }
 
     try {
-        const res = await fetch("/api/pedidos/admin", {
+        const res = await fetch("/api/pedidos", {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -90,3 +90,4 @@ export async function completarLoteDespacho(token: string, id: number): Promise<
     }
     return data;
 }
+

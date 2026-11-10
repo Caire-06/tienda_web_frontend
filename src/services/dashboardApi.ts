@@ -50,7 +50,7 @@ export async function obtenerDashboardKpis(token: string): Promise<DashboardKpis
     // 2. Respaldo dinámico: calcular métricas a partir de los datos existentes sin bloquear al administrador
     try {
         const [pedidosResp, productosResp, usuariosResp] = await Promise.all([
-            fetch("/api/pedidos/admin", { headers: { Authorization: `Bearer ${token}` } })
+            fetch("/api/pedidos", { headers: { Authorization: `Bearer ${token}` } })
                 .then((r) => (r.ok ? r.json() : []))
                 .catch(() => []),
             fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` } })

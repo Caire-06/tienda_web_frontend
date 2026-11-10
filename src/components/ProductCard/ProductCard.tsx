@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import type { Producto } from "../../data/productos";
 import { useCarrito } from "../../context/CarritoContext";
+import { ImagenProducto } from "../ImagenProducto/ImagenProducto";
 
 interface Props {
   producto: Producto;
@@ -26,7 +27,7 @@ function ProductCard({ producto }: Props) {
         className="relative h-48 cursor-pointer bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center overflow-hidden"
         onClick={() => navigate(`/productos/${producto.id}`)}
       >
-        <img
+        <ImagenProducto
           src={producto.imagen}
           alt={producto.nombre}
           loading="lazy"

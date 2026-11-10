@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import ProductCard from "../../components/ProductCard/ProductCard";
+import { ImagenProducto } from "../../components/ImagenProducto/ImagenProducto";
 import { useCarrito } from "../../context/CarritoContext";
 import { useInventario } from "../../context/InventarioContext";
 import { useAuth } from "../../context/AuthContext";
@@ -308,7 +309,7 @@ function Carrito() {
 
     // Productos sugeridos: los más vendidos que no estén en el carrito
     const sugeridos = productos
-        .filter((p) => p.activo && !items.some((i) => i.id === p.id))
+        .filter((p) => p.activo && p.stock > 0 && !items.some((i) => i.id === p.id))
         .sort((a, b) => b.vendidos - a.vendidos)
         .slice(0, 4);
 
@@ -456,9 +457,10 @@ function Carrito() {
                                         key={producto.id} 
                                         className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-blue-500/40 hover:shadow-sm transition-all"
                                     >
-                                        <img
+                                        <ImagenProducto
                                             src={producto.imagen}
                                             alt={producto.nombre}
+                                            compact
                                             onClick={() => navigate(`/productos/${producto.id}`)}
                                             className="w-20 h-20 sm:w-24 sm:h-24 object-contain rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2 cursor-pointer flex-shrink-0 border border-slate-100 dark:border-slate-800"
                                         />

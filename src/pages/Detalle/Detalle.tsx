@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import ProductCard from "../../components/ProductCard/ProductCard";
+import { ImagenProducto } from "../../components/ImagenProducto/ImagenProducto";
 import { useAuth } from "../../context/AuthContext";
 import { obtenerProducto, listarProductos } from "../../services/productosApi";
 import type { ProductoInv } from "../../context/InventarioContext";
@@ -56,9 +57,9 @@ function Detalle() {
         );
     }
 
-    const agotado = producto.stock === 0;
+    const agotado = producto.stock <= 0;
     const relacionados = backendProductos.filter(
-        (p) => p.activo && p.categoria === producto.categoria && p.id !== producto.id
+        (p) => p.activo && p.stock > 0 && p.categoria === producto.categoria && p.id !== producto.id
     ).slice(0, 4);
 
     const subir = () => setCantidad((c) => Math.min(c + 1, producto.stock));
@@ -85,9 +86,10 @@ function Detalle() {
                 <section className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-10 shadow-sm">
                     {/* Imagen */}
                     <div className="relative h-72 sm:h-96 bg-slate-50 dark:bg-slate-800/40 rounded-2xl flex items-center justify-center p-6 overflow-hidden">
-                        <img
+                        <ImagenProducto
                             src={producto.imagen}
                             alt={producto.nombre}
+                            loading="eager"
                             className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
                         />
                         {agotado && (

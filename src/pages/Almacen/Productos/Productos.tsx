@@ -38,6 +38,7 @@ function Productos() {
     const [archivo, setArchivo] = useState<File | null>(null);
     const [subiendo, setSubiendo] = useState(false);
     const [preview, setPreview] = useState("");
+    const [errorModal, setErrorModal] = useState<string | null>(null);
 
     const refrescar = async () => {
         if (!token) return;
@@ -80,6 +81,7 @@ function Productos() {
         setForm(VACIO);
         setArchivo(null);
         setPreview("");
+        setErrorModal(null);
     };
 
     const abrirEditar = (p: ProductoInv) => {
@@ -94,6 +96,7 @@ function Productos() {
         });
         setArchivo(null);
         setPreview("");
+        setErrorModal(null);
     };
 
     const guardar = async (e: React.FormEvent) => {
@@ -101,13 +104,13 @@ function Productos() {
         if (!form.nombre.trim() || form.precio < 0 || form.stock < 0) return;
         if (!token) return;
         setGuardando(true);
+        setErrorModal(null);
         try {
             let imagenFinal: string | undefined = form.imagen.trim() || undefined;
             if (archivo) {
                 setSubiendo(true);
                 const subida = await subirImagen(token, archivo);
                 imagenFinal = subida.url;
-                setSubiendo(false);
             }
             if (formId === null) {
                 await crearProducto(token, {
@@ -132,8 +135,11 @@ function Productos() {
             setFormId(undefined);
             await refrescar();
         } catch (err) {
+            const msg = err instanceof Error ? err.message : "No se pudo guardar el producto.";
+            setErrorModal(msg);
             console.error("Error al guardar producto", err);
         } finally {
+            setSubiendo(false);
             setGuardando(false);
         }
     };
@@ -341,6 +347,11 @@ function Productos() {
                                 <label className="text-xs font-semibold text-slate-500">Descripción</label>
                                 <textarea className={inputClass} rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
                             </div>
+                            {errorModal && (
+                                <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                                    {errorModal}
+                                </div>
+                            )}
                             <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                                 <button type="button" className="btn-mini sec" onClick={() => setFormId(undefined)}>
                                     Cancelar

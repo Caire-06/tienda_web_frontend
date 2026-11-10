@@ -17,8 +17,9 @@ const COSTO_DELIVERY_PROPIO = 15;
 
 function Carrito() {
     const navigate = useNavigate();
-    const { items, cambiarCantidad, quitar, vaciar, subtotal } = useCarrito();
-    const { productos, registrarSalida } = useInventario();
+    const { items, cambiarCantidad, quitar, vaciar, subtotal, catalogo } = useCarrito();
+    const { registrarSalida } = useInventario();
+    const productos = catalogo;
     const { usuario, token } = useAuth();
 
     // Pedido confirmado (solo frontend): guarda el total y muestra éxito

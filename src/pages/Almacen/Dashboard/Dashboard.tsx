@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useInventario } from "../../../context/InventarioContext";
+import { useAuth } from "../../../context/AuthContext";
+import { obtenerResumen } from "../../../services/kardexApi";
+import type { KardexResumen } from "../../../services/kardexApi";
 
 function fechaCorta(iso: string) {
     const d = new Date(iso);
@@ -8,10 +11,32 @@ function fechaCorta(iso: string) {
 
 function Dashboard() {
     const navigate = useNavigate();
-    const { productos, movimientos, stockTotal, stockBajo } = useInventario();
+    const { token } = useAuth();
+    const [resumen, setResumen] = useState<KardexResumen | null>(null);
+    const [cargando, setCargando] = useState(true);
 
-    const ultimos = movimientos.slice(0, 5);
-    const ultimasEntradas = movimientos.filter((m) => m.tipo === "Entrada").slice(0, 3);
+    useEffect(() => {
+        let activo = true;
+        if (!token) {
+            setCargando(false);
+            return;
+        }
+        setCargando(true);
+        obtenerResumen(token)
+            .then((r) => { if (activo) setResumen(r); })
+            .catch(() => { if (activo) setResumen(null); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [token]);
+
+    const productos = resumen?.productosRegistrados ?? 0;
+    const stockTotal = resumen?.stockTotal ?? 0;
+    const stockBajo = resumen?.stockCriticoBajo ?? 0;
+    const movimientos = resumen?.movimientos ?? 0;
+    const ultimos = resumen?.ultimosMovimientos ?? [];
+    const ultimasEntradas = resumen?.ultimasEntradas ?? [];
+
+    const cargandoKpis = cargando;
 
     return (
         <div className="space-y-6">
@@ -24,19 +49,19 @@ function Dashboard() {
             <section className="admin-cards grid-cols-2 md:grid-cols-4">
                 <div className="admin-card">
                     <span>Productos registrados</span>
-                    <strong>{productos.length}</strong>
+                    <strong>{cargandoKpis ? "..." : productos}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Stock total</span>
-                    <strong>{stockTotal} uds.</strong>
+                    <strong>{cargandoKpis ? "..." : `${stockTotal} uds.`}</strong>
                 </div>
                 <div className="admin-card alerta">
                     <span>Stock crítico bajo</span>
-                    <strong>{stockBajo}</strong>
+                    <strong>{cargandoKpis ? "..." : stockBajo}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Movimientos Kardex</span>
-                    <strong>{movimientos.length}</strong>
+                    <strong>{cargandoKpis ? "..." : movimientos}</strong>
                 </div>
             </section>
 

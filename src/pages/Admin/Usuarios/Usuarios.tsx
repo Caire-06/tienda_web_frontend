@@ -111,7 +111,7 @@ function Usuarios() {
             </div>
 
             {detalle && (
-                <div className="modal-fondo" onClick={() => setDetalle(null)}>
+                <div className="modal-fondo">
                     <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
                             <h2>{detalle.nombre}</h2>

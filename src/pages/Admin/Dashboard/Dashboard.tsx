@@ -1,16 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { listarPedidosAdmin } from "../../../services/pedidosApi";
-import { listarProductos } from "../../../services/productosApi";
-import { listarUsuarios } from "../../../services/usuariosApi";
-import type { Pedido } from "../../../data/pedidos";
-import type { ProductoInv } from "../../../context/InventarioContext";
-import type { UsuarioDTO } from "../../../services/usuariosApi";
-
-function mismoDia(a: Date, b: Date) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
+import { obtenerDashboardKpis, type DashboardKpis } from "../../../services/dashboardApi";
 
 function fechaCorta(fechaStr: string) {
     if (!fechaStr) return "—";
@@ -27,23 +18,19 @@ function Dashboard() {
     const navigate = useNavigate();
     const { token } = useAuth();
 
-    const [ventas, setVentas] = useState<Pedido[]>([]);
-    const [productos, setProductos] = useState<ProductoInv[]>([]);
-    const [usuarios, setUsuarios] = useState<UsuarioDTO[]>([]);
+    const [kpis, setKpis] = useState<DashboardKpis | null>(null);
     const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const cargarDatos = async () => {
         if (!token) return;
         setCargando(true);
+        setError(null);
         try {
-            const [vData, pData, uData] = await Promise.all([
-                listarPedidosAdmin(token).catch(() => []),
-                listarProductos(token).catch(() => []),
-                listarUsuarios(token).catch(() => []),
-            ]);
-            setVentas(vData);
-            setProductos(pData);
-            setUsuarios(uData);
+            const data = await obtenerDashboardKpis(token);
+            setKpis(data);
+        } catch (err: any) {
+            setError(err.message || "Error al sincronizar KPIs con el backend");
         } finally {
             setCargando(false);
         }
@@ -53,35 +40,17 @@ function Dashboard() {
         cargarDatos();
     }, [token]);
 
-    const hoy = new Date();
+    const totalHoy = kpis?.ventasHoy ?? 0;
+    const totalMes = kpis?.ventasMes ?? 0;
+    const totalVentas = kpis?.totalPedidos ?? 0;
+    const totalProductos = kpis?.totalProductos ?? 0;
+    const totalUsuarios = kpis?.totalUsuarios ?? 0;
+    const stockCriticoCount = kpis?.stockCriticoCount ?? 0;
 
-    const ventasHoy = ventas.filter((v) => {
-        try {
-            return mismoDia(new Date(v.fecha), hoy);
-        } catch {
-            return false;
-        }
-    });
-
-    const ventasMes = ventas.filter((v) => {
-        try {
-            const d = new Date(v.fecha);
-            return d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear();
-        } catch {
-            return false;
-        }
-    });
-
-    const totalHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total), 0);
-    const totalMes = ventasMes.reduce((acc, v) => acc + Number(v.total), 0);
-
-    const stockBajo = productos.filter((p) => p.activo && p.stock < 10);
-
-    // Top 5 por unidades vendidas
-    const top = [...productos].sort((a, b) => b.vendidos - a.vendidos).slice(0, 5);
-    const maxTop = top[0]?.vendidos ?? 1;
-
-    const recientes: Pedido[] = ventas.slice(0, 5);
+    const recientes = kpis?.ultimasVentas ?? [];
+    const top = kpis?.topProductos ?? [];
+    const maxTop = top[0]?.vendidos || 1;
+    const criticos = kpis?.productosStockCritico ?? [];
 
     return (
         <div className="space-y-8">
@@ -89,48 +58,54 @@ function Dashboard() {
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Dashboard General</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Métricas y resumen operativo sincronizados en tiempo real con PostgreSQL.
+                        Métricas y KPIs calculados y centralizados en el servidor backend (PostgreSQL 3FN).
                     </p>
                 </div>
                 <button
                     onClick={cargarDatos}
                     className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                 >
-                    ↻ Actualizar Métricas
+                    ↻ Actualizar Métricas (Backend)
                 </button>
             </div>
 
-            {/* Tarjetas KPI */}
+            {error && (
+                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                    {error}
+                </div>
+            )}
+
+            {/* Tarjetas KPI calculadas en servidor */}
             <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
                 <div className="admin-card">
                     <span>Ventas hoy</span>
-                    <strong>S/ {totalHoy.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                    <strong>S/ {Number(totalHoy).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Ventas mes</span>
-                    <strong>S/ {totalMes.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                    <strong>S/ {Number(totalMes).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
                 </div>
                 <div className="admin-card">
                     <span>N° Ventas</span>
-                    <strong>{ventas.length}</strong>
+                    <strong>{totalVentas}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Productos</span>
-                    <strong>{productos.length}</strong>
+                    <strong>{totalProductos}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Usuarios BD</span>
-                    <strong>{usuarios.length}</strong>
+                    <strong>{totalUsuarios}</strong>
                 </div>
                 <div className="admin-card alerta">
-                    <span>Stock bajo</span>
-                    <strong>{stockBajo.length}</strong>
+                    <span>Stock crítico (&lt;10)</span>
+                    <strong>{stockCriticoCount}</strong>
                 </div>
             </section>
 
             {cargando && (
                 <div className="text-center py-4 text-xs text-slate-400">
-                    Sincronizando con base de datos PostgreSQL...
+                    Sincronizando KPIs consolidados con PostgreSQL...
                 </div>
             )}
 
@@ -197,13 +172,13 @@ function Dashboard() {
                                             {p.nombre}
                                         </span>
                                         <span className="font-mono font-bold text-slate-900 dark:text-white">
-                                            {p.vendidos} uds.
+                                            {p.vendidos} uds. ({p.porcentaje}%)
                                         </span>
                                     </div>
                                     <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                                         <div
                                             className="bg-blue-600 h-full rounded-full transition-all duration-300"
-                                            style={{ width: `${Math.round((p.vendidos / maxTop) * 100)}%` }}
+                                            style={{ width: `${Math.min(100, Math.round((p.vendidos / maxTop) * 100))}%` }}
                                         />
                                     </div>
                                 </div>
@@ -213,29 +188,33 @@ function Dashboard() {
                 </section>
             </div>
 
-            {/* Alertas de Inventario */}
+            {/* Alertas de Inventario Crítico */}
             <section className="space-y-3">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">Alertas de inventario</h2>
-                {stockBajo.length === 0 ? (
-                    <p className="text-sm text-slate-500">Todo el stock está en niveles normales.</p>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Alertas de inventario crítico (&lt; 10 unidades)</h2>
+                {criticos.length === 0 ? (
+                    <p className="text-sm text-slate-500">Todo el stock físico está en niveles seguros (&gt;= 10 unidades).</p>
                 ) : (
                     <div className="tabla-wrap">
                         <table className="tabla">
                             <thead>
                                 <tr>
                                     <th>Producto</th>
-                                    <th>Stock Actual</th>
-                                    <th>Estado</th>
+                                    <th>Categoría</th>
+                                    <th>Stock Físico</th>
+                                    <th>Precio</th>
+                                    <th>Estado Crítico</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {stockBajo.map((p) => (
+                                {criticos.map((p) => (
                                     <tr key={p.id}>
                                         <td className="font-medium">{p.nombre}</td>
-                                        <td className="font-mono font-bold">{p.stock}</td>
+                                        <td className="text-xs text-slate-500">{p.categoria}</td>
+                                        <td className="font-mono font-bold text-rose-600 dark:text-rose-400">{p.stock}</td>
+                                        <td className="font-mono">S/ {Number(p.precio).toFixed(2)}</td>
                                         <td>
                                             <span className={`badge ${p.stock === 0 ? "off" : "pend"}`}>
-                                                {p.stock === 0 ? "Sin stock" : "Stock bajo"}
+                                                {p.stock === 0 ? "Agotado (0)" : `Crítico (${p.stock})`}
                                             </span>
                                         </td>
                                     </tr>

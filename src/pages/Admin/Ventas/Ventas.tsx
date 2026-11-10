@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarPedidosAdmin, actualizarEstadoPedidoAdmin } from "../../../services/pedidosApi";
-import type { Pedido, EstadoPedido } from "../../../data/pedidos";
+import type { Pedido } from "../../../data/pedidos";
 
 function fechaCorta(fechaStr: string) {
     if (!fechaStr) return "—";
@@ -12,6 +12,16 @@ function fechaCorta(fechaStr: string) {
     } catch {
         return fechaStr;
     }
+}
+
+function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
+    const tipo = v.comprobante?.tipo ? v.comprobante.tipo.toUpperCase() : "BOLETA";
+    const prefijo = tipo === "FACTURA" ? "F001-" : "B001-";
+    const numeroLimpio = v.numero.replace(/^PED-/, "");
+    return {
+        serie: prefijo + numeroLimpio,
+        tipo: tipo,
+    };
 }
 
 function Ventas() {
@@ -66,7 +76,8 @@ function Ventas() {
             const nMatch = v.numero.toLowerCase().includes(q);
             const cMatch = (v.cliente || "").toLowerCase().includes(q);
             const dMatch = v.comprobante?.documento ? v.comprobante.documento.includes(q) : false;
-            if (!nMatch && !cMatch && !dMatch) return false;
+            const sMatch = obtenerSerieComprobante(v).serie.toLowerCase().includes(q);
+            if (!nMatch && !cMatch && !dMatch && !sMatch) return false;
         }
         return true;
     });
@@ -75,9 +86,11 @@ function Ventas() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Registro de Ventas</h1>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+                        Ventas &amp; Trazabilidad Documental (Etapa 6)
+                    </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        {filtradas.length} comprobantes y transacciones en PostgreSQL.
+                        Encadenamiento: SOLPED → Venta → Comprobante Oficial (Boleta/Factura) → Guía de Remisión.
                     </p>
                 </div>
                 <button
@@ -98,7 +111,7 @@ function Ventas() {
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
                 <input
                     className="flex-1 min-w-[240px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Buscar por correlativo N°, cliente, RUC o DNI..."
+                    placeholder="Buscar por SOLPED, Comprobante (B001/F001), Cliente o RUC/DNI..."
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                 />
@@ -126,12 +139,12 @@ function Ventas() {
                 <table className="tabla">
                     <thead>
                         <tr>
-                            <th>N° Venta</th>
+                            <th>Cadena Documental (Etapa 6)</th>
                             <th>Cliente</th>
-                            <th>Comprobante</th>
-                            <th>Fecha</th>
-                            <th>Estado / Despacho</th>
-                            <th>Total</th>
+                            <th>Serie Comprobante</th>
+                            <th>Fecha Emisión</th>
+                            <th>Ciclo de Vida (Estado)</th>
+                            <th>Total Venta</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -139,7 +152,7 @@ function Ventas() {
                         {cargando ? (
                             <tr>
                                 <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
-                                    Cargando ventas desde PostgreSQL...
+                                    Cargando trazabilidad de ventas desde PostgreSQL...
                                 </td>
                             </tr>
                         ) : filtradas.length === 0 ? (
@@ -149,38 +162,57 @@ function Ventas() {
                                 </td>
                             </tr>
                         ) : (
-                            filtradas.map((v) => (
-                                <tr key={v.numero}>
-                                    <td className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
-                                        {v.numero}
-                                    </td>
-                                    <td className="font-semibold text-slate-900 dark:text-white">
-                                        {v.cliente || v.comprobante?.nombreRazonSocial || "Cliente"}
-                                    </td>
-                                    <td className="text-xs text-slate-500">
-                                        {v.comprobante ? `${v.comprobante.tipo}: ${v.comprobante.documento}` : "Ticket"}
-                                    </td>
-                                    <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
-                                    <td>
-                                        <div className="flex flex-col">
-                                            <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                                {v.estado || "Pendiente"}
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                                                {v.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío Courier"}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="font-mono font-bold text-slate-900 dark:text-white">
-                                        S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
-                                    </td>
-                                    <td>
-                                        <button className="btn-mini" onClick={() => setDetalle(v)}>
-                                            Ver detalle
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                            filtradas.map((v) => {
+                                const doc = obtenerSerieComprobante(v);
+                                const esFactura = doc.tipo === "FACTURA";
+                                return (
+                                    <tr key={v.numero}>
+                                        <td>
+                                            <div className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                                                {v.numero}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">
+                                                SOLPED → Venta
+                                            </div>
+                                        </td>
+                                        <td className="font-semibold text-slate-900 dark:text-white">
+                                            {v.cliente || v.comprobante?.nombreRazonSocial || "Cliente"}
+                                        </td>
+                                        <td>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={`badge ${esFactura ? "rol-admin" : "ok"}`}>
+                                                    {doc.tipo}
+                                                </span>
+                                                <span className="font-mono text-xs font-bold">{doc.serie}</span>
+                                            </div>
+                                            {v.comprobante?.documento && (
+                                                <div className="text-[11px] text-slate-400">
+                                                    Doc: {v.comprobante.documento}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
+                                        <td>
+                                            <div className="flex flex-col">
+                                                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                                    {v.estado || "Pendiente"}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                                                    {v.tipoEntrega === "recojo" ? "Recojo en Tienda" : "Guía Courier (T001)"}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="font-mono font-bold text-slate-900 dark:text-white">
+                                            S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                        </td>
+                                        <td>
+                                            <button className="btn-mini" onClick={() => setDetalle(v)}>
+                                                Trazabilidad
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
@@ -188,10 +220,10 @@ function Ventas() {
 
             {detalle && (
                 <div className="modal-fondo">
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal max-w-2xl" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
                             <div>
-                                <h2>Comprobante {detalle.numero}</h2>
+                                <h2>Trazabilidad Documental: {detalle.numero}</h2>
                                 <p className="text-xs text-slate-500 mt-0.5">
                                     {fechaCorta(detalle.fecha)} · {detalle.cliente || detalle.comprobante?.nombreRazonSocial}
                                 </p>
@@ -201,10 +233,40 @@ function Ventas() {
                             </button>
                         </div>
 
+                        {/* Flujo Documental Visual Etapa 6 */}
+                        <div className="mb-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                            <div className="text-[11px] font-bold uppercase text-slate-500 tracking-wider mb-2">
+                                Flujo Transaccional Encadenado (Etapa 6)
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+                                    <div className="font-bold text-blue-700 dark:text-blue-300">1. SOLPED</div>
+                                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">{detalle.numero}</div>
+                                </div>
+                                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="font-bold text-emerald-700 dark:text-emerald-300">2. Venta</div>
+                                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">Transacción OK</div>
+                                </div>
+                                <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800">
+                                    <div className="font-bold text-violet-700 dark:text-violet-300">3. Comprobante</div>
+                                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                        {obtenerSerieComprobante(detalle).serie}
+                                    </div>
+                                </div>
+                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                                    <div className="font-bold text-amber-700 dark:text-amber-300">4. Guía Remisión</div>
+                                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                        {detalle.tipoEntrega === "recojo" ? "Recojo Mostrador" : "GR-T001"}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modificación de Ciclo de Vida */}
                         <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                    Cambiar estado:
+                                    Ciclo de Vida del Pedido:
                                 </label>
                                 <select
                                     disabled={actualizando}
@@ -224,7 +286,7 @@ function Ventas() {
                             <span className="text-xs text-slate-500">
                                 Modalidad:{" "}
                                 <strong className="text-slate-800 dark:text-slate-200">
-                                    {detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}
+                                    {detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío Courier a domicilio"}
                                 </strong>
                             </span>
                         </div>
@@ -232,11 +294,11 @@ function Ventas() {
                         {detalle.comprobante && (
                             <div className="mb-4 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-xs text-slate-700 dark:text-slate-300 grid grid-cols-2 gap-2">
                                 <div>
-                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Tipo y Documento:</span>
+                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Tipo y Documento Oficial:</span>
                                     <strong>{detalle.comprobante.tipo} {detalle.comprobante.documento}</strong>
                                 </div>
                                 <div>
-                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Razón Social:</span>
+                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Razón Social / Receptor:</span>
                                     <strong>{detalle.comprobante.nombreRazonSocial}</strong>
                                 </div>
                             </div>
@@ -246,7 +308,7 @@ function Ventas() {
                             <table className="tabla">
                                 <thead>
                                     <tr>
-                                        <th>Producto</th>
+                                        <th>Producto (Ítem)</th>
                                         <th>Cant.</th>
                                         <th>P. Unitario</th>
                                         <th>Subtotal</th>
@@ -270,7 +332,7 @@ function Ventas() {
                         </div>
 
                         <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
-                            <span className="text-sm font-bold uppercase text-slate-500">Monto Total</span>
+                            <span className="text-sm font-bold uppercase text-slate-500">Monto Total Liquidado</span>
                             <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
                                 S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                             </strong>

@@ -88,7 +88,7 @@
 
    | Rol | Usuario | Contrasena | Modulos y Rutas Asignadas | Funcionalidades Principales |
    | :--- | :--- | :--- | :--- | :--- |
-   | **Administrador** | `admin` | `123` | `/admin/*`<br>(Dashboard, Ventas, Usuarios, Catalogo, Reportes) | Visualizacion de metricas globales, graficos analiticos de ingresos por dia/mes, control de usuarios y auditoria de ventas. |
+   | **Administrador** | `admin` | `admin123` | `/admin/*`<br>(Dashboard, Ventas, Usuarios, Catalogo, Reportes) | Visualizacion de metricas globales, graficos analiticos de ingresos por dia/mes, control de usuarios y auditoria de ventas. |
    | **Almacen** | `almacen` | `123` | `/almacen/*`<br>(Dashboard, Entradas, Kardex, Productos) | Control de stock fisico, registro de ingreso de mercaderia, alertas de stock minimo y seguimiento del Kardex permanente. |
    | **Cliente** | `cliente` | `123` | `/inicio`, `/productos`, `/carrito`<br>`/mi-cuenta`, `/mis-compras` | Exploracion de catalogo, compra interactiva con pasarela de pagos, seleccion de comprobante (DNI/RUC) e historial de pedidos. |
 

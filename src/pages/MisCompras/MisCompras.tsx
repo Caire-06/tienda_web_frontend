@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useAuth } from "../../context/AuthContext";
-import { leerPedidos } from "../../data/pedidos";
+import { etiquetaTipoEntrega, formatearFechaHora, leerPedidos } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 
@@ -112,12 +112,14 @@ function MisCompras() {
                                 {pedidos.map((p) => (
                                     <tr key={p.numero}>
                                         <td className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">{p.numero}</td>
-                                        <td className="text-xs text-slate-500">{p.fecha}</td>
+                                        <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(p.fecha)}</td>
                                         <td>
                                             <div className="flex flex-col">
                                                 <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">{p.estado || "Pendiente"}</span>
                                                 <span className="text-[10px] text-slate-400">
-                                                    {p.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}
+                                                    {p.codigoLoteDespacho
+                                                        ? `Vía ${p.empresaTransporte || "Courier"} (${p.codigoLoteDespacho})`
+                                                        : etiquetaTipoEntrega(p.tipoEntrega)}
                                                 </span>
                                             </div>
                                         </td>
@@ -144,7 +146,7 @@ function MisCompras() {
                                 <div>
                                     <h2>Detalle de Compra</h2>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        {detalle.numero} · {detalle.fecha}
+                                        {detalle.numero} · {formatearFechaHora(detalle.fecha)}
                                     </p>
                                 </div>
                                 <button className="modal-cerrar" onClick={() => setDetalle(null)}>
@@ -152,17 +154,47 @@ function MisCompras() {
                                 </button>
                             </div>
 
+                            {/* Cronología de fechas con hora */}
+                            <div className="mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                <div>
+                                    <span className="text-slate-400 block">Compra:</span>
+                                    <strong className="font-mono">{formatearFechaHora(detalle.fecha)}</strong>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block">En Preparación:</span>
+                                    <strong className="font-mono">{formatearFechaHora(detalle.fechaProcesando)}</strong>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block">{detalle.tipoEntrega === "recojo" ? "Listo Recojo:" : "Envío:"}</span>
+                                    <strong className="font-mono">{formatearFechaHora(detalle.fechaEnvio)}</strong>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block">Entregado:</span>
+                                    <strong className="font-mono">{formatearFechaHora(detalle.fechaEntrega)}</strong>
+                                </div>
+                            </div>
+
                             {detalle.comprobante && (
                                 <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
                                     <div className="flex justify-between items-center">
                                         <span><strong>Estado:</strong> <span className="text-blue-600 dark:text-blue-400 font-bold">{detalle.estado || "Pendiente"}</span></span>
-                                        <span><strong>Entrega:</strong> {detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}</span>
+                                        <span><strong>Entrega:</strong> {etiquetaTipoEntrega(detalle.tipoEntrega)}</span>
                                     </div>
                                     <hr className="border-slate-200 dark:border-slate-700 my-1" />
                                     <div><strong>Comprobante:</strong> {detalle.comprobante.tipo} Electrónica ({detalle.comprobante.documento})</div>
                                     <div><strong>Titular:</strong> {detalle.comprobante.nombreRazonSocial}</div>
                                     {detalle.metodoPago && (
                                         <div><strong>Método de pago:</strong> {detalle.metodoPago === "tarjeta" ? "Tarjeta Débito/Crédito" : detalle.metodoPago === "yape" ? "Yape / Plin" : "Transferencia Bancaria"}</div>
+                                    )}
+                                    {detalle.tipoEntrega === "agencia_destino" && (
+                                        <div className="text-amber-600 dark:text-amber-400 font-medium">
+                                            ℹ️ Flete por pagar en destino al recibir o recoger en agencia.
+                                        </div>
+                                    )}
+                                    {detalle.codigoLoteDespacho && (
+                                        <div className="pt-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                                            📦 Despachado con {detalle.empresaTransporte} (Lote {detalle.codigoLoteDespacho})
+                                        </div>
                                     )}
                                 </div>
                             )}

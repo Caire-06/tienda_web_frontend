@@ -14,6 +14,7 @@ export interface DatosNuevoPedido {
     total: number;
     metodoPago?: MetodoPago;
     tipoEntrega?: string;
+    costoEnvio?: number;
     correoContacto?: string;
     celularContacto?: string;
     direccionEnvio?: string;
@@ -52,12 +53,19 @@ interface ComprobanteBackend {
 interface PedidoBackend {
     numero: string;
     fecha: string;
+    cliente?: string | null;
     estado?: string | null;
     tipoEntrega?: string | null;
     metodoPago?: string | null;
+    costoEnvio?: number | null;
     total: number;
     items: ItemPedidoBackend[];
     comprobante?: ComprobanteBackend | null;
+    codigoLoteDespacho?: string | null;
+    empresaTransporte?: string | null;
+    fechaProcesando?: string | null;
+    fechaEnvio?: string | null;
+    fechaEntrega?: string | null;
 }
 
 // Convierte un pedido del backend al formato que ya usan las páginas
@@ -78,6 +86,7 @@ function mapear(p: PedidoBackend): Pedido {
         numero: p.numero,
         fecha: p.fecha,
         usuarioId: "",
+        cliente: p.cliente || p.comprobante?.nombreRazonSocial || "Cliente",
         items: (p.items ?? []).map(
             (it): ItemPedido => ({
                 id: it.id,
@@ -88,10 +97,16 @@ function mapear(p: PedidoBackend): Pedido {
             }) as ItemPedido
         ),
         total: Number(p.total),
+        costoEnvio: p.costoEnvio != null ? Number(p.costoEnvio) : 0,
         metodoPago: (p.metodoPago as MetodoPago) ?? undefined,
         comprobante,
         tipoEntrega: (p.tipoEntrega as Pedido["tipoEntrega"]) ?? undefined,
         estado: (p.estado as Pedido["estado"]) ?? "Pendiente",
+        codigoLoteDespacho: p.codigoLoteDespacho ?? undefined,
+        empresaTransporte: p.empresaTransporte ?? undefined,
+        fechaProcesando: p.fechaProcesando ?? undefined,
+        fechaEnvio: p.fechaEnvio ?? undefined,
+        fechaEntrega: p.fechaEntrega ?? undefined,
     };
 }
 
@@ -119,3 +134,30 @@ export async function listarMisCompras(token: string): Promise<Pedido[]> {
     const data = (await resp.json()) as PedidoBackend[];
     return (Array.isArray(data) ? data : []).map(mapear);
 }
+
+/** Trae todos los pedidos del sistema para el panel de administración (GET /api/pedidos). */
+export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
+    const resp = await fetch("/api/pedidos", {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error("No se pudieron cargar las ventas de la base de datos");
+    const data = (await resp.json()) as PedidoBackend[];
+    return (Array.isArray(data) ? data : []).map(mapear);
+}
+
+/** Actualiza el estado de un pedido por Almacén (PUT /api/pedidos/{numero}/estado). */
+export async function actualizarEstadoPedido(token: string, numero: string, estado: string): Promise<Pedido> {
+    const resp = await fetch(`/api/pedidos/${encodeURIComponent(numero)}/estado`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ estado }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "No se pudo actualizar el estado del pedido");
+    return mapear(data as PedidoBackend);
+}
+
+export const actualizarEstadoPedidoAdmin = actualizarEstadoPedido;

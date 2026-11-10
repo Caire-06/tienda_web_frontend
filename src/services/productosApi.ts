@@ -1,6 +1,6 @@
 import type { ProductoInv } from "../context/InventarioContext";
 
-// Contrato que devuelve el backend (ProductoDTO) y que usamos en el frontend.
+// Contrato que devuelve el backend (ProductoDTO).
 interface ProductoBackend {
     id: number;
     nombre: string;
@@ -13,6 +13,7 @@ interface ProductoBackend {
     activo: boolean;
 }
 
+// Convierte el producto del backend al formato utilizado por el frontend.
 function aProductoInv(p: ProductoBackend): ProductoInv {
     return {
         id: p.id,
@@ -27,35 +28,62 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
     };
 }
 
-/** Cabeceras para endpoints públicos: solo envía el token si existe una sesión. */
+// Cabeceras para endpoints públicos: envía el token solo si existe una sesión.
 function cabecerasOpcionales(token?: string | null): HeadersInit {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** GET /api/productos — listar productos (endpoint público, funciona con o sin sesión). */
+/** GET /api/productos — listar productos registrados en PostgreSQL. */
 export async function listarProductos(token?: string | null): Promise<ProductoInv[]> {
-    const resp = await fetch("/api/productos", { headers: cabecerasOpcionales(token) });
-    if (!resp.ok) throw new Error("No se pudo listar productos");
+    const resp = await fetch("/api/productos", {
+        headers: cabecerasOpcionales(token),
+    });
+
+    if (!resp.ok) {
+        throw new Error("No se pudieron cargar los productos. Inténtalo nuevamente.");
+    }
+
     const data = (await resp.json()) as ProductoBackend[];
-    return (Array.isArray(data) ? data : []).map(aProductoInv);
+
+    return Array.isArray(data) ? data.map(aProductoInv) : [];
 }
 
-/** GET /api/productos/{id} — detalle del producto (endpoint público, funciona con o sin sesión). */
-export async function obtenerProducto(token: string | null | undefined, id: number): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}`, { headers: cabecerasOpcionales(token) });
-    if (!resp.ok) throw new Error("No se pudo obtener el producto");
+/** GET /api/productos/{id} — obtener detalle de un producto. */
+export async function obtenerProducto(
+    token: string | null | undefined,
+    id: number
+): Promise<ProductoInv> {
+    const resp = await fetch(`/api/productos/${id}`, {
+        headers: cabecerasOpcionales(token),
+    });
+
+    if (!resp.ok) {
+        throw new Error("No se pudo obtener el producto.");
+    }
+
     const data = (await resp.json()) as ProductoBackend;
+
     return aProductoInv(data);
 }
 
-/** POST /api/productos — registrar producto (con imagen ya subida a Cloudinary). */
+/** POST /api/productos — registrar producto. */
 export async function crearProducto(
     token: string,
-    datos: { nombre: string; categoria: string; precio: number; stock: number; imagen?: string; descripcion: string }
+    datos: {
+        nombre: string;
+        categoria: string;
+        precio: number;
+        stock: number;
+        imagen?: string;
+        descripcion: string;
+    }
 ): Promise<ProductoInv> {
     const resp = await fetch("/api/productos", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
             nombre: datos.nombre,
             categoria: datos.categoria,
@@ -66,53 +94,120 @@ export async function crearProducto(
             activo: true,
         }),
     });
+
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo crear el producto"));
-    const creado = data as unknown as ProductoBackend;
-    return aProductoInv(creado);
+
+    if (!resp.ok) {
+        throw new Error(
+            String(data.error || "No se pudo crear el producto.")
+        );
+    }
+
+    return aProductoInv(data as unknown as ProductoBackend);
 }
 
-/** POST /api/productos/imagen -> subir archivo a Cloudinary (multipart) y devolver { url, publicId }. */
-export async function subirImagen(token: string, archivo: File): Promise<{ url: string; publicId: string }> {
+/** POST /api/productos/imagen — subir imagen a Cloudinary. */
+export async function subirImagen(
+    token: string,
+    archivo: File
+): Promise<{ url: string; publicId: string }> {
     const form = new FormData();
     form.append("archivo", archivo);
+
     const resp = await fetch("/api/productos/imagen", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
         body: form,
     });
+
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo subir la imagen"));
+
+    if (!resp.ok) {
+        throw new Error(
+            String(data.error || "No se pudo subir la imagen.")
+        );
+    }
+
     const subida = data as { url?: string; publicId?: string };
-    return { url: subida.url || "", publicId: subida.publicId || "" };
+
+    return {
+        url: subida.url || "",
+        publicId: subida.publicId || "",
+    };
 }
 
-/** DELETE /api/productos/{id} -> eliminar producto. */
-export async function eliminarProducto(token: string, id: number): Promise<void> {
+/** PATCH /api/productos/{id}/baja-logica — dar de baja un producto. */
+export async function darDeBajaLogicaProducto(
+    token: string,
+    id: number
+): Promise<ProductoInv> {
+    const resp = await fetch(`/api/productos/${id}/baja-logica`, {
+        method: "PATCH",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+
+    if (!resp.ok) {
+        throw new Error(
+            String(data.error || "No se pudo dar de baja lógica al producto.")
+        );
+    }
+
+    return aProductoInv(data as unknown as ProductoBackend);
+}
+
+/** DELETE /api/productos/{id} — eliminar producto mediante baja lógica. */
+export async function eliminarProducto(
+    token: string,
+    id: number
+): Promise<void> {
     const resp = await fetch(`/api/productos/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
     });
-    if (!resp.ok) throw new Error("No se pudo eliminar el producto");
+
+    if (!resp.ok) {
+        throw new Error("No se pudo eliminar el producto.");
+    }
 }
 
-/** PUT /api/productos/{id} — editar o activar/desactivar producto. */
-export async function actualizarProducto(token: string, id: number, datos: {
-    nombre?: string;
-    categoria?: string;
-    precio?: number;
-    stock?: number;
-    imagen?: string;
-    descripcion?: string;
-    activo?: boolean;
-}): Promise<ProductoInv> {
+/** PUT /api/productos/{id} — actualizar o activar/desactivar producto. */
+export async function actualizarProducto(
+    token: string,
+    id: number,
+    datos: {
+        nombre?: string;
+        categoria?: string;
+        precio?: number;
+        stock?: number;
+        imagen?: string;
+        descripcion?: string;
+        activo?: boolean;
+    }
+): Promise<ProductoInv> {
     const resp = await fetch(`/api/productos/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(datos),
     });
+
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo actualizar el producto"));
-    const actualizado = data as unknown as ProductoBackend;
-    return aProductoInv(actualizado);
+
+    if (!resp.ok) {
+        throw new Error(
+            String(data.error || "No se pudo actualizar el producto.")
+        );
+    }
+
+    return aProductoInv(data as unknown as ProductoBackend);
 }

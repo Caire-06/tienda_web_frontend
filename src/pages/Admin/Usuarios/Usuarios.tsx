@@ -1,150 +1,495 @@
-import { useState } from "react";
-import { CUENTAS_BASE, obtenerEstado, cambiarEstado, cambiarRolRegistrado } from "../../../data/usuarios";
-import type { Rol } from "../../../data/usuarios";
-
-interface FilaUsuario {
-    id: string;
-    nombre: string;
-    acceso: string;
-    rol: Rol;
-    fecha: string;
-    fija: boolean; // cuenta demo del sistema
-}
-
-function leerRegistrados(): FilaUsuario[] {
-    try {
-        const datos = JSON.parse(localStorage.getItem("techstore-usuarios") ?? "[]");
-        if (!Array.isArray(datos)) return [];
-        return datos.map((u: { nombre: string; correo: string; fechaRegistro?: string; rol?: Rol }) => ({
-            id: u.correo,
-            nombre: u.nombre,
-            acceso: u.correo,
-            rol: u.rol ?? "cliente",
-            fecha: u.fechaRegistro ?? "—",
-            fija: false,
-        }));
-    } catch {
-        return [];
-    }
-}
+import { useState, useEffect } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import {
+    listarUsuarios,
+    cambiarRolUsuario,
+    cambiarEstadoUsuario,
+    crearUsuario,
+    darDeBajaLogicaUsuario,
+} from "../../../services/usuariosApi";
+import type { UsuarioDTO, CrearUsuarioDatos } from "../../../services/usuariosApi";
 
 function Usuarios() {
-    // Lista de usuarios (se recarga cada vez que cambia algo)
-    const [lista, setLista] = useState<FilaUsuario[]>(() => [...CUENTAS_BASE, ...leerRegistrados()]);
-    const [detalle, setDetalle] = useState<FilaUsuario | null>(null);
+    const { token } = useAuth();
+    const [lista, setLista] = useState<UsuarioDTO[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [detalle, setDetalle] = useState<UsuarioDTO | null>(null);
+    const [modalCrear, setModalCrear] = useState(false);
+    const [guardando, setGuardando] = useState(false);
 
-    const recargar = () => setLista([...CUENTAS_BASE, ...leerRegistrados()]);
+    // Formulario de nuevo usuario
+    const [nuevoForm, setNuevoForm] = useState<CrearUsuarioDatos & {
+        dni?: string;
+        sexo?: string;
+        estadoCivil?: string;
+        tipoCorreo?: string;
+        tipoTelefono?: string;
+        departamento?: string;
+        distrito?: string;
+    }>({
+        username: "",
+        password: "",
+        rol: "ALMACEN",
+        nombres: "",
+        apellidos: "",
+        correo: "",
+        telefono: "",
+        dni: "",
+        sexo: "MASCULINO",
+        estadoCivil: "SOLTERO",
+        tipoCorreo: "Personal",
+        tipoTelefono: "Móvil",
+        departamento: "Lima",
+        distrito: "Miraflores",
+    });
 
-    const toggleEstado = (u: FilaUsuario) => {
-        const actual = obtenerEstado(u.id);
-        cambiarEstado(u.id, actual === "activo" ? "inactivo" : "activo");
-        recargar();
+    const cargar = async () => {
+        if (!token) return;
+        setCargando(true);
+        setError(null);
+        try {
+            const data = await listarUsuarios(token);
+            setLista(data);
+        } catch (err: any) {
+            setError(err.message || "Error al conectar con la base de datos");
+        } finally {
+            setCargando(false);
+        }
     };
 
-    const cambiarRol = (u: FilaUsuario, rol: Rol) => {
-        cambiarRolRegistrado(u.acceso, rol);
-        recargar();
+    useEffect(() => {
+        cargar();
+    }, [token]);
+
+    const handleToggleEstado = async (u: UsuarioDTO) => {
+        if (!token) return;
+        try {
+            const nuevoBloqueo = !u.bloqueado;
+            const actualizado = await cambiarEstadoUsuario(token, u.id, nuevoBloqueo);
+            setLista((prev) => prev.map((item) => (item.id === u.id ? actualizado : item)));
+            if (detalle?.id === u.id) setDetalle(actualizado);
+        } catch (err: any) {
+            alert(err.message || "No se pudo actualizar el estado de bloqueo");
+        }
+    };
+
+    const handleCambiarRol = async (u: UsuarioDTO, nuevoRol: string) => {
+        if (!token) return;
+        try {
+            const actualizado = await cambiarRolUsuario(token, u.id, nuevoRol);
+            setLista((prev) => prev.map((item) => (item.id === u.id ? actualizado : item)));
+            if (detalle?.id === u.id) setDetalle(actualizado);
+        } catch (err: any) {
+            alert(err.message || "No se pudo actualizar el rol");
+        }
+    };
+
+    const handleBajaLogica = async (u: UsuarioDTO) => {
+        if (!token) return;
+        if (!window.confirm(`¿Confirmar baja para el usuario "${u.username}"? El usuario pasará al estado "Inactivo".`)) return;
+        try {
+            const actualizado = await darDeBajaLogicaUsuario(token, u.id);
+            setLista((prev) => prev.map((item) => (item.id === u.id ? actualizado : item)));
+            if (detalle?.id === u.id) setDetalle(actualizado);
+        } catch (err: any) {
+            alert(err.message || "No se pudo dar de baja al usuario");
+        }
+    };
+
+    const handleCrearUsuario = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!token) return;
+        if (!nuevoForm.username || !nuevoForm.password) {
+            alert("Usuario y contraseña son obligatorios");
+            return;
+        }
+        setGuardando(true);
+        try {
+            const creado = await crearUsuario(token, nuevoForm);
+            setLista((prev) => [creado, ...prev]);
+            setModalCrear(false);
+            setNuevoForm({
+                username: "",
+                password: "",
+                rol: "ALMACEN",
+                nombres: "",
+                apellidos: "",
+                correo: "",
+                telefono: "",
+                dni: "",
+                sexo: "MASCULINO",
+                estadoCivil: "SOLTERO",
+                tipoCorreo: "Personal",
+                tipoTelefono: "Móvil",
+                departamento: "Lima",
+                distrito: "Miraflores",
+            });
+            alert(`Usuario ${creado.username} registrado exitosamente.`);
+        } catch (err: any) {
+            alert(err.message || "Error al crear usuario");
+        } finally {
+            setGuardando(false);
+        }
     };
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white">Gestión de Usuarios</h1>
-                <p className="text-sm text-slate-500 mt-1">{lista.length} usuarios registrados en el sistema.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Gestión de Usuarios</h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {lista.length} cuentas registradas en el sistema.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={cargar}
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
+                    >
+                        ↻ Actualizar
+                    </button>
+                    <button
+                        onClick={() => setModalCrear(true)}
+                        className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                        <span>+</span> Nuevo Usuario
+                    </button>
+                </div>
             </div>
+
+            {error && (
+                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-600 dark:text-red-400">
+                    {error}
+                </div>
+            )}
 
             <div className="tabla-wrap">
                 <table className="tabla">
                     <thead>
                         <tr>
-                            <th>Nombre</th>
-                            <th>Correo / Acceso</th>
+                            <th>Nombre Completo</th>
+                            <th>Usuario</th>
+                            <th>Contacto</th>
                             <th>Rol</th>
                             <th>Estado</th>
-                            <th>Fecha Registro</th>
+                            <th>Último Acceso</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {lista.map((u) => {
-                            const estado = obtenerEstado(u.id);
-                            return (
-                                <tr key={u.id}>
-                                    <td className="font-semibold">{u.nombre}</td>
-                                    <td className="font-mono text-xs text-slate-600 dark:text-slate-400">{u.acceso}</td>
-                                    <td>
-                                        {u.fija || u.id === "admin" ? (
-                                            <span className={`badge rol-${u.rol}`}>{u.rol}</span>
-                                        ) : (
-                                            <select
-                                                className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                                                value={u.rol}
-                                                onChange={(e) => cambiarRol(u, e.target.value as Rol)}
-                                            >
-                                                <option value="cliente">cliente</option>
-                                                <option value="almacen">almacen</option>
-                                                <option value="admin">admin</option>
-                                            </select>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <span className={`badge ${estado === "activo" ? "ok" : "off"}`}>
-                                            {estado === "activo" ? "Activo" : "Inactivo"}
-                                        </span>
-                                    </td>
-                                    <td className="text-xs text-slate-500">{u.fecha}</td>
-                                    <td>
-                                        <div className="flex items-center gap-2">
-                                            <button className="btn-mini" onClick={() => setDetalle(u)}>Ver</button>
-                                            {u.id !== "admin" && (
-                                                <button className="btn-mini sec" onClick={() => toggleEstado(u)}>
-                                                    {estado === "activo" ? "Desactivar" : "Activar"}
-                                                </button>
+                        {cargando ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
+                                    Cargando usuarios...
+                                </td>
+                            </tr>
+                        ) : lista.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
+                                    No se encontraron usuarios registrados.
+                                </td>
+                            </tr>
+                        ) : (
+                            lista.map((u) => {
+                                const activo = u.estado ? u.estado.toLowerCase() === "activo" : !u.bloqueado;
+                                return (
+                                    <tr key={u.id}>
+                                        <td className="font-semibold">{u.nombre || u.username}</td>
+                                        <td className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                                            {u.username}
+                                        </td>
+                                        <td className="text-xs text-slate-500">
+                                            <div>{u.email || "—"}</div>
+                                            <div className="text-[11px] text-slate-400">{u.telefono}</div>
+                                        </td>
+                                        <td>
+                                            {u.username === "admin" ? (
+                                                <span className="badge rol-admin">{u.rol}</span>
+                                            ) : (
+                                                <select
+                                                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                                    value={u.rol}
+                                                    onChange={(e) => handleCambiarRol(u, e.target.value)}
+                                                >
+                                                    <option value="CLIENTE">CLIENTE</option>
+                                                    <option value="ALMACEN">ALMACEN</option>
+                                                    <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                                                    <option value="OPERADOR">OPERADOR</option>
+                                                </select>
                                             )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                                        </td>
+                                        <td>
+                                            <span className={`badge ${activo ? "ok" : "off"}`}>
+                                                {activo ? "Activo" : "Inactivo"}
+                                            </span>
+                                            {u.bloqueado && (
+                                                <span className="ml-1 badge off text-[10px]">Bloqueado</span>
+                                            )}
+                                        </td>
+                                        <td className="text-xs text-slate-500">{u.ultimoAcceso}</td>
+                                        <td>
+                                            <div className="flex items-center gap-1.5">
+                                                <button className="btn-mini" onClick={() => setDetalle(u)}>
+                                                    Ver
+                                                </button>
+                                                {u.username !== "admin" && (
+                                                    <>
+                                                        <button
+                                                            className="btn-mini sec"
+                                                            onClick={() => handleToggleEstado(u)}
+                                                            title="Alternar bloqueo"
+                                                        >
+                                                            {u.bloqueado ? "Desbloquear" : "Bloquear"}
+                                                        </button>
+                                                        {activo && (
+                                                            <button
+                                                                className="btn-mini text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                                                onClick={() => handleBajaLogica(u)}
+                                                                title="Dar de baja"
+                                                            >
+                                                                Baja
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
                     </tbody>
                 </table>
             </div>
 
+            {/* Modal Detalle Usuario */}
             {detalle && (
                 <div className="modal-fondo">
                     <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
-                            <h2>{detalle.nombre}</h2>
-                            <button className="modal-cerrar" onClick={() => setDetalle(null)}>✕</button>
+                            <h2>Detalle de Usuario</h2>
+                            <button className="modal-cerrar" onClick={() => setDetalle(null)}>
+                                ✕
+                            </button>
                         </div>
                         <dl className="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Acceso / Correo</dt>
-                                <dd className="font-semibold text-slate-900 dark:text-white font-mono text-xs">{detalle.acceso}</dd>
+                                <dt className="text-slate-500 font-medium">Nombre de Usuario</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white font-mono text-xs">
+                                    {detalle.username}
+                                </dd>
+                            </div>
+                            <div className="py-2.5 flex justify-between">
+                                <dt className="text-slate-500 font-medium">Nombre Completo</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white text-xs">
+                                    {detalle.nombre || detalle.username}
+                                </dd>
+                            </div>
+                            <div className="py-2.5 flex justify-between">
+                                <dt className="text-slate-500 font-medium">Correo Electrónico</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white text-xs">{detalle.email}</dd>
+                            </div>
+                            <div className="py-2.5 flex justify-between">
+                                <dt className="text-slate-500 font-medium">Teléfono</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white text-xs">{detalle.telefono}</dd>
                             </div>
                             <div className="py-2.5 flex justify-between items-center">
-                                <dt className="text-slate-500 font-medium">Rol</dt>
-                                <dd><span className={`badge rol-${detalle.rol}`}>{detalle.rol}</span></dd>
+                                <dt className="text-slate-500 font-medium">Rol en el Sistema</dt>
+                                <dd>
+                                    <span className={`badge rol-${detalle.rol.toLowerCase()}`}>{detalle.rol}</span>
+                                </dd>
                             </div>
                             <div className="py-2.5 flex justify-between items-center">
                                 <dt className="text-slate-500 font-medium">Estado</dt>
                                 <dd>
-                                    <span className={`badge ${obtenerEstado(detalle.id) === "activo" ? "ok" : "off"}`}>
-                                        {obtenerEstado(detalle.id)}
+                                    <span className={`badge ${detalle.estado === "Inactivo" ? "off" : "ok"}`}>
+                                        {detalle.estado || (!detalle.bloqueado ? "Activo" : "Inactivo")}
                                     </span>
                                 </dd>
                             </div>
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Registro</dt>
-                                <dd className="font-semibold text-slate-900 dark:text-white">{detalle.fecha}</dd>
+                                <dt className="text-slate-500 font-medium">Fecha de Registro</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white text-xs">
+                                    {detalle.fechaRegistro}
+                                </dd>
                             </div>
                             <div className="py-2.5 flex justify-between">
-                                <dt className="text-slate-500 font-medium">Tipo</dt>
-                                <dd className="text-xs text-slate-600 dark:text-slate-400">
-                                    {detalle.fija ? "Cuenta demo del sistema" : "Registrado en tienda"}
+                                <dt className="text-slate-500 font-medium">Último Acceso</dt>
+                                <dd className="font-semibold text-slate-900 dark:text-white text-xs">
+                                    {detalle.ultimoAcceso}
                                 </dd>
                             </div>
                         </dl>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Crear Usuario */}
+            {modalCrear && (
+                <div className="modal-fondo">
+                    <div className="modal-mediano max-w-xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-head">
+                            <h2>+ Nuevo Usuario</h2>
+                            <button className="modal-cerrar" onClick={() => setModalCrear(false)}>
+                                ✕
+                            </button>
+                        </div>
+                        <form onSubmit={handleCrearUsuario} className="space-y-4">
+                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                1. Credenciales de Acceso
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Usuario *
+                                    </label>
+                                    <input
+                                        required
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        placeholder="ej: operador1"
+                                        value={nuevoForm.username}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, username: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Contraseña *
+                                    </label>
+                                    <input
+                                        required
+                                        type="password"
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        placeholder="••••••••"
+                                        value={nuevoForm.password}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, password: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Rol *
+                                    </label>
+                                    <select
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                                        value={nuevoForm.rol}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, rol: e.target.value })}
+                                    >
+                                        <option value="ALMACEN">ALMACEN</option>
+                                        <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                                        <option value="OPERADOR">OPERADOR</option>
+                                        <option value="CLIENTE">CLIENTE</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
+                                2. Datos Personales
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Nombres *
+                                    </label>
+                                    <input
+                                        required
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        placeholder="Nombres"
+                                        value={nuevoForm.nombres}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, nombres: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Apellidos *
+                                    </label>
+                                    <input
+                                        required
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        placeholder="Apellidos"
+                                        value={nuevoForm.apellidos}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, apellidos: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        DNI (8 dígitos)
+                                    </label>
+                                    <input
+                                        maxLength={8}
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                        placeholder="78901234"
+                                        value={nuevoForm.dni}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, dni: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
+                                3. Información de Contacto
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Correo Electrónico
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            placeholder="correo@ejemplo.com"
+                                            value={nuevoForm.correo}
+                                            onChange={(e) => setNuevoForm({ ...nuevoForm, correo: e.target.value })}
+                                        />
+                                        <select
+                                            className="px-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                                            value={nuevoForm.tipoCorreo}
+                                            onChange={(e) => setNuevoForm({ ...nuevoForm, tipoCorreo: e.target.value })}
+                                        >
+                                            <option value="Personal">Personal</option>
+                                            <option value="Corporativo">Corporativo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Teléfono
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                            placeholder="987654321"
+                                            value={nuevoForm.telefono}
+                                            onChange={(e) => setNuevoForm({ ...nuevoForm, telefono: e.target.value })}
+                                        />
+                                        <select
+                                            className="px-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                                            value={nuevoForm.tipoTelefono}
+                                            onChange={(e) => setNuevoForm({ ...nuevoForm, tipoTelefono: e.target.value })}
+                                        >
+                                            <option value="Móvil">Móvil</option>
+                                            <option value="Fijo">Fijo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setModalCrear(false)}
+                                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={guardando}
+                                    className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm cursor-pointer disabled:opacity-50"
+                                >
+                                    {guardando ? "Guardando..." : "Crear Usuario"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

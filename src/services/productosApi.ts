@@ -82,7 +82,19 @@ export async function subirImagen(token: string, archivo: File): Promise<{ url: 
     return { url: subida.url || "", publicId: subida.publicId || "" };
 }
 
-/** DELETE /api/productos/{id} -> eliminar producto. */
+/** PATCH /api/productos/{id}/baja-logica — baja lógica del producto según normas 3FN. */
+export async function darDeBajaLogicaProducto(token: string, id: number): Promise<ProductoInv> {
+    const resp = await fetch(`/api/productos/${id}/baja-logica`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo dar de baja lógica al producto"));
+    const actualizado = data as unknown as ProductoBackend;
+    return aProductoInv(actualizado);
+}
+
+/** DELETE /api/productos/{id} -> eliminar producto (baja lógica). */
 export async function eliminarProducto(token: string, id: number): Promise<void> {
     const resp = await fetch(`/api/productos/${id}`, {
         method: "DELETE",

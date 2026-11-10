@@ -1,11 +1,12 @@
 export interface UsuarioDTO {
     id: number;
     username: string;
-    nombreCompleto: string;
-    correo: string;
+    nombre: string;
+    email: string;
     telefono: string;
     rol: string;
     bloqueado: boolean;
+    estado?: string;
     fechaRegistro: string;
     ultimoAcceso: string;
 }
@@ -70,11 +71,16 @@ export async function cambiarEstadoUsuario(token: string, id: number, bloqueado:
     return data;
 }
 
-export async function eliminarUsuario(token: string, id: number): Promise<void> {
-    const res = await fetch(`/api/usuarios/${id}`, {
-        method: "DELETE",
+export async function darDeBajaLogicaUsuario(token: string, id: number): Promise<UsuarioDTO> {
+    const res = await fetch(`/api/usuarios/${id}/baja-logica`, {
+        method: "PATCH",
         headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error("Error al eliminar usuario");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al dar de baja lógica al usuario");
+    return data;
 }
 
+export async function eliminarUsuario(token: string, id: number): Promise<void> {
+    await darDeBajaLogicaUsuario(token, id);
+}

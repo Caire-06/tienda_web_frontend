@@ -8,6 +8,11 @@ import {
 } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
+import {
+    limpiarDecimal,
+    limpiarEnteroNoNegativo,
+    parsearNumeroSeguro,
+} from "../../../utils/validaciones";
 
 const CATALOGO_CATEGORIAS = [
     { id: 1, nombre: "Computadoras", codigo: "CAT-01" },
@@ -63,6 +68,9 @@ function Productos() {
     const [modalAbierto, setModalAbierto] = useState(false);
     const [modoEdicion, setModoEdicion] = useState(false);
     const [guardando, setGuardando] = useState(false);
+    const [precioTexto, setPrecioTexto] = useState("");
+    const [stockTexto, setStockTexto] = useState("0");
+    const [errorModal, setErrorModal] = useState<string | null>(null);
 
     const [form, setForm] = useState<FormProductoState>({
         nombre: "",
@@ -105,6 +113,9 @@ function Productos() {
             imagen: "",
             descripcion: "",
         });
+        setPrecioTexto("");
+        setStockTexto("0");
+        setErrorModal(null);
         setModalAbierto(true);
     };
 
@@ -121,44 +132,66 @@ function Productos() {
             imagen: p.imagen || "",
             descripcion: p.descripcion || "",
         });
+        setPrecioTexto(String(p.precio));
+        setStockTexto(String(p.stock));
+        setErrorModal(null);
         setModalAbierto(true);
     };
 
     const handleGuardar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token) return;
-        if (!form.nombre.trim() || form.precio <= 0) {
-            alert("Nombre y precio válido son obligatorios.");
+        setErrorModal(null);
+        const nombreLimpio = form.nombre.trim();
+        const precioNum = parsearNumeroSeguro(precioTexto);
+        const stockNum = parsearNumeroSeguro(stockTexto);
+        const imagenLimpia = form.imagen.trim();
+
+        if (nombreLimpio.length < 2) {
+            setErrorModal("El nombre del producto debe tener al menos 2 caracteres.");
             return;
         }
+        if (precioNum <= 0) {
+            setErrorModal("Ingresa un precio de venta válido mayor a S/ 0.00.");
+            return;
+        }
+        if (stockNum < 0) {
+            setErrorModal("El stock físico no puede ser negativo.");
+            return;
+        }
+        if (imagenLimpia && !/^https?:\/\/.+|^\/.+/i.test(imagenLimpia)) {
+            setErrorModal("La URL de imagen debe iniciar con http://, https:// o /.");
+            return;
+        }
+
         setGuardando(true);
         try {
             if (modoEdicion && form.id) {
                 const actualizado = await actualizarProducto(token, form.id, {
-                    nombre: form.nombre,
+                    nombre: nombreLimpio,
                     categoria: form.categoria,
-                    precio: form.precio,
-                    stock: form.stock,
-                    imagen: form.imagen,
-                    descripcion: form.descripcion,
+                    precio: precioNum,
+                    stock: Math.trunc(stockNum),
+                    imagen: imagenLimpia,
+                    descripcion: form.descripcion.trim(),
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
                 alert("Producto actualizado exitosamente.");
             } else {
                 const creado = await crearProducto(token, {
-                    nombre: form.nombre,
+                    nombre: nombreLimpio,
                     categoria: form.categoria,
-                    precio: form.precio,
-                    stock: form.stock,
-                    imagen: form.imagen,
-                    descripcion: form.descripcion,
+                    precio: precioNum,
+                    stock: Math.trunc(stockNum),
+                    imagen: imagenLimpia,
+                    descripcion: form.descripcion.trim(),
                 });
                 setProductos((prev) => [creado, ...prev]);
                 alert("Producto registrado exitosamente.");
             }
             setModalAbierto(false);
-        } catch (err: any) {
-            alert(err.message || "Error al procesar el producto.");
+        } catch (err: unknown) {
+            setErrorModal(err instanceof Error ? err.message : "Error al procesar el producto.");
         } finally {
             setGuardando(false);
         }
@@ -416,12 +449,12 @@ function Productos() {
                                     </label>
                                     <input
                                         required
-                                        type="number"
-                                        step="0.01"
-                                        min="0.01"
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0.00"
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                                        value={form.precio || ""}
-                                        onChange={(e) => setForm({ ...form, precio: parseFloat(e.target.value) || 0 })}
+                                        value={precioTexto}
+                                        onChange={(e) => setPrecioTexto(limpiarDecimal(e.target.value))}
                                     />
                                 </div>
                                 <div>
@@ -430,11 +463,12 @@ function Productos() {
                                     </label>
                                     <input
                                         required
-                                        type="number"
-                                        min="0"
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="0"
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                                        value={form.stock || 0}
-                                        onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
+                                        value={stockTexto}
+                                        onChange={(e) => setStockTexto(limpiarEnteroNoNegativo(e.target.value))}
                                     />
                                 </div>
                             </div>
@@ -444,9 +478,9 @@ function Productos() {
                                     URL de Imagen
                                 </label>
                                 <input
-                                    type="url"
+                                    type="text"
                                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                                    placeholder="https://..."
+                                    placeholder="https://... (opcional)"
                                     value={form.imagen}
                                     onChange={(e) => setForm({ ...form, imagen: e.target.value })}
                                 />
@@ -464,6 +498,12 @@ function Productos() {
                                     onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                                 />
                             </div>
+
+                            {errorModal && (
+                                <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                                    {errorModal}
+                                </div>
+                            )}
 
                             <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
                                 <button

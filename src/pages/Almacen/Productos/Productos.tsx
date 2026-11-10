@@ -4,6 +4,11 @@ import { listarProductos, crearProducto, actualizarProducto, subirImagen, elimin
 import { CATEGORIAS } from "../../../data/productos";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
+import {
+    limpiarDecimal,
+    limpiarEnteroNoNegativo,
+    parsearNumeroSeguro,
+} from "../../../utils/validaciones";
 
 type FiltroEstado = "todos" | "disponible" | "bajo" | "sin" | "inactivo";
 
@@ -34,10 +39,13 @@ function Productos() {
 
     const [formId, setFormId] = useState<number | null | undefined>(undefined);
     const [form, setForm] = useState<DatosProducto>(VACIO);
+    const [precioTexto, setPrecioTexto] = useState("");
+    const [stockTexto, setStockTexto] = useState("0");
     const [guardando, setGuardando] = useState(false);
     const [archivo, setArchivo] = useState<File | null>(null);
     const [subiendo, setSubiendo] = useState(false);
     const [preview, setPreview] = useState("");
+    const [errorModal, setErrorModal] = useState<string | null>(null);
 
     const refrescar = async () => {
         if (!token) return;
@@ -78,8 +86,11 @@ function Productos() {
     const abrirNuevo = () => {
         setFormId(null);
         setForm(VACIO);
+        setPrecioTexto("");
+        setStockTexto("0");
         setArchivo(null);
         setPreview("");
+        setErrorModal(null);
     };
 
     const abrirEditar = (p: ProductoInv) => {
@@ -92,14 +103,34 @@ function Productos() {
             imagen: p.imagen,
             descripcion: p.descripcion,
         });
+        setPrecioTexto(String(p.precio));
+        setStockTexto(String(p.stock));
         setArchivo(null);
         setPreview("");
+        setErrorModal(null);
     };
 
     const guardar = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!form.nombre.trim() || form.precio < 0 || form.stock < 0) return;
         if (!token) return;
+        setErrorModal(null);
+        const nombreLimpio = form.nombre.trim();
+        const precioNum = parsearNumeroSeguro(precioTexto);
+        const stockNum = parsearNumeroSeguro(stockTexto);
+
+        if (nombreLimpio.length < 2) {
+            setErrorModal("Ingresa un nombre válido para el producto (mínimo 2 caracteres).");
+            return;
+        }
+        if (precioNum <= 0) {
+            setErrorModal("Ingresa un precio válido mayor a S/ 0.00.");
+            return;
+        }
+        if (stockNum < 0) {
+            setErrorModal("El stock no puede ser negativo.");
+            return;
+        }
+
         setGuardando(true);
         try {
             let imagenFinal: string | undefined = form.imagen.trim() || undefined;
@@ -107,33 +138,35 @@ function Productos() {
                 setSubiendo(true);
                 const subida = await subirImagen(token, archivo);
                 imagenFinal = subida.url;
-                setSubiendo(false);
             }
             if (formId === null) {
                 await crearProducto(token, {
-                    nombre: form.nombre.trim(),
+                    nombre: nombreLimpio,
                     categoria: form.categoria,
-                    precio: Number(form.precio),
-                    stock: Number(form.stock),
+                    precio: precioNum,
+                    stock: Math.trunc(stockNum),
                     imagen: imagenFinal,
-                    descripcion: form.descripcion,
+                    descripcion: form.descripcion.trim(),
                 });
             } else if (formId !== undefined) {
                 await actualizarProducto(token, formId, {
-                    nombre: form.nombre.trim(),
+                    nombre: nombreLimpio,
                     categoria: form.categoria,
-                    precio: Number(form.precio),
-                    stock: Number(form.stock),
+                    precio: precioNum,
+                    stock: Math.trunc(stockNum),
                     imagen: imagenFinal,
-                    descripcion: form.descripcion,
+                    descripcion: form.descripcion.trim(),
                     activo: editando?.activo ?? true,
                 });
             }
             setFormId(undefined);
             await refrescar();
         } catch (err) {
+            const msg = err instanceof Error ? err.message : "No se pudo guardar el producto.";
+            setErrorModal(msg);
             console.error("Error al guardar producto", err);
         } finally {
+            setSubiendo(false);
             setGuardando(false);
         }
     };
@@ -309,13 +342,30 @@ function Productos() {
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Precio (S/)</label>
-                                    <input className={inputClass} type="text" inputMode="decimal" pattern="[0-9.]*" value={String(form.precio)} onChange={(e) => setForm({ ...form, precio: e.target.value === "" ? 0 : Number(e.target.value) })} required />
+                                    <input
+                                        className={inputClass}
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0.00"
+                                        value={precioTexto}
+                                        onChange={(e) => setPrecioTexto(limpiarDecimal(e.target.value))}
+                                        required
+                                    />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Stock {formId === null ? "inicial" : "actual"}</label>
-                                    <input className={inputClass} type="text" inputMode="numeric" pattern="[0-9]*" value={String(form.stock)} onChange={(e) => setForm({ ...form, stock: e.target.value === "" ? 0 : Number(e.target.value) })} required disabled={formId !== null} />
+                                    <input
+                                        className={inputClass}
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="0"
+                                        value={stockTexto}
+                                        onChange={(e) => setStockTexto(limpiarEnteroNoNegativo(e.target.value))}
+                                        required
+                                        disabled={formId !== null}
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Imagen (subir desde PC)</label>
@@ -341,6 +391,11 @@ function Productos() {
                                 <label className="text-xs font-semibold text-slate-500">Descripción</label>
                                 <textarea className={inputClass} rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
                             </div>
+                            {errorModal && (
+                                <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                                    {errorModal}
+                                </div>
+                            )}
                             <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                                 <button type="button" className="btn-mini sec" onClick={() => setFormId(undefined)}>
                                     Cancelar

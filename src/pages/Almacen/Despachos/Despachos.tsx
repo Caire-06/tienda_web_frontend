@@ -9,6 +9,7 @@ import {
 } from "../../../services/despachosApi";
 import { actualizarEstadoPedido, listarPedidosAdmin } from "../../../services/pedidosApi";
 import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
+import { limpiarCodigoAlfanumerico, limpiarSoloLetras } from "../../../utils/validaciones";
 
 const EMPRESAS_COURIER = [
     "Olva Courier",
@@ -542,8 +543,9 @@ function Despachos() {
                                     <input
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                                         placeholder="Auto-generado si se deja vacío"
+                                        maxLength={25}
                                         value={numeroGuiaRemision}
-                                        onChange={(e) => setNumeroGuiaRemision(e.target.value)}
+                                        onChange={(e) => setNumeroGuiaRemision(limpiarCodigoAlfanumerico(e.target.value, 25, true))}
                                     />
                                 </div>
                                 <div>
@@ -553,8 +555,9 @@ function Despachos() {
                                     <input
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                                         placeholder="ej: B8Z-421"
+                                        maxLength={10}
                                         value={placaVehiculo}
-                                        onChange={(e) => setPlacaVehiculo(e.target.value)}
+                                        onChange={(e) => setPlacaVehiculo(limpiarCodigoAlfanumerico(e.target.value, 10, true))}
                                     />
                                 </div>
                             </div>
@@ -567,7 +570,7 @@ function Despachos() {
                                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                     placeholder="Nombre completo del repartidor"
                                     value={conductor}
-                                    onChange={(e) => setConductor(e.target.value)}
+                                    onChange={(e) => setConductor(limpiarSoloLetras(e.target.value, 80))}
                                 />
                             </div>
 

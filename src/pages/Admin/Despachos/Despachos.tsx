@@ -7,18 +7,7 @@ import {
     completarLoteDespacho,
     type DespachoLoteDTO,
 } from "../../../services/despachosApi";
-import type { Pedido } from "../../../data/pedidos";
-
-function fechaCorta(fechaStr: string) {
-    if (!fechaStr) return "—";
-    try {
-        const d = new Date(fechaStr);
-        if (isNaN(d.getTime())) return fechaStr;
-        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    } catch {
-        return fechaStr;
-    }
-}
+import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
 
 function AdminDespachos() {
     const navigate = useNavigate();
@@ -245,9 +234,9 @@ function AdminDespachos() {
                                             {p.cliente || p.comprobante?.nombreRazonSocial || "Cliente"}
                                         </td>
                                         <td className="text-xs">
-                                            {p.tipoEntrega === "recojo" ? "Recojo Tienda" : "Envío Courier"}
+                                            {etiquetaTipoEntrega(p.tipoEntrega)}
                                         </td>
-                                        <td className="text-xs text-slate-500">{fechaCorta(p.fecha)}</td>
+                                        <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(p.fecha)}</td>
                                         <td>
                                             <span className="badge pend">{p.estado || "Pendiente"}</span>
                                         </td>

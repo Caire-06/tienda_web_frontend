@@ -9,8 +9,9 @@ import { useInventario } from "../../context/InventarioContext";
 import { useAuth } from "../../context/AuthContext";
 import { generarNumeroPedido, guardarPedido } from "../../data/pedidos";
 import { crearPedidoBackend } from "../../services/pedidosApi";
-import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido } from "../../data/pedidos";
+import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido, Pedido } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
+import { descargarComprobantePdf } from "../../services/comprobantePdf";
 
 // Envío gratis desde este monto para Delivery Propio en zona; si no, tarifa zonal fija
 const UMBRAL_ENVIO_GRATIS = 499;
@@ -28,6 +29,8 @@ function Carrito() {
     const [estadoPedidoEmitido, setEstadoPedidoEmitido] = useState<EstadoPedido>("Pendiente");
     const [totalPagado, setTotalPagado] = useState(0);
     const [comprobanteEmitido, setComprobanteEmitido] = useState<ComprobanteInfo | null>(null);
+    const [pedidoEmitido, setPedidoEmitido] = useState<Pedido | null>(null);
+    const [generandoPdf, setGenerandoPdf] = useState(false);
 
     // Modal de pasarela de pagos y comprobante
     const [mostrarCheckout, setMostrarCheckout] = useState(false);
@@ -241,6 +244,7 @@ function Carrito() {
 
             let numero = generarNumeroPedido();
             let estadoResultante: EstadoPedido = metodoPago === "transferencia" ? "Pendiente de pago" : "Pendiente";
+            let pedidoConfirmado: Pedido;
 
             if (token) {
                 const creado = await crearPedidoBackend(token, {
@@ -267,11 +271,21 @@ function Carrito() {
                 });
                 numero = creado.numero;
                 if (creado.estado) estadoResultante = creado.estado;
+                pedidoConfirmado = {
+                    ...creado,
+                    items: creado.items.length > 0 ? creado.items : itemsPedido,
+                    costoEnvio: creado.costoEnvio ?? envio,
+                    metodoPago: creado.metodoPago ?? metodoPago,
+                    estadoPago: creado.estadoPago ?? (metodoPago === "transferencia" ? "Por verificar" : "Pagado"),
+                    codigoOperacionPago: creado.codigoOperacionPago ?? codigoOperacionPago,
+                    comprobante: creado.comprobante ?? infoComprobante,
+                };
             } else {
-                guardarPedido({
+                pedidoConfirmado = {
                     numero,
                     fecha,
                     usuarioId: "invitado",
+                    cliente: infoComprobante.nombreRazonSocial,
                     items: itemsPedido,
                     total,
                     costoEnvio: envio,
@@ -281,7 +295,8 @@ function Carrito() {
                     comprobante: infoComprobante,
                     tipoEntrega,
                     estado: estadoResultante,
-                });
+                };
+                guardarPedido(pedidoConfirmado);
             }
 
             lineas.forEach((l) =>
@@ -293,6 +308,7 @@ function Carrito() {
                 )
             );
 
+            setPedidoEmitido(pedidoConfirmado);
             setComprobanteEmitido(infoComprobante);
             setEstadoPedidoEmitido(estadoResultante);
             setTotalPagado(total);
@@ -387,6 +403,27 @@ function Carrito() {
                                             Total: S/ {comprobanteEmitido.total.toFixed(2)}
                                         </strong>
                                     </div>
+                                    {pedidoEmitido && (
+                                        <button
+                                            type="button"
+                                            disabled={generandoPdf}
+                                            onClick={async () => {
+                                                setGenerandoPdf(true);
+                                                try {
+                                                    await descargarComprobantePdf(pedidoEmitido);
+                                                } finally {
+                                                    setGenerandoPdf(false);
+                                                }
+                                            }}
+                                            className="mt-3 w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            <span>
+                                                {generandoPdf
+                                                    ? "Generando PDF..."
+                                                    : `Descargar ${comprobanteEmitido.tipo} PDF`}
+                                            </span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}

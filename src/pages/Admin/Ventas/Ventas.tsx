@@ -2,17 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { confirmarPagoTransferencia, listarPedidosAdmin } from "../../../services/pedidosApi";
-import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
-
-function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
-    const tipo = v.comprobante?.tipo ? v.comprobante.tipo.toUpperCase() : "BOLETA";
-    const prefijo = tipo === "FACTURA" ? "F001-" : "B001-";
-    const numeroLimpio = v.numero.replace(/^PED-/, "");
-    return {
-        serie: prefijo + numeroLimpio,
-        tipo: tipo,
-    };
-}
+import {
+    etiquetaTipoEntrega,
+    formatearFechaHora,
+    obtenerSerieComprobante,
+    type Pedido,
+} from "../../../data/pedidos";
+import { descargarComprobantePdf } from "../../../services/comprobantePdf";
 
 function badgeDeEstado(estado?: string) {
     const e = (estado || "Pendiente").toLowerCase();
@@ -464,7 +460,7 @@ function Ventas() {
                             </table>
                         </div>
 
-                        <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex flex-wrap justify-between items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                             <div>
                                 <span className="text-sm font-bold uppercase text-slate-500 block">Monto Total Cobrado</span>
                                 <span className="text-[11px] text-slate-400">
@@ -475,9 +471,18 @@ function Ventas() {
                                             : "Envío S/ 0.00"}
                                 </span>
                             </div>
-                            <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
-                                S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
-                            </strong>
+                            <div className="flex items-center gap-3 ml-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => void descargarComprobantePdf(detalle)}
+                                    className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                    Descargar PDF
+                                </button>
+                                <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
+                                    S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                </strong>
+                            </div>
                         </div>
                     </div>
                 </div>

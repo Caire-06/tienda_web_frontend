@@ -22,7 +22,6 @@ function Detalle() {
         setCantidad(1);
         let activo = true;
         const cargar = async () => {
-            if (!token) return;
             setBackendProductos([]);
             setProducto(null);
             try {

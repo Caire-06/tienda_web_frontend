@@ -1,4 +1,5 @@
 import type { ProductoInv } from "../context/InventarioContext";
+import { PRODUCTOS as CATALOGO_RESPALDO } from "../data/productos";
 
 // Contrato que devuelve el backend (ProductoDTO) y que usamos en el frontend.
 interface ProductoBackend {
@@ -27,20 +28,44 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
     };
 }
 
-/** GET /api/productos — listar productos para el módulo de Almacén. */
-export async function listarProductos(token: string): Promise<ProductoInv[]> {
-    const resp = await fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` } });
-    if (!resp.ok) throw new Error("No se pudo listar productos");
-    const data = (await resp.json()) as ProductoBackend[];
-    return (Array.isArray(data) ? data : []).map(aProductoInv);
+function respaldoCatalogo(): ProductoInv[] {
+    return CATALOGO_RESPALDO.map((p) => ({ ...p, activo: true }));
 }
 
-/** GET /api/productos/{id} — detalle del producto. */
-export async function obtenerProducto(token: string, id: number): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!resp.ok) throw new Error("No se pudo obtener el producto");
-    const data = (await resp.json()) as ProductoBackend;
-    return aProductoInv(data);
+/** GET /api/productos — listar catálogo público de productos (con respaldo local si el servidor aún está reiniciando). */
+export async function listarProductos(token?: string | null): Promise<ProductoInv[]> {
+    try {
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const resp = await fetch("/api/productos", { headers });
+        if (resp.ok) {
+            const data = (await resp.json()) as ProductoBackend[];
+            if (Array.isArray(data) && data.length > 0) {
+                return data.map(aProductoInv);
+            }
+        }
+    } catch {
+        // Fallback automático al catálogo base si el backend no responde temporalmente
+    }
+    return respaldoCatalogo();
+}
+
+/** GET /api/productos/{id} — detalle público del producto. */
+export async function obtenerProducto(token: string | null | undefined, id: number): Promise<ProductoInv> {
+    try {
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const resp = await fetch(`/api/productos/${id}`, { headers });
+        if (resp.ok) {
+            const data = (await resp.json()) as ProductoBackend;
+            return aProductoInv(data);
+        }
+    } catch {
+        // Fallback automático al catálogo base
+    }
+    const local = CATALOGO_RESPALDO.find((p) => p.id === id);
+    if (local) return { ...local, activo: true };
+    throw new Error("No se pudo obtener el producto");
 }
 
 /** POST /api/productos — registrar producto (con imagen ya subida a Cloudinary). */

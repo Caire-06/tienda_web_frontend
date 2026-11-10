@@ -7,6 +7,7 @@ import {
     completarLoteDespacho,
     type DespachoLoteDTO,
 } from "../../../services/despachosApi";
+import { actualizarEstadoPedido, listarPedidosAdmin } from "../../../services/pedidosApi";
 import type { Pedido } from "../../../data/pedidos";
 
 function fechaCorta(fechaStr: string) {
@@ -28,37 +29,55 @@ const EMPRESAS_COURIER = [
     "Dinet Logística",
 ];
 
+function badgeDeEstado(estado?: string) {
+    const e = (estado || "Pendiente").toLowerCase();
+    if (e === "pendiente") return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
+    if (e === "procesando") return "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300";
+    if (e === "listo para recojo") return "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300";
+    if (e === "enviado") return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300";
+    if (e === "entregado") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300";
+    return "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300";
+}
+
 function Despachos() {
     const { token } = useAuth();
     const [tab, setTab] = useState<"pendientes" | "lotes">("pendientes");
-    const [pendientes, setPendientes] = useState<Pedido[]>([]);
+    const [pedidosActivos, setPedidosActivos] = useState<Pedido[]>([]);
     const [lotes, setLotes] = useState<DespachoLoteDTO[]>([]);
     const [cargando, setCargando] = useState(true);
+    const [actualizandoNumero, setActualizandoNumero] = useState<string | null>(null);
 
-    // Selección múltiple para armar lote
+    // Selección múltiple para armar lote courier
     const [seleccionados, setSeleccionados] = useState<string[]>([]);
 
     // Modal de Consolidación de Lote
-    const [modalAbierto, setModalAbierto] = useState(false);
-    const [guardando, setGuardando] = useState(false);
+    const [modalLoteAbierto, setModalLoteAbierto] = useState(false);
+    const [guardandoLote, setGuardandoLote] = useState(false);
     const [empresaTransporte, setEmpresaTransporte] = useState(EMPRESAS_COURIER[0]);
     const [numeroGuiaRemision, setNumeroGuiaRemision] = useState("");
     const [conductor, setConductor] = useState("");
     const [placaVehiculo, setPlacaVehiculo] = useState("");
     const [observaciones, setObservaciones] = useState("");
 
-    // Modal para ver detalle de un Lote
+    // Modales de Detalle
+    const [pedidoPicking, setPedidoPicking] = useState<Pedido | null>(null);
     const [loteDetalle, setLoteDetalle] = useState<DespachoLoteDTO | null>(null);
 
     const cargar = async () => {
         if (!token) return;
         setCargando(true);
         try {
-            const [pData, lData] = await Promise.all([
-                listarPedidosPendientesDespacho(token),
-                listarLotesDespacho(token),
+            const [todosPedidos, pendientesData, lData] = await Promise.all([
+                listarPedidosAdmin(token).catch(() => []),
+                listarPedidosPendientesDespacho(token).catch(() => []),
+                listarLotesDespacho(token).catch(() => []),
             ]);
-            setPendientes(pData);
+            // Mostrar todos los pedidos que aún requieren gestión operativa en Almacén (no entregados ni cancelados)
+            const fuente = todosPedidos.length > 0 ? todosPedidos : pendientesData;
+            const activos = fuente.filter(
+                (p) => p.estado !== "Entregado" && p.estado !== "Cancelado"
+            );
+            setPedidosActivos(activos);
             setLotes(lData);
         } finally {
             setCargando(false);
@@ -69,6 +88,27 @@ function Despachos() {
         cargar();
     }, [token]);
 
+    const cambiarEstadoRapido = async (pedido: Pedido, nuevoEstado: string) => {
+        if (!token) return;
+        setActualizandoNumero(pedido.numero);
+        try {
+            const actualizado = await actualizarEstadoPedido(token, pedido.numero, nuevoEstado);
+            if (nuevoEstado === "Entregado" || nuevoEstado === "Cancelado") {
+                setPedidosActivos((prev) => prev.filter((p) => p.numero !== pedido.numero));
+                setSeleccionados((prev) => prev.filter((n) => n !== pedido.numero));
+            } else {
+                setPedidosActivos((prev) => prev.map((p) => (p.numero === pedido.numero ? actualizado : p)));
+            }
+            if (pedidoPicking?.numero === pedido.numero) {
+                setPedidoPicking(actualizado);
+            }
+        } catch (err: any) {
+            alert(err.message || "Error al actualizar el estado");
+        } finally {
+            setActualizandoNumero(null);
+        }
+    };
+
     const toggleSeleccion = (numero: string) => {
         setSeleccionados((prev) =>
             prev.includes(numero) ? prev.filter((n) => n !== numero) : [...prev, numero]
@@ -76,17 +116,18 @@ function Despachos() {
     };
 
     const toggleTodos = () => {
-        if (seleccionados.length === pendientes.length) {
+        const elegibles = pedidosActivos.filter((p) => !p.codigoLoteDespacho);
+        if (seleccionados.length === elegibles.length) {
             setSeleccionados([]);
         } else {
-            setSeleccionados(pendientes.map((p) => p.numero));
+            setSeleccionados(elegibles.map((p) => p.numero));
         }
     };
 
     const handleDespacharLote = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token || seleccionados.length === 0) return;
-        setGuardando(true);
+        setGuardandoLote(true);
         try {
             const nuevo = await crearLoteDespacho(token, {
                 numerosPedidos: seleccionados,
@@ -97,34 +138,36 @@ function Despachos() {
                 observaciones: observaciones.trim() || undefined,
             });
             setLotes((prev) => [nuevo, ...prev]);
-            setPendientes((prev) => prev.filter((p) => !seleccionados.includes(p.numero)));
+            await cargar();
             setSeleccionados([]);
-            setModalAbierto(false);
+            setModalLoteAbierto(false);
             setNumeroGuiaRemision("");
             setConductor("");
             setPlacaVehiculo("");
             setObservaciones("");
-            alert(`Lote ${nuevo.codigoLote} despachado a ${nuevo.empresaTransporte} con ${nuevo.cantidadPedidos} pedidos. El Administrador ya puede supervisarlo.`);
+            alert(`Lote ${nuevo.codigoLote} despachado con ${nuevo.cantidadPedidos} pedidos a ${nuevo.empresaTransporte}.`);
             setTab("lotes");
         } catch (err: any) {
             alert(err.message || "Error al generar el lote de despacho");
         } finally {
-            setGuardando(false);
+            setGuardandoLote(false);
         }
     };
 
     const handleCompletarLote = async (lote: DespachoLoteDTO) => {
         if (!token) return;
-        if (!window.confirm(`¿Confirmar que el lote ${lote.codigoLote} fue entregado en su totalidad al cliente final?`)) return;
+        if (!window.confirm(`¿Confirmar que el lote ${lote.codigoLote} fue entregado en su totalidad?`)) return;
         try {
             const actualizado = await completarLoteDespacho(token, lote.id);
             setLotes((prev) => prev.map((l) => (l.id === lote.id ? actualizado : l)));
+            await cargar();
         } catch (err: any) {
             alert(err.message || "Error al completar el lote");
         }
     };
 
-    const valorSeleccionado = pendientes
+    const elegiblesLote = pedidosActivos.filter((p) => !p.codigoLoteDespacho);
+    const valorSeleccionado = pedidosActivos
         .filter((p) => seleccionados.includes(p.numero))
         .reduce((acc, p) => acc + Number(p.total || 0), 0);
 
@@ -132,9 +175,9 @@ function Despachos() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Despachos y Envíos</h1>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Despachos y Preparación</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Prepara pedidos pendientes y agrúpalos en lotes de despacho para entregarlos juntos al courier.
+                        Recibe los pedidos pendientes del cliente, inicia la preparación física y agrupa envíos para el courier.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -147,10 +190,10 @@ function Despachos() {
                     {tab === "pendientes" && (
                         <button
                             disabled={seleccionados.length === 0}
-                            onClick={() => setModalAbierto(true)}
+                            onClick={() => setModalLoteAbierto(true)}
                             className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         >
-                            <span>📦</span> Consolidar Lote ({seleccionados.length})
+                            <span>📦</span> Enviar Juntos en Lote ({seleccionados.length})
                         </button>
                     )}
                 </div>
@@ -166,9 +209,9 @@ function Despachos() {
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                 >
-                    <span>Pedidos por Despachar</span>
+                    <span>Pedidos por Atender</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
-                        {pendientes.length}
+                        {pedidosActivos.length}
                     </span>
                 </button>
                 <button
@@ -188,13 +231,13 @@ function Despachos() {
 
             {cargando ? (
                 <div className="text-center py-12 text-sm text-slate-500">
-                    Cargando bandeja logística...
+                    Cargando pedidos en almacén...
                 </div>
             ) : tab === "pendientes" ? (
                 <div className="space-y-3">
-                    {pendientes.length === 0 ? (
+                    {pedidosActivos.length === 0 ? (
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-sm text-slate-500">
-                            No hay pedidos pendientes de preparación o envío en este momento.
+                            ¡Todo al día! No hay pedidos pendientes de preparación o envío en Almacén.
                         </div>
                     ) : (
                         <div className="tabla-wrap">
@@ -204,57 +247,136 @@ function Despachos() {
                                         <th className="w-10">
                                             <input
                                                 type="checkbox"
-                                                checked={pendientes.length > 0 && seleccionados.length === pendientes.length}
+                                                checked={elegiblesLote.length > 0 && seleccionados.length === elegiblesLote.length}
                                                 onChange={toggleTodos}
                                                 className="w-4 h-4 rounded cursor-pointer accent-emerald-600"
+                                                title="Seleccionar todos para enviar en lote"
                                             />
                                         </th>
                                         <th>N° Pedido</th>
                                         <th>Cliente</th>
-                                        <th>Modalidad</th>
-                                        <th>Productos</th>
-                                        <th>Fecha Compra</th>
-                                        <th>Estado</th>
-                                        <th>Total</th>
+                                        <th>Modalidad / Ítems</th>
+                                        <th>Estado Actual</th>
+                                        <th>Opciones de Flujo (Almacén)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pendientes.map((p) => {
+                                    {pedidosActivos.map((p) => {
                                         const isSelected = seleccionados.includes(p.numero);
+                                        const yaEnLote = Boolean(p.codigoLoteDespacho);
+                                        const estadoActual = p.estado || "Pendiente";
+                                        const procesandoAccion = actualizandoNumero === p.numero;
+                                        const totalUnidades = (p.items || []).reduce((acc, it) => acc + it.cantidad, 0);
+
                                         return (
                                             <tr
                                                 key={p.numero}
-                                                onClick={() => toggleSeleccion(p.numero)}
-                                                className={`cursor-pointer transition-colors ${
+                                                className={`transition-colors ${
                                                     isSelected ? "bg-emerald-50/50 dark:bg-emerald-950/20" : ""
                                                 }`}
                                             >
-                                                <td onClick={(e) => e.stopPropagation()}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => toggleSeleccion(p.numero)}
-                                                        className="w-4 h-4 rounded cursor-pointer accent-emerald-600"
-                                                    />
+                                                <td>
+                                                    {!yaEnLote ? (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => toggleSeleccion(p.numero)}
+                                                            className="w-4 h-4 rounded cursor-pointer accent-emerald-600"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-[10px] font-mono text-emerald-600 font-bold" title={`Lote ${p.codigoLoteDespacho}`}>
+                                                            📦
+                                                        </span>
+                                                    )}
                                                 </td>
-                                                <td className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                                    {p.numero}
+                                                <td>
+                                                    <div className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                                        {p.numero}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400">{fechaCorta(p.fecha)}</div>
                                                 </td>
                                                 <td className="font-semibold text-xs">
                                                     {p.cliente || p.comprobante?.nombreRazonSocial || "Cliente"}
                                                 </td>
                                                 <td className="text-xs">
-                                                    {p.tipoEntrega === "recojo" ? "Recojo Tienda" : "Envío Courier"}
+                                                    <div className="font-medium">
+                                                        {p.tipoEntrega === "recojo" ? "🏪 Recojo en tienda" : "🚚 Delivery / Courier"}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setPedidoPicking(p)}
+                                                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                                    >
+                                                        Ver {totalUnidades} {totalUnidades === 1 ? "producto" : "productos"} →
+                                                    </button>
                                                 </td>
-                                                <td className="text-xs text-slate-500">
-                                                    {(p.items || []).reduce((acc, it) => acc + it.cantidad, 0)} uds.
-                                                </td>
-                                                <td className="text-xs text-slate-500">{fechaCorta(p.fecha)}</td>
                                                 <td>
-                                                    <span className="badge pend">{p.estado || "Pendiente"}</span>
+                                                    <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${badgeDeEstado(estadoActual)}`}>
+                                                        {estadoActual}
+                                                    </span>
+                                                    {p.codigoLoteDespacho && (
+                                                        <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                                                            {p.codigoLoteDespacho} ({p.empresaTransporte})
+                                                        </div>
+                                                    )}
                                                 </td>
-                                                <td className="font-mono font-bold text-xs">
-                                                    S/ {Number(p.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                <td>
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        {estadoActual === "Pendiente" && (
+                                                            <button
+                                                                disabled={procesandoAccion}
+                                                                onClick={() => cambiarEstadoRapido(p, "Procesando")}
+                                                                className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                                                            >
+                                                                ▶ Empezar preparación
+                                                            </button>
+                                                        )}
+
+                                                        {estadoActual === "Procesando" && p.tipoEntrega === "recojo" && (
+                                                            <button
+                                                                disabled={procesandoAccion}
+                                                                onClick={() => cambiarEstadoRapido(p, "Listo para recojo")}
+                                                                className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                                                            >
+                                                                ✅ Listo para recojo
+                                                            </button>
+                                                        )}
+
+                                                        {estadoActual === "Procesando" && p.tipoEntrega !== "recojo" && (
+                                                            <button
+                                                                disabled={procesandoAccion}
+                                                                onClick={() => {
+                                                                    if (!isSelected) toggleSeleccion(p.numero);
+                                                                    setModalLoteAbierto(true);
+                                                                }}
+                                                                className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                                                            >
+                                                                🚚 Despachar a Courier
+                                                            </button>
+                                                        )}
+
+                                                        {(estadoActual === "Enviado" || estadoActual === "Listo para recojo") && (
+                                                            <button
+                                                                disabled={procesandoAccion}
+                                                                onClick={() => cambiarEstadoRapido(p, "Entregado")}
+                                                                className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                                                            >
+                                                                ✔ Marcar Entregado
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            disabled={procesandoAccion}
+                                                            onClick={() => {
+                                                                if (window.confirm(`¿Cancelar el pedido ${p.numero}?`)) {
+                                                                    cambiarEstadoRapido(p, "Cancelado");
+                                                                }
+                                                            }}
+                                                            className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer disabled:opacity-50"
+                                                            title="Cancelar pedido"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -331,12 +453,12 @@ function Despachos() {
             )}
 
             {/* Modal para Consolidar y Enviar Lote */}
-            {modalAbierto && (
+            {modalLoteAbierto && (
                 <div className="modal-fondo">
                     <div className="modal-mediano max-w-lg" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
                             <h2>📦 Generar Lote de Despacho</h2>
-                            <button className="modal-cerrar" onClick={() => setModalAbierto(false)}>
+                            <button className="modal-cerrar" onClick={() => setModalLoteAbierto(false)}>
                                 ✕
                             </button>
                         </div>
@@ -344,7 +466,7 @@ function Despachos() {
                         <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 text-xs flex justify-between items-center">
                             <div>
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300 block">
-                                    {seleccionados.length} pedidos agrupados en este envío
+                                    {seleccionados.length} {seleccionados.length === 1 ? "pedido seleccionado" : "pedidos agrupados"}
                                 </span>
                                 <span className="text-[11px] font-mono text-slate-500">
                                     {seleccionados.join(", ")}
@@ -416,7 +538,7 @@ function Despachos() {
                                 <textarea
                                     rows={2}
                                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                                    placeholder="Notas adicionales para auditoría del administrador..."
+                                    placeholder="Notas adicionales para el seguimiento administrativo..."
                                     value={observaciones}
                                     onChange={(e) => setObservaciones(e.target.value)}
                                 />
@@ -425,20 +547,64 @@ function Despachos() {
                             <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
                                 <button
                                     type="button"
-                                    onClick={() => setModalAbierto(false)}
+                                    onClick={() => setModalLoteAbierto(false)}
                                     className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={guardando}
+                                    disabled={guardandoLote}
                                     className="px-5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer disabled:opacity-50"
                                 >
-                                    {guardando ? "Registrando Despacho..." : "Confirmar y Despachar Lote"}
+                                    {guardandoLote ? "Registrando Despacho..." : "Confirmar y Despachar Lote"}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Lista de Picking (Qué productos empaquetar) */}
+            {pedidoPicking && (
+                <div className="modal-fondo">
+                    <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-head">
+                            <h2>Lista de Empaque: {pedidoPicking.numero}</h2>
+                            <button className="modal-cerrar" onClick={() => setPedidoPicking(null)}>
+                                ✕
+                            </button>
+                        </div>
+                        <div className="text-xs text-slate-500 mb-3">
+                            Cliente: <strong className="text-slate-800 dark:text-slate-200">{pedidoPicking.cliente}</strong> ·{" "}
+                            Estado: <strong className="text-blue-600">{pedidoPicking.estado}</strong>
+                        </div>
+                        <div className="divide-y divide-slate-200 dark:divide-slate-800 mb-4">
+                            {(pedidoPicking.items || []).map((it) => (
+                                <div key={it.id} className="py-2 flex items-center justify-between gap-2 text-xs">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{it.nombre}</span>
+                                    <span className="font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800">
+                                        {it.cantidad} ud(s).
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                            {pedidoPicking.estado === "Pendiente" && (
+                                <button
+                                    onClick={() => cambiarEstadoRapido(pedidoPicking, "Procesando")}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                                >
+                                    ▶ Empezar preparación
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setPedidoPicking(null)}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 cursor-pointer"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

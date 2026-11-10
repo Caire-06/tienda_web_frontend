@@ -31,7 +31,7 @@ export const CLAVE_ESTADOS = "techstore-usuarios-estado"; // { id: "activo" | "i
 export const CUENTAS_FIJAS: CuentaDemo[] = [
     {
         acceso: "admin",
-        password: "123",
+        password: "admin123",
         usuario: { id: "admin", nombre: "Luis (Admin)", acceso: "admin", rol: "admin" },
     },
     {

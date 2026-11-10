@@ -75,7 +75,7 @@ function Login() {
     // Rellena el formulario con una cuenta demo
     function usarDemo(usuario: string) {
         setAcceso(usuario);
-        setPassword("123");
+        setPassword(usuario === "admin" ? "admin123" : "123");
         setError("");
     }
 
@@ -206,7 +206,7 @@ function Login() {
                                     onClick={() => usarDemo("admin")}
                                     className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
                                 >
-                                    Admin / 123
+                                    Admin / admin123
                                 </button>
                                 <button
                                     type="button"

@@ -35,7 +35,8 @@ function generarPasswordTemporalPreview(nombres: string, apellidos: string, dni:
     if (!nombres.trim() || !apellidos.trim() || !/^\d{8}$/.test(dni.trim())) return "";
     const parteNombre = normalizarSegmentoNombre(nombres, "Usuario");
     const parteApellido = normalizarSegmentoNombre(apellidos, "Tech");
-    return `${parteNombre}.${parteApellido}${dni.trim()}`;
+    const ultimos3Dni = dni.trim().slice(-3);
+    return `${parteNombre.charAt(0).toUpperCase()}${parteApellido.toLowerCase()}${ultimos3Dni}`;
 }
 
 async function copiarTexto(texto: string): Promise<boolean> {
@@ -499,55 +500,7 @@ function Usuarios() {
                         ) : (
                         <form onSubmit={handleCrearUsuario} className="space-y-4">
                             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                1. Credenciales de Acceso
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Usuario *
-                                    </label>
-                                    <input
-                                        required
-                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400"
-                                        placeholder="ej: almacen2"
-                                        value={nuevoForm.username}
-                                        onChange={(e) => setNuevoForm({ ...nuevoForm, username: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Rol *
-                                    </label>
-                                    <select
-                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                                        value={nuevoForm.rol}
-                                        onChange={(e) => setNuevoForm({ ...nuevoForm, rol: e.target.value })}
-                                    >
-                                        <option value="ALMACEN">ALMACEN</option>
-                                        <option value="ADMINISTRADOR">ADMINISTRADOR</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Contraseña temporal autogenerada
-                                </label>
-                                <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 font-mono text-slate-800 dark:text-slate-200 flex items-center justify-between gap-2">
-                                    <span className={passwordGenerada ? "font-bold" : "text-slate-400 italic font-sans"}>
-                                        {passwordGenerada || "Se autogenerará al ingresar Nombre, Apellido y DNI (8 dígitos)"}
-                                    </span>
-                                    <span className="text-[10px] font-sans font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
-                                        Automática
-                                    </span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                                    Formato: PrimerNombre.PrimerApellido + DNI. El usuario deberá cambiarla tras iniciar sesión.
-                                </p>
-                            </div>
-
-                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
-                                2. Datos Personales
+                                1. Datos Personales
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
@@ -596,7 +549,7 @@ function Usuarios() {
                             </div>
 
                             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
-                                3. Información de Contacto
+                                2. Información de Contacto
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
@@ -642,6 +595,54 @@ function Usuarios() {
                                         </select>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider pt-2 border-t border-slate-200 dark:border-slate-800">
+                                3. Credenciales de Acceso
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Usuario *
+                                    </label>
+                                    <input
+                                        required
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400"
+                                        placeholder="ej: almacen2"
+                                        value={nuevoForm.username}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, username: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Rol *
+                                    </label>
+                                    <select
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                                        value={nuevoForm.rol}
+                                        onChange={(e) => setNuevoForm({ ...nuevoForm, rol: e.target.value })}
+                                    >
+                                        <option value="ALMACEN">ALMACEN</option>
+                                        <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Contraseña temporal autogenerada
+                                </label>
+                                <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 font-mono text-slate-800 dark:text-slate-200 flex items-center justify-between gap-2">
+                                    <span className={passwordGenerada ? "font-bold" : "text-slate-400 italic font-sans"}>
+                                        {passwordGenerada || "Se autogenerará al ingresar Nombre, Apellido y DNI (8 dígitos)"}
+                                    </span>
+                                    <span className="text-[10px] font-sans font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
+                                        Automática
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                    Formato: 1.ª letra del nombre + apellido + últimos 3 dígitos del DNI (ej. Ccastro696). El usuario deberá cambiarla al iniciar sesión.
+                                </p>
                             </div>
 
                             {errorForm && (

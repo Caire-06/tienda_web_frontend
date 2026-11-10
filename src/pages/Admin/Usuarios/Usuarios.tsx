@@ -215,7 +215,6 @@ function Usuarios() {
                                                     <option value="CLIENTE">CLIENTE</option>
                                                     <option value="ALMACEN">ALMACEN</option>
                                                     <option value="ADMINISTRADOR">ADMINISTRADOR</option>
-                                                    <option value="OPERADOR">OPERADOR</option>
                                                 </select>
                                             )}
                                         </td>
@@ -347,7 +346,7 @@ function Usuarios() {
                                     <input
                                         required
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                                        placeholder="ej: operador1"
+                                        placeholder="ej: almacen2"
                                         value={nuevoForm.username}
                                         onChange={(e) => setNuevoForm({ ...nuevoForm, username: e.target.value })}
                                     />
@@ -376,7 +375,6 @@ function Usuarios() {
                                     >
                                         <option value="ALMACEN">ALMACEN</option>
                                         <option value="ADMINISTRADOR">ADMINISTRADOR</option>
-                                        <option value="OPERADOR">OPERADOR</option>
                                         <option value="CLIENTE">CLIENTE</option>
                                     </select>
                                 </div>

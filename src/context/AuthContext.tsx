@@ -26,7 +26,7 @@ function leerGuardada(): SesionGuardada | null {
 }
 function rolDeBackend(valor: string): Rol {
   if (valor === "ADMINISTRADOR") return "admin";
-  if (valor === "OPERADOR" || valor === "ALMACEN") return "almacen";
+  if (valor === "ALMACEN") return "almacen";
   return "cliente";
 }
 async function respuestaJson(resp: Response): Promise<Record<string, any>> {

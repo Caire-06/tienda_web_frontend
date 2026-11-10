@@ -11,9 +11,9 @@ import { crearPedidoBackend } from "../../services/pedidosApi";
 import type { TipoComprobante, MetodoPago, ComprobanteInfo } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 
-// Envío gratis desde este monto, si no, cuesta fijo
+// Envío gratis desde este monto para Delivery Propio en zona; si no, tarifa zonal fija
 const UMBRAL_ENVIO_GRATIS = 499;
-const COSTO_ENVIO = 19;
+const COSTO_DELIVERY_PROPIO = 15;
 
 function Carrito() {
     const navigate = useNavigate();
@@ -30,8 +30,8 @@ function Carrito() {
     const [mostrarCheckout, setMostrarCheckout] = useState(false);
     const [pasoCheckout, setPasoCheckout] = useState<1 | 2 | 3>(1);
 
-    // Datos de Envío y Contacto (Paso 1)
-    const [tipoEntrega, setTipoEntrega] = useState<"envio" | "recojo">("envio");
+    // Datos de Envío y Contacto (Paso 1): 3 modalidades
+    const [tipoEntrega, setTipoEntrega] = useState<"delivery_propio" | "agencia_destino" | "recojo">("delivery_propio");
     const [correoContacto, setCorreoContacto] = useState("");
     const [celularContacto, setCelularContacto] = useState("");
     const [direccionEnvio, setDireccionEnvio] = useState("");
@@ -62,13 +62,15 @@ function Carrito() {
         .filter((l) => l.producto && l.producto.activo);
 
     const envioGratis = subtotal >= UMBRAL_ENVIO_GRATIS;
-    const costoEnvioActual = tipoEntrega === "recojo" ? 0 : COSTO_ENVIO;
-    const envio = lineas.length === 0 || envioGratis ? 0 : costoEnvioActual;
+    const envio =
+        lineas.length === 0 || tipoEntrega !== "delivery_propio" || envioGratis
+            ? 0
+            : COSTO_DELIVERY_PROPIO;
     const total = subtotal + envio;
 
-    // Cálculo tributario SUNAT (18% IGV incluido)
-    const baseImponible = Math.round((subtotal / 1.18) * 100) / 100;
-    const igv = Math.round((subtotal - baseImponible) * 100) / 100;
+    // Cálculo tributario SUNAT (18% IGV incluido sobre el total cobrado)
+    const baseImponible = Math.round((total / 1.18) * 100) / 100;
+    const igv = Math.round((total - baseImponible) * 100) / 100;
 
     // Barra de progreso hacia el envío gratis
     const progreso = Math.min(100, Math.round((subtotal / UMBRAL_ENVIO_GRATIS) * 100));
@@ -133,7 +135,7 @@ function Carrito() {
         setProcesandoPago(true);
 
         setTimeout(async () => {
-            const fecha = new Date().toLocaleDateString("es-PE");
+            const fecha = new Date().toISOString();
 
             const infoComprobante: ComprobanteInfo = {
                 tipo: tipoComprobante,
@@ -172,6 +174,7 @@ function Carrito() {
                             total: infoComprobante.total,
                         },
                         tipoEntrega,
+                        costoEnvio: envio,
                         correoContacto,
                         celularContacto,
                         direccionEnvio,
@@ -192,6 +195,7 @@ function Carrito() {
                     usuarioId: "invitado",
                     items: itemsPedido,
                     total,
+                    costoEnvio: envio,
                     metodoPago,
                     comprobante: infoComprobante,
                     tipoEntrega,
@@ -437,10 +441,16 @@ function Carrito() {
                                     <span className="font-mono text-slate-800 dark:text-slate-200">S/ {igv.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400 mb-2.5 font-medium">
-                                    <span>Envío</span>
-                                    <span className={envioGratis ? "text-emerald-600 dark:text-emerald-400 font-bold" : "font-mono text-slate-800 dark:text-slate-200"}>
-                                        {envioGratis ? "Gratis" : `S/ ${envio}`}
-                                    </span>
+                                    <span>Envío / Entrega</span>
+                                    {tipoEntrega === "recojo" ? (
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">Gratis (Recojo)</span>
+                                    ) : tipoEntrega === "agencia_destino" ? (
+                                        <span className="text-amber-600 dark:text-amber-400 font-bold text-xs">Pago en destino</span>
+                                    ) : (
+                                        <span className={envioGratis ? "text-emerald-600 dark:text-emerald-400 font-bold" : "font-mono text-slate-800 dark:text-slate-200"}>
+                                            {envioGratis ? "Gratis (Zona)" : `S/ ${envio.toFixed(2)}`}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-800 my-4 pt-4 text-base font-bold text-slate-900 dark:text-white">
                                     <span>Total</span>
@@ -552,40 +562,67 @@ function Carrito() {
                                             </div>
                                         )}
 
-                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
                                             <button
                                                 type="button"
-                                                className={`flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-                                                    tipoEntrega === "envio" 
-                                                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/50 dark:border-blue-500" 
+                                                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    tipoEntrega === "delivery_propio"
+                                                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/50 dark:border-blue-500"
                                                         : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700"
                                                 }`}
-                                                onClick={() => setTipoEntrega("envio")}
+                                                onClick={() => {
+                                                    setTipoEntrega("delivery_propio");
+                                                    if (!distritoEnvio) setDistritoEnvio("San Juan de Lurigancho");
+                                                }}
                                             >
-                                                <strong className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                                                    Envío a Domicilio
+                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    🛵 Delivery Propio
                                                 </strong>
                                                 <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                    A todo San Juan de Lurigancho
+                                                    Zona SJL · {envioGratis ? "Gratis" : `S/ ${COSTO_DELIVERY_PROPIO}`}
                                                 </span>
                                             </button>
+
                                             <button
                                                 type="button"
-                                                className={`flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-                                                    tipoEntrega === "recojo" 
-                                                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/50 dark:border-blue-500" 
+                                                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    tipoEntrega === "agencia_destino"
+                                                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/50 dark:border-blue-500"
+                                                        : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700"
+                                                }`}
+                                                onClick={() => setTipoEntrega("agencia_destino")}
+                                            >
+                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    📦 Agencia Courier
+                                                </strong>
+                                                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                                                    Olva / Shalom (Pago destino)
+                                                </span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    tipoEntrega === "recojo"
+                                                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/50 dark:border-blue-500"
                                                         : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700"
                                                 }`}
                                                 onClick={() => setTipoEntrega("recojo")}
                                             >
-                                                <strong className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                                                    Recojo en Tienda
+                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    🏪 Recojo en Tienda
                                                 </strong>
-                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                    Av. Próceres de la Ind. 2450
+                                                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                                                    SJL · Gratis
                                                 </span>
                                             </button>
                                         </div>
+
+                                        {tipoEntrega === "agencia_destino" && (
+                                            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 mb-2">
+                                                <strong>Importante — Flete por Pagar:</strong> El envío mediante <strong>Olva Courier o Shalom</strong> no está incluido en este monto web. Al recibir tu paquete o recogerlo en agencia, abonarás la tarifa de transporte directamente al courier.
+                                            </div>
+                                        )}
 
                                         <div className="flex flex-col gap-1.5">
                                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -618,11 +655,11 @@ function Carrito() {
                                             />
                                         </div>
 
-                                        {tipoEntrega === "envio" && (
+                                        {tipoEntrega !== "recojo" && (
                                             <>
                                                 <div className="flex flex-col gap-1.5">
                                                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Dirección de Envío *
+                                                        {tipoEntrega === "agencia_destino" ? "Dirección de Entrega o Agencia (Olva / Shalom) *" : "Dirección de Envío *"}
                                                     </label>
                                                     <input 
                                                         type="text" 
@@ -791,6 +828,18 @@ function Carrito() {
                                         )}
 
                                         <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex flex-col gap-2 text-xs font-medium my-3">
+                                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                                                <span>Envío / Modalidad:</span>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                    {tipoEntrega === "recojo"
+                                                        ? "Recojo en tienda (Gratis)"
+                                                        : tipoEntrega === "agencia_destino"
+                                                            ? "Agencia (Pago en destino)"
+                                                            : envio === 0
+                                                                ? "Delivery Propio (Gratis)"
+                                                                : `Delivery Propio (S/ ${envio.toFixed(2)})`}
+                                                </span>
+                                            </div>
                                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                                                 <span>Op. Gravada:</span>
                                                 <span className="font-mono text-slate-800 dark:text-slate-200">S/ {baseImponible.toFixed(2)}</span>

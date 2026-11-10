@@ -156,6 +156,16 @@ export async function consultarDNI(dni: string): Promise<ResultadoDNI> {
     );
 }
 
+function direccionDesdeRucJson(data: JsonApi): string {
+    const raw = typeof data.direccion === "string" ? data.direccion.trim() : "";
+    if (raw && raw !== "-") return raw;
+    const ubigeo = [data.distrito, data.provincia, data.departamento]
+        .filter((v): v is string => typeof v === "string" && v.trim() !== "" && v.trim() !== "-")
+        .map((v) => v.trim())
+        .join(", ");
+    return ubigeo || "LIMA - PERÚ";
+}
+
 export async function consultarRUC(ruc: string): Promise<ResultadoRUC> {
     const limpio = ruc.trim().replace(/\D/g, "");
     if (limpio.length !== 11) {
@@ -202,7 +212,7 @@ export async function consultarRUC(ruc: string): Promise<ResultadoRUC> {
                     razonSocial: data.razonSocial as string,
                     estado: (data.estado as string) || "ACTIVO",
                     condicion: (data.condicion as string) || "HABIDO",
-                    direccion: (data.direccion as string) || "LIMA - PERÚ",
+                    direccion: direccionDesdeRucJson(data),
                     departamento: data.departamento as string,
                     provincia: data.provincia as string,
                     distrito: data.distrito as string,

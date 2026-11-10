@@ -195,7 +195,11 @@ function Ventas() {
                                                     {v.estado || "Pendiente"}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                                                    {v.tipoEntrega === "recojo" ? "Recojo en Tienda" : "Envío a Domicilio"}
+                                                    {v.codigoLoteDespacho
+                                                        ? `Lote ${v.codigoLoteDespacho} · ${v.empresaTransporte || "Courier"}`
+                                                        : v.tipoEntrega === "recojo"
+                                                            ? "Recojo en Tienda"
+                                                            : "En espera de Almacén"}
                                                 </span>
                                             </div>
                                         </td>
@@ -253,7 +257,11 @@ function Ventas() {
                                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
                                     <div className="font-bold text-amber-700 dark:text-amber-300">4. Despacho</div>
                                     <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                        {detalle.tipoEntrega === "recojo" ? "Recojo Tienda" : "Envío Courier"}
+                                        {detalle.codigoLoteDespacho
+                                            ? `${detalle.codigoLoteDespacho} (${detalle.empresaTransporte})`
+                                            : detalle.tipoEntrega === "recojo"
+                                                ? "Recojo Tienda"
+                                                : "En espera de Almacén"}
                                     </div>
                                 </div>
                             </div>

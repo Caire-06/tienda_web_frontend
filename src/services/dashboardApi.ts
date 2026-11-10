@@ -28,6 +28,7 @@ export interface DashboardKpis {
     totalUsuariosActivos: number;
     totalUsuariosInactivos: number;
     stockCriticoCount: number;
+    pedidosPendientesDespacho?: number;
     productosStockCritico: ProductoStockCritico[];
     topProductos: ProductoTop[];
     ultimasVentas: Pedido[];
@@ -108,6 +109,9 @@ export async function obtenerDashboardKpis(token: string): Promise<DashboardKpis
 
         const totalUsuarios = usuarios.length || 4;
         const totalUsuariosActivos = usuarios.filter((u: any) => u.estado !== "Inactivo" && !u.bloqueado).length || totalUsuarios;
+        const pedidosPendientesDespacho = pedidos.filter(
+            (p: any) => !p.codigoLoteDespacho && p.estado !== "Cancelado" && p.estado !== "Entregado"
+        ).length;
 
         return {
             ventasHoy,
@@ -119,6 +123,7 @@ export async function obtenerDashboardKpis(token: string): Promise<DashboardKpis
             totalUsuariosActivos,
             totalUsuariosInactivos: totalUsuarios - totalUsuariosActivos,
             stockCriticoCount: criticos.length,
+            pedidosPendientesDespacho,
             productosStockCritico: criticos,
             topProductos,
             ultimasVentas: pedidos.slice(0, 5),

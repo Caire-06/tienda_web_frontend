@@ -77,3 +77,4 @@ export async function eliminarUsuario(token: string, id: number): Promise<void> 
     });
     if (!res.ok) throw new Error("Error al eliminar usuario");
 }
+

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
@@ -7,8 +7,8 @@ import { useCarrito } from "../../context/CarritoContext";
 import { useInventario } from "../../context/InventarioContext";
 import { useAuth } from "../../context/AuthContext";
 import { generarNumeroPedido, guardarPedido } from "../../data/pedidos";
-import { crearPedidoBackend } from "../../services/pedidosApi";
-import type { TipoComprobante, MetodoPago, ComprobanteInfo } from "../../data/pedidos";
+import { crearPedidoBackend, subirComprobantePago } from "../../services/pedidosApi";
+import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 
 // Envío gratis desde este monto para Delivery Propio en zona; si no, tarifa zonal fija
@@ -23,6 +23,7 @@ function Carrito() {
 
     // Pedido confirmado (solo frontend): guarda el total y muestra éxito
     const [pedidoOk, setPedidoOk] = useState<string | null>(null);
+    const [estadoPedidoEmitido, setEstadoPedidoEmitido] = useState<EstadoPedido>("Pendiente");
     const [totalPagado, setTotalPagado] = useState(0);
     const [comprobanteEmitido, setComprobanteEmitido] = useState<ComprobanteInfo | null>(null);
 
@@ -54,7 +55,43 @@ function Carrito() {
     const [vencimiento, setVencimiento] = useState("");
     const [cvv, setCvv] = useState("");
     const [codigoYape, setCodigoYape] = useState("");
+    const [codigoSeguridadYape, setCodigoSeguridadYape] = useState("");
+    const [numeroOperacionTransf, setNumeroOperacionTransf] = useState("");
+    const [archivoComprobante, setArchivoComprobante] = useState<File | null>(null);
+    const [previewComprobante, setPreviewComprobante] = useState("");
+    const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+    const [errorPago, setErrorPago] = useState<string | null>(null);
     const [procesandoPago, setProcesandoPago] = useState(false);
+
+    // Precargar datos guardados del perfil cuando el usuario ha iniciado sesión
+    useEffect(() => {
+        if (!token) return;
+        let activo = true;
+        fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((perfil) => {
+                if (!activo || !perfil) return;
+                if (perfil.correo) setCorreoContacto((prev) => prev || String(perfil.correo));
+                if (perfil.telefono) setCelularContacto((prev) => prev || String(perfil.telefono));
+                if (perfil.direccion) setDireccionEnvio((prev) => prev || String(perfil.direccion));
+                if (perfil.ciudad) setDistritoEnvio((prev) => prev || String(perfil.ciudad));
+                const docPerfil = String(perfil.documento || "").trim();
+                const nombrePerfil = `${perfil.nombres || ""} ${perfil.apellidos || ""}`.trim();
+                if (/^\d{8}$/.test(docPerfil)) {
+                    setDocumento((prev) => prev || docPerfil);
+                    if (nombrePerfil) {
+                        setNombreRazonSocial((prev) => prev || nombrePerfil);
+                        setEstadoSunat((prev) => prev || "Datos cargados desde tu perfil");
+                    }
+                } else if (nombrePerfil && nombrePerfil !== usuario?.acceso) {
+                    setNombreRazonSocial((prev) => prev || nombrePerfil);
+                }
+            })
+            .catch(() => {});
+        return () => {
+            activo = false;
+        };
+    }, [token, usuario?.acceso]);
 
     // Une cada item con los datos actuales del inventario
     const lineas = items
@@ -122,21 +159,104 @@ function Carrito() {
         }
     };
 
+    const handleArchivoComprobante = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        setErrorPago(null);
+        if (!file) {
+            setArchivoComprobante(null);
+            setPreviewComprobante("");
+            return;
+        }
+        if (!file.type.startsWith("image/")) {
+            setErrorPago("La captura debe ser una imagen (JPG, PNG o WEBP).");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setErrorPago("La imagen no debe superar los 5 MB.");
+            return;
+        }
+        setArchivoComprobante(file);
+        const reader = new FileReader();
+        reader.onload = () => setPreviewComprobante(String(reader.result || ""));
+        reader.readAsDataURL(file);
+    };
+
     // Confirmación y procesamiento del pago
-    const ejecutarPago = (e: React.FormEvent) => {
+    const ejecutarPago = async (e: React.FormEvent) => {
         e.preventDefault();
+        setErrorPago(null);
 
         if (!nombreRazonSocial.trim()) {
-            setPasoCheckout(1);
-            setErrorApi("Consulta o ingresa el nombre o razón social para emitir tu comprobante");
+            setPasoCheckout(2);
+            setErrorApi("Ingresa el nombre o razón social para emitir tu comprobante.");
             return;
         }
 
+        // Validaciones específicas por método de pago
+        let codigoOperacionPago: string | undefined;
+        if (metodoPago === "tarjeta") {
+            const digitosTarjeta = numeroTarjeta.replace(/\D/g, "");
+            if (digitosTarjeta.length !== 16) {
+                setErrorPago("El número de tarjeta debe tener 16 dígitos.");
+                return;
+            }
+            if (nombreTitular.trim().length < 3) {
+                setErrorPago("Ingresa el nombre completo del titular de la tarjeta.");
+                return;
+            }
+            const matchVenc = vencimiento.match(/^(\d{2})\/(\d{2})$/);
+            if (!matchVenc) {
+                setErrorPago("Ingresa el vencimiento en formato MM/AA.");
+                return;
+            }
+            const mes = Number(matchVenc[1]);
+            const anio = 2000 + Number(matchVenc[2]);
+            const hoy = new Date();
+            if (mes < 1 || mes > 12 || anio < hoy.getFullYear() || (anio === hoy.getFullYear() && mes < hoy.getMonth() + 1)) {
+                setErrorPago("La fecha de vencimiento de la tarjeta no es válida o está vencida.");
+                return;
+            }
+            if (!/^\d{3,4}$/.test(cvv)) {
+                setErrorPago("El CVV debe contener 3 o 4 dígitos numéricos.");
+                return;
+            }
+        } else if (metodoPago === "yape") {
+            if (!/^\d{6,8}$/.test(codigoYape)) {
+                setErrorPago("El código/nro. de operación de Yape o Plin debe tener de 6 a 8 dígitos numéricos.");
+                return;
+            }
+            if (codigoSeguridadYape && !/^\d{3}$/.test(codigoSeguridadYape)) {
+                setErrorPago("El código de seguridad de Yape debe tener exactamente 3 dígitos numéricos.");
+                return;
+            }
+            codigoOperacionPago = codigoSeguridadYape
+                ? `${codigoYape} · Seg: ${codigoSeguridadYape}`
+                : codigoYape;
+        } else if (metodoPago === "transferencia") {
+            if (!archivoComprobante) {
+                setErrorPago("Adjunta la captura del comprobante de transferencia para que sea verificado.");
+                return;
+            }
+            if (numeroOperacionTransf.trim().length < 4) {
+                setErrorPago("Ingresa el número de operación bancaria (mínimo 4 caracteres).");
+                return;
+            }
+            if (!token) {
+                setErrorPago("Inicia sesión antes de pagar por transferencia para subir tu comprobante y validar el abono.");
+                return;
+            }
+            codigoOperacionPago = numeroOperacionTransf.trim();
+        }
+
         setProcesandoPago(true);
+        try {
+            let comprobantePagoUrl: string | undefined;
+            if (metodoPago === "transferencia" && token && archivoComprobante) {
+                const subida = await subirComprobantePago(token, archivoComprobante);
+                comprobantePagoUrl = subida.url;
+            }
 
-        setTimeout(async () => {
             const fecha = new Date().toISOString();
-
             const infoComprobante: ComprobanteInfo = {
                 tipo: tipoComprobante,
                 documento: documento || (tipoComprobante === "Boleta" ? "00000000" : "20000000001"),
@@ -156,39 +276,35 @@ function Carrito() {
             }));
 
             let numero = generarNumeroPedido();
+            let estadoResultante: EstadoPedido = metodoPago === "transferencia" ? "Pendiente de pago" : "Pendiente";
 
             if (token) {
-                // Usuario con sesión iniciada: el pedido se registra en PostgreSQL (backend).
-                try {
-                    const creado = await crearPedidoBackend(token, {
-                        items: itemsPedido,
-                        total,
-                        metodoPago,
-                        comprobante: {
-                            tipo: infoComprobante.tipo,
-                            documento: infoComprobante.documento,
-                            nombreRazonSocial: infoComprobante.nombreRazonSocial,
-                            direccion: infoComprobante.direccion ?? null,
-                            subtotal: infoComprobante.subtotal,
-                            igv: infoComprobante.igv,
-                            total: infoComprobante.total,
-                        },
-                        tipoEntrega,
-                        costoEnvio: envio,
-                        correoContacto,
-                        celularContacto,
-                        direccionEnvio,
-                        referenciaEnvio,
-                        distritoEnvio,
-                    });
-                    numero = creado.numero;
-                } catch {
-                    setProcesandoPago(false);
-                    alert("No se pudo registrar tu pedido en el servidor. Revisa tu conexión e inténtalo de nuevo.");
-                    return;
-                }
+                const creado = await crearPedidoBackend(token, {
+                    items: itemsPedido,
+                    total,
+                    metodoPago,
+                    comprobante: {
+                        tipo: infoComprobante.tipo,
+                        documento: infoComprobante.documento,
+                        nombreRazonSocial: infoComprobante.nombreRazonSocial,
+                        direccion: infoComprobante.direccion ?? null,
+                        subtotal: infoComprobante.subtotal,
+                        igv: infoComprobante.igv,
+                        total: infoComprobante.total,
+                    },
+                    tipoEntrega,
+                    costoEnvio: envio,
+                    correoContacto: correoContacto.trim(),
+                    celularContacto: celularContacto.trim(),
+                    direccionEnvio: direccionEnvio.trim(),
+                    referenciaEnvio: referenciaEnvio.trim(),
+                    distritoEnvio: distritoEnvio.trim(),
+                    codigoOperacionPago,
+                    comprobantePagoUrl,
+                });
+                numero = creado.numero;
+                if (creado.estado) estadoResultante = creado.estado;
             } else {
-                // Compra de invitado (sin sesión): se guarda solo en el navegador, como antes.
                 guardarPedido({
                     numero,
                     fecha,
@@ -197,13 +313,14 @@ function Carrito() {
                     total,
                     costoEnvio: envio,
                     metodoPago,
+                    estadoPago: metodoPago === "transferencia" ? "Por verificar" : "Pagado",
+                    codigoOperacionPago,
                     comprobante: infoComprobante,
                     tipoEntrega,
-                    estado: "Pendiente",
+                    estado: estadoResultante,
                 });
             }
 
-            // Venta confirmada: genera la salida automática en Kardex y reduce el stock
             lineas.forEach((l) =>
                 registrarSalida(
                     l.producto.id,
@@ -214,15 +331,20 @@ function Carrito() {
             );
 
             setComprobanteEmitido(infoComprobante);
+            setEstadoPedidoEmitido(estadoResultante);
             setTotalPagado(total);
             setPedidoOk(numero);
-            setProcesandoPago(false);
+            setArchivoComprobante(null);
+            setPreviewComprobante("");
             setMostrarCheckout(false);
             vaciar();
-
-            // Mover la vista hacia arriba suavemente para ver el mensaje de éxito
             window.scrollTo({ top: 0, behavior: "smooth" });
-        }, 1200);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "No se pudo completar el registro del pedido.";
+            setErrorPago(msg);
+        } finally {
+            setProcesandoPago(false);
+        }
     };
 
     // Productos sugeridos: los más vendidos que no estén en el carrito
@@ -250,19 +372,36 @@ function Carrito() {
                 {/* ===== Compra confirmada ===== */}
                 {pedidoOk ? (
                     <section className="mt-6 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 sm:p-14 shadow-sm max-w-2xl mx-auto">
-                        <div className="w-20 h-20 mx-auto flex items-center justify-center bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full mb-4">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                <polyline points="22 4 12 14.01 9 11.01" />
-                            </svg>
-                        </div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
-                            ¡Pago procesado con éxito!
-                        </h2>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
-                            Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
-                            Tu comprobante electrónico ha sido emitido satisfactoriamente.
-                        </p>
+                        {estadoPedidoEmitido === "Pendiente de pago" ? (
+                            <>
+                                <div className="w-20 h-20 mx-auto flex items-center justify-center bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-full mb-4 text-3xl font-black">
+                                    ⏳
+                                </div>
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+                                    ¡Pedido registrado! Pago pendiente de verificación
+                                </h2>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
+                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
+                                    Recibimos tu comprobante de transferencia bancaria; un administrador confirmará el abono para iniciar la preparación en almacén.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="w-20 h-20 mx-auto flex items-center justify-center bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full mb-4">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                        <polyline points="22 4 12 14.01 9 11.01" />
+                                    </svg>
+                                </div>
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+                                    ¡Pago procesado con éxito!
+                                </h2>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
+                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
+                                    Tu comprobante electrónico ha sido emitido satisfactoriamente.
+                                </p>
+                            </>
+                        )}
 
                         {comprobanteEmitido && (
                             <div className="bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
@@ -547,10 +686,14 @@ function Carrito() {
                                 {/* ===== PASO 1: DATOS DE ENVÍO Y CONTACTO ===== */}
                                 {pasoCheckout === 1 && (
                                     <div className="space-y-4">
-                                        {!usuario && (
+                                        {usuario ? (
+                                            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl px-3.5 py-2.5 text-xs text-blue-800 dark:text-blue-200">
+                                                Cargamos tus datos guardados. Si agregas o actualizas tu celular, dirección o DNI, se guardarán en tu perfil al confirmar el pedido.
+                                            </div>
+                                        ) : (
                                             <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2">
                                                 <p className="text-xs text-amber-900 dark:text-amber-200">
-                                                    <strong>¿Ya tienes una cuenta?</strong> Inicia sesión para guardar tu información y ganar puntos.
+                                                    <strong>¿Ya tienes una cuenta?</strong> Inicia sesión para cargar tus datos guardados y sincronizar tu compra.
                                                 </p>
                                                 <button 
                                                     type="button" 
@@ -700,16 +843,31 @@ function Carrito() {
                                             </>
                                         )}
 
+                                        {errorEnvio && (
+                                            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs font-medium text-red-700 dark:text-red-300">
+                                                {errorEnvio}
+                                            </div>
+                                        )}
+
                                         <div className="flex gap-3 justify-end mt-5 pt-3 border-t border-slate-200 dark:border-slate-800">
                                             <button
                                                 type="button"
                                                 className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer"
                                                 onClick={() => {
-                                                    if (correoContacto && celularContacto && (tipoEntrega === "recojo" || (direccionEnvio && distritoEnvio))) {
-                                                        setPasoCheckout(2);
-                                                    } else {
-                                                        alert("Por favor completa los campos obligatorios de contacto y envío.");
+                                                    setErrorEnvio(null);
+                                                    if (!correoContacto.trim() || !correoContacto.includes("@")) {
+                                                        setErrorEnvio("Ingresa un correo electrónico válido.");
+                                                        return;
                                                     }
+                                                    if (!/^\d{9}$/.test(celularContacto.trim())) {
+                                                        setErrorEnvio("Ingresa un teléfono celular válido de 9 dígitos.");
+                                                        return;
+                                                    }
+                                                    if (tipoEntrega !== "recojo" && (!direccionEnvio.trim() || !distritoEnvio.trim())) {
+                                                        setErrorEnvio("Completa la dirección y distrito de entrega.");
+                                                        return;
+                                                    }
+                                                    setPasoCheckout(2);
                                                 }}
                                             >
                                                 Continuar al Comprobante →
@@ -859,11 +1017,36 @@ function Carrito() {
                                         <div className="flex gap-3 justify-end mt-5 pt-3 border-t border-slate-200 dark:border-slate-800">
                                             <button
                                                 type="button"
+                                                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all cursor-pointer"
+                                                onClick={() => setPasoCheckout(1)}
+                                            >
+                                                ← Volver a envío
+                                            </button>
+                                            <button
+                                                type="button"
                                                 className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer"
                                                 onClick={() => {
-                                                    if (!nombreRazonSocial.trim()) {
-                                                        handleConsultarDocumento();
+                                                    setErrorApi(null);
+                                                    const docLimpio = documento.trim();
+                                                    if (tipoComprobante === "Boleta" && !/^\d{8}$/.test(docLimpio)) {
+                                                        setErrorApi("Ingresa un DNI válido de 8 dígitos para la boleta.");
+                                                        return;
                                                     }
+                                                    if (tipoComprobante === "Factura" && (!/^\d{11}$/.test(docLimpio) || !["10", "15", "17", "20"].includes(docLimpio.slice(0, 2)))) {
+                                                        setErrorApi("Ingresa un RUC válido de 11 dígitos (inicia con 10, 15, 17 o 20).");
+                                                        return;
+                                                    }
+                                                    if (!nombreRazonSocial.trim()) {
+                                                        setErrorApi(tipoComprobante === "Boleta"
+                                                            ? "Consulta o ingresa tus Nombres y Apellidos."
+                                                            : "Consulta o ingresa la Razón Social.");
+                                                        return;
+                                                    }
+                                                    if (tipoComprobante === "Factura" && !direccionFiscal.trim()) {
+                                                        setErrorApi("Ingresa la Dirección Fiscal para emitir la factura.");
+                                                        return;
+                                                    }
+                                                    setErrorPago(null);
                                                     setPasoCheckout(3);
                                                 }}
                                             >
@@ -999,39 +1182,108 @@ function Carrito() {
                                                         <span className="text-[10px] font-bold mt-1 text-slate-700">Escanear QR</span>
                                                     </div>
                                                     <div className="text-xs text-slate-700 dark:text-slate-300 flex flex-col gap-1.5 flex-1">
-                                                        <p>Monto a transferir: <strong className="text-blue-600 dark:text-blue-400 font-mono text-sm">S/ {total.toFixed(2)}</strong></p>
+                                                        <p>Monto a yapear/plinear: <strong className="text-blue-600 dark:text-blue-400 font-mono text-sm">S/ {total.toFixed(2)}</strong></p>
                                                         <p>Titular: <strong className="text-slate-900 dark:text-white">TechStore Perú S.A.C.</strong></p>
                                                         <p>Número: <strong className="font-mono text-slate-900 dark:text-white">+51 999 888 777</strong></p>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col gap-1.5">
-                                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Código de Operación (6 dígitos)
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        maxLength={8}
-                                                        placeholder="Ej. 481920"
-                                                        value={codigoYape}
-                                                        onChange={(e) => setCodigoYape(e.target.value)}
-                                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
-                                                        required
-                                                    />
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                            Nro. de Operación (6 a 8 dígitos) *
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            pattern="\d{6,8}"
+                                                            maxLength={8}
+                                                            placeholder="Ej. 07795505"
+                                                            value={codigoYape}
+                                                            onChange={(e) => setCodigoYape(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                                                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                            Código de seguridad Yape (3 dígitos)
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            pattern="\d{3}"
+                                                            maxLength={3}
+                                                            placeholder="Ej. 505 (opcional Plin)"
+                                                            value={codigoSeguridadYape}
+                                                            onChange={(e) => setCodigoSeguridadYape(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                                                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
+                                                        />
+                                                    </div>
                                                 </div>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    Solo se aceptan dígitos numéricos tal como figuran en tu constancia de Yape o Plin.
+                                                </p>
                                             </div>
                                         )}
 
                                         {/* Transferencia */}
                                         {metodoPago === "transferencia" && (
-                                            <div className="space-y-2">
+                                            <div className="space-y-3">
                                                 <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-xs text-slate-700 dark:text-slate-300 flex flex-col gap-1.5 font-mono">
                                                     <div><strong>BCP Soles:</strong> 193-48192039-0-12 (CCI: 00219300481920390123)</div>
                                                     <div><strong>BBVA Soles:</strong> 0011-0182-0200481920 (CCI: 01118200020048192011)</div>
                                                     <div><strong>Interbank:</strong> 200-3001849102 (CCI: 00320000300184910245)</div>
                                                 </div>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                    Adjunta tu confirmación o realiza el abono dentro de las próximas 2 horas para despachar tu orden de inmediato.
-                                                </p>
+
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Nro. de Operación Bancaria *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        maxLength={30}
+                                                        placeholder="Ej. 00481920"
+                                                        value={numeroOperacionTransf}
+                                                        onChange={(e) => setNumeroOperacionTransf(e.target.value)}
+                                                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Captura / Voucher de la transferencia *
+                                                    </label>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleArchivoComprobante}
+                                                        className="block w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-950/60 dark:file:text-blue-300 cursor-pointer border border-slate-200 dark:border-slate-700 rounded-xl p-1.5 bg-slate-50 dark:bg-slate-800"
+                                                    />
+                                                    {previewComprobante && (
+                                                        <div className="mt-1 flex items-center gap-3 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                                                            <img
+                                                                src={previewComprobante}
+                                                                alt="Vista previa comprobante"
+                                                                className="w-16 h-16 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                                                            />
+                                                            <div className="text-xs text-slate-600 dark:text-slate-300">
+                                                                <strong className="block truncate max-w-[220px]">{archivoComprobante?.name}</strong>
+                                                                <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Listo para subir y verificar</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200">
+                                                    <strong>Verificación manual:</strong> Al confirmar, tu pedido quedará en estado <strong>Pendiente de pago</strong> hasta que el administrador valide el comprobante en cuenta.
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {errorPago && (
+                                            <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs font-medium text-red-700 dark:text-red-300">
+                                                {errorPago}
                                             </div>
                                         )}
 
@@ -1039,16 +1291,24 @@ function Carrito() {
                                             <button
                                                 type="button"
                                                 className="w-full py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all cursor-pointer"
-                                                onClick={() => setPasoCheckout(1)}
+                                                onClick={() => setPasoCheckout(2)}
                                             >
                                                 ← Volver a comprobante
                                             </button>
                                             <button
                                                 type="submit"
-                                                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
+                                                className={`w-full py-3 px-4 rounded-xl disabled:opacity-50 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer ${
+                                                    metodoPago === "transferencia"
+                                                        ? "bg-amber-600 hover:bg-amber-700"
+                                                        : "bg-emerald-600 hover:bg-emerald-700"
+                                                }`}
                                                 disabled={procesandoPago}
                                             >
-                                                {procesandoPago ? "Procesando pago con entidad..." : `Confirmar y Pagar S/ ${total.toFixed(2)}`}
+                                                {procesandoPago
+                                                    ? "Registrando pedido..."
+                                                    : metodoPago === "transferencia"
+                                                        ? `Enviar Comprobante (S/ ${total.toFixed(2)})`
+                                                        : `Confirmar y Pagar S/ ${total.toFixed(2)}`}
                                             </button>
                                         </div>
                                     </div>

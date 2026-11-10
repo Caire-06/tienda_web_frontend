@@ -38,7 +38,28 @@ function urlConToken(url: string): string {
     return `${url}${sep}token=${encodeURIComponent(TOKEN)}`;
 }
 
-type JsonApi = Record<string, unknown> & { success?: boolean; message?: string };
+type JsonApi = Record<string, unknown> & { success?: boolean; message?: string; error?: string; sinToken?: boolean };
+
+async function consultarBackendFiscal(ruta: string): Promise<JsonApi | null> {
+    try {
+        const resp = await fetch(ruta, {
+            signal: AbortSignal.timeout(7000),
+            headers: { Accept: "application/json" },
+        });
+        const data = (await resp.json().catch(() => ({}))) as JsonApi;
+        if (resp.ok) return data;
+        if (resp.status === 503 && data.sinToken) {
+            return null;
+        }
+        throw new Error(data.error || data.message || `Error al consultar (${resp.status})`);
+    } catch (err: unknown) {
+        const error = err as Error;
+        if (error.message && !error.message.includes("Failed to fetch")) {
+            throw error;
+        }
+        return null;
+    }
+}
 
 async function pedirJson(url: string): Promise<JsonApi> {
     const response = await fetch(url, {
@@ -49,7 +70,7 @@ async function pedirJson(url: string): Promise<JsonApi> {
         throw new Error(
             TOKEN
                 ? "El token de apiperu fue rechazado. Revísalo en tu panel de apisperu.com."
-                : "Falta el token de la API. Configura VITE_APIPERU_TOKEN en tu .env."
+                : "No hay token configurado para RENIEC/SUNAT (APIPERU_TOKEN o VITE_APIPERU_TOKEN). Ingresa el nombre o razón social manualmente."
         );
     }
     if (response.status === 429) {
@@ -67,7 +88,27 @@ export async function consultarDNI(dni: string): Promise<ResultadoDNI> {
         throw new Error("El DNI debe contener exactamente 8 dígitos numéricos");
     }
 
-    // 1º vía proxy de Vite (evita CORS); 2º directo a la API por si no corre con Vite.
+    // 1º Adapter en Backend (consulta PostgreSQL local y/o APIPERU_TOKEN / APISNETPE_TOKEN)
+    const desdeBackend = await consultarBackendFiscal(`/api/consultas/dni/${limpio}`);
+    if (desdeBackend && ((desdeBackend.nombres as string) || (desdeBackend.nombreCompleto as string))) {
+        return {
+            dni: limpio,
+            nombreCompleto:
+                (desdeBackend.nombreCompleto as string) ||
+                `${desdeBackend.nombres || ""} ${desdeBackend.apellidoPaterno || ""} ${desdeBackend.apellidoMaterno || ""}`.trim(),
+            nombres: (desdeBackend.nombres as string) || "",
+            apellidoPaterno: (desdeBackend.apellidoPaterno as string) || "",
+            apellidoMaterno: (desdeBackend.apellidoMaterno as string) || "",
+        };
+    }
+
+    if (!TOKEN) {
+        throw new Error(
+            "Falta configurar APIPERU_TOKEN (backend) o VITE_APIPERU_TOKEN (frontend .env). Ingresa tus Nombres y Apellidos manualmente abajo."
+        );
+    }
+
+    // 2º Vía proxy de Vite o directo si VITE_APIPERU_TOKEN está configurado
     const urls = [`/api-peru/api/v1/dni/${limpio}`, `${BASE}/dni/${limpio}`];
 
     let ultimoError = "No se pudo conectar con el servicio de RENIEC";
@@ -100,7 +141,6 @@ export async function consultarDNI(dni: string): Promise<ResultadoDNI> {
             if (error.message && error.message.includes("no fue encontrado")) {
                 throw error;
             }
-            // Token invalido o limite: no insistir con la otra URL (mismo problema)
             if (error.message && (error.message.includes("token") || error.message.includes("límite"))) {
                 errorFatal = error;
                 break;
@@ -126,7 +166,25 @@ export async function consultarRUC(ruc: string): Promise<ResultadoRUC> {
         throw new Error("El RUC debe iniciar con 10, 15, 17 o 20");
     }
 
-    // 1º vía proxy de Vite (evita CORS); 2º directo a la API por si no corre con Vite.
+    // 1º Adapter en Backend (consulta comprobantes previos locales y/o APIPERU_TOKEN / APISNETPE_TOKEN)
+    const desdeBackend = await consultarBackendFiscal(`/api/consultas/ruc/${limpio}`);
+    if (desdeBackend && (desdeBackend.razonSocial as string)) {
+        return {
+            ruc: (desdeBackend.ruc as string) || limpio,
+            razonSocial: desdeBackend.razonSocial as string,
+            estado: (desdeBackend.estado as string) || "ACTIVO",
+            condicion: (desdeBackend.condicion as string) || "HABIDO",
+            direccion: (desdeBackend.direccion as string) || "LIMA - PERÚ",
+        };
+    }
+
+    if (!TOKEN) {
+        throw new Error(
+            "Falta configurar APIPERU_TOKEN (backend) o VITE_APIPERU_TOKEN (frontend .env). Ingresa la Razón Social y Dirección Fiscal manualmente abajo."
+        );
+    }
+
+    // 2º Vía proxy de Vite o directo si VITE_APIPERU_TOKEN está configurado
     const urls = [`/api-peru/api/v1/ruc/${limpio}`, `${BASE}/ruc/${limpio}`];
 
     let ultimoError = "No se pudo conectar con el servicio de SUNAT";

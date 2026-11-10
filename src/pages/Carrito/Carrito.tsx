@@ -7,7 +7,7 @@ import { useCarrito } from "../../context/CarritoContext";
 import { useInventario } from "../../context/InventarioContext";
 import { useAuth } from "../../context/AuthContext";
 import { generarNumeroPedido, guardarPedido } from "../../data/pedidos";
-import { crearPedidoBackend, subirComprobantePago } from "../../services/pedidosApi";
+import { crearPedidoBackend } from "../../services/pedidosApi";
 import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 
@@ -57,8 +57,6 @@ function Carrito() {
     const [codigoYape, setCodigoYape] = useState("");
     const [codigoSeguridadYape, setCodigoSeguridadYape] = useState("");
     const [numeroOperacionTransf, setNumeroOperacionTransf] = useState("");
-    const [archivoComprobante, setArchivoComprobante] = useState<File | null>(null);
-    const [previewComprobante, setPreviewComprobante] = useState("");
     const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
     const [errorPago, setErrorPago] = useState<string | null>(null);
     const [procesandoPago, setProcesandoPago] = useState(false);
@@ -159,28 +157,6 @@ function Carrito() {
         }
     };
 
-    const handleArchivoComprobante = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        setErrorPago(null);
-        if (!file) {
-            setArchivoComprobante(null);
-            setPreviewComprobante("");
-            return;
-        }
-        if (!file.type.startsWith("image/")) {
-            setErrorPago("La captura debe ser una imagen (JPG, PNG o WEBP).");
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            setErrorPago("La imagen no debe superar los 5 MB.");
-            return;
-        }
-        setArchivoComprobante(file);
-        const reader = new FileReader();
-        reader.onload = () => setPreviewComprobante(String(reader.result || ""));
-        reader.readAsDataURL(file);
-    };
-
     // Confirmación y procesamiento del pago
     const ejecutarPago = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -233,16 +209,8 @@ function Carrito() {
                 ? `${codigoYape} · Seg: ${codigoSeguridadYape}`
                 : codigoYape;
         } else if (metodoPago === "transferencia") {
-            if (!archivoComprobante) {
-                setErrorPago("Adjunta la captura del comprobante de transferencia para que sea verificado.");
-                return;
-            }
             if (numeroOperacionTransf.trim().length < 4) {
                 setErrorPago("Ingresa el número de operación bancaria (mínimo 4 caracteres).");
-                return;
-            }
-            if (!token) {
-                setErrorPago("Inicia sesión antes de pagar por transferencia para subir tu comprobante y validar el abono.");
                 return;
             }
             codigoOperacionPago = numeroOperacionTransf.trim();
@@ -250,12 +218,6 @@ function Carrito() {
 
         setProcesandoPago(true);
         try {
-            let comprobantePagoUrl: string | undefined;
-            if (metodoPago === "transferencia" && token && archivoComprobante) {
-                const subida = await subirComprobantePago(token, archivoComprobante);
-                comprobantePagoUrl = subida.url;
-            }
-
             const fecha = new Date().toISOString();
             const infoComprobante: ComprobanteInfo = {
                 tipo: tipoComprobante,
@@ -300,7 +262,6 @@ function Carrito() {
                     referenciaEnvio: referenciaEnvio.trim(),
                     distritoEnvio: distritoEnvio.trim(),
                     codigoOperacionPago,
-                    comprobantePagoUrl,
                 });
                 numero = creado.numero;
                 if (creado.estado) estadoResultante = creado.estado;
@@ -334,8 +295,6 @@ function Carrito() {
             setEstadoPedidoEmitido(estadoResultante);
             setTotalPagado(total);
             setPedidoOk(numero);
-            setArchivoComprobante(null);
-            setPreviewComprobante("");
             setMostrarCheckout(false);
             vaciar();
             window.scrollTo({ top: 0, behavior: "smooth" });
@@ -382,7 +341,7 @@ function Carrito() {
                                 </h2>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
                                     Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
-                                    Recibimos tu comprobante de transferencia bancaria; un administrador confirmará el abono para iniciar la preparación en almacén.
+                                    Registramos tu solicitud con el número de operación bancaria; un administrador confirmará el abono para iniciar la preparación en almacén.
                                 </p>
                             </>
                         ) : (
@@ -1250,33 +1209,13 @@ function Carrito() {
                                                     />
                                                 </div>
 
-                                                <div className="flex flex-col gap-1.5">
-                                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Captura / Voucher de la transferencia *
-                                                    </label>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={handleArchivoComprobante}
-                                                        className="block w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-950/60 dark:file:text-blue-300 cursor-pointer border border-slate-200 dark:border-slate-700 rounded-xl p-1.5 bg-slate-50 dark:bg-slate-800"
-                                                    />
-                                                    {previewComprobante && (
-                                                        <div className="mt-1 flex items-center gap-3 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                                                            <img
-                                                                src={previewComprobante}
-                                                                alt="Vista previa comprobante"
-                                                                className="w-16 h-16 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
-                                                            />
-                                                            <div className="text-xs text-slate-600 dark:text-slate-300">
-                                                                <strong className="block truncate max-w-[220px]">{archivoComprobante?.name}</strong>
-                                                                <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Listo para subir y verificar</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+                                                    <strong className="text-slate-800 dark:text-slate-200">Adjuntar captura de comprobante:</strong>{" "}
+                                                    Funcionalidad en proceso (disponible en futuras actualizaciones). Por el momento, registra tu número de operación bancaria para que el administrador valide el abono.
                                                 </div>
 
                                                 <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200">
-                                                    <strong>Verificación manual:</strong> Al confirmar, tu pedido quedará en estado <strong>Pendiente de pago</strong> hasta que el administrador valide el comprobante en cuenta.
+                                                    <strong>Verificación manual:</strong> Al confirmar, tu pedido quedará en estado <strong>Pendiente de pago</strong> hasta que el administrador valide la operación en cuenta.
                                                 </div>
                                             </div>
                                         )}
@@ -1307,7 +1246,7 @@ function Carrito() {
                                                 {procesandoPago
                                                     ? "Registrando pedido..."
                                                     : metodoPago === "transferencia"
-                                                        ? `Enviar Comprobante (S/ ${total.toFixed(2)})`
+                                                        ? `Registrar Transferencia (S/ ${total.toFixed(2)})`
                                                         : `Confirmar y Pagar S/ ${total.toFixed(2)}`}
                                             </button>
                                         </div>

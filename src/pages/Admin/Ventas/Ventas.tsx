@@ -343,7 +343,7 @@ function Ventas() {
                                 )}
                             </div>
 
-                            {detalle.comprobantePagoUrl && (
+                            {detalle.comprobantePagoUrl ? (
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
                                     <img
                                         src={detalle.comprobantePagoUrl}
@@ -364,7 +364,11 @@ function Ventas() {
                                         </a>
                                     </div>
                                 </div>
-                            )}
+                            ) : detalle.metodoPago === "transferencia" ? (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700">
+                                    Captura de comprobante: en proceso (futuras actualizaciones). Valida el abono usando el número de operación bancaria.
+                                </p>
+                            ) : null}
 
                             {detalle.fechaConfirmacionPago && (
                                 <p className="text-[11px] text-slate-500">

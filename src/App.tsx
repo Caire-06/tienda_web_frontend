@@ -4,6 +4,11 @@ import Login from "./pages/Login/Login";
 import Registro from "./pages/Registro/Registro";
 import Productos from "./pages/Productos/Productos";
 import Contactanos from "./pages/Contactanos/Contactanos";
+import PreguntasFrecuentes from "./pages/PreguntasFrecuentes/PreguntasFrecuentes";
+import MetodosPago from "./pages/MetodosPago/MetodosPago";
+import EnviosEntregas from "./pages/EnviosEntregas/EnviosEntregas";
+import TerminosCondiciones from "./pages/TerminosCondiciones/TerminosCondiciones";
+import PoliticaPrivacidad from "./pages/PoliticaPrivacidad/PoliticaPrivacidad";
 import Carrito from "./pages/Carrito/Carrito";
 import Detalle from "./pages/Detalle/Detalle";
 import AdminLayout from "./pages/Admin/AdminLayout";
@@ -49,6 +54,11 @@ function App() {
                 <Route path="/productos" element={<Productos />} />
                 <Route path="/productos/:id" element={<Detalle />} />
                 <Route path="/contactanos" element={<Contactanos />} />
+                <Route path="/preguntas-frecuentes" element={<PreguntasFrecuentes />} />
+                <Route path="/metodos-de-pago" element={<MetodosPago />} />
+                <Route path="/envios-y-entregas" element={<EnviosEntregas />} />
+                <Route path="/terminos-y-condiciones" element={<TerminosCondiciones />} />
+                <Route path="/politica-de-privacidad" element={<PoliticaPrivacidad />} />
                 <Route path="/carrito" element={<Carrito />} />
                 <Route path="/mis-compras" element={<MisCompras />} />
                 <Route path="/mi-cuenta" element={<MiCuenta />} />

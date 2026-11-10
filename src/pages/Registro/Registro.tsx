@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
@@ -275,7 +275,29 @@ function Registro() {
                                         onChange={(e) => setTerminos(e.target.checked)}
                                         className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700"
                                     />
-                                    <span>Acepto los términos y condiciones de TechStore</span>
+                                    <span>
+                                        Acepto los{" "}
+                                        <Link
+                                            to="/terminos-y-condiciones"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                        >
+                                            términos y condiciones
+                                        </Link>{" "}
+                                        y la{" "}
+                                        <Link
+                                            to="/politica-de-privacidad"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                        >
+                                            política de privacidad
+                                        </Link>{" "}
+                                        de TechStore
+                                    </span>
                                 </label>
 
                                 {error && (

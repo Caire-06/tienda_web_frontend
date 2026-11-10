@@ -1,30 +1,98 @@
-import { useState } from "react";
-import { todasLasVentas, fechaCorta } from "../../../data/ventas";
-import type { Venta } from "../../../data/ventas";
-import { actualizarEstadoPedido } from "../../../data/pedidos";
-import type { EstadoPedido } from "../../../data/pedidos";
+import { useState, useEffect } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import { listarPedidosAdmin, actualizarEstadoPedidoAdmin } from "../../../services/pedidosApi";
+import type { Pedido, EstadoPedido } from "../../../data/pedidos";
+
+function fechaCorta(fechaStr: string) {
+    if (!fechaStr) return "—";
+    try {
+        const d = new Date(fechaStr);
+        if (isNaN(d.getTime())) return fechaStr;
+        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    } catch {
+        return fechaStr;
+    }
+}
 
 function Ventas() {
+    const { token } = useAuth();
+    const [ventas, setVentas] = useState<Pedido[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     const [busqueda, setBusqueda] = useState("");
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
-    const [detalle, setDetalle] = useState<Venta | null>(null);
-    const [, setRefresh] = useState(0);
+    const [detalle, setDetalle] = useState<Pedido | null>(null);
+    const [actualizando, setActualizando] = useState(false);
 
-    const filtradas = todasLasVentas().filter((v) => {
+    const cargar = async () => {
+        if (!token) return;
+        setCargando(true);
+        setError(null);
+        try {
+            const data = await listarPedidosAdmin(token);
+            setVentas(data);
+        } catch (err: any) {
+            setError(err.message || "Error al cargar ventas desde PostgreSQL");
+        } finally {
+            setCargando(false);
+        }
+    };
+
+    useEffect(() => {
+        cargar();
+    }, [token]);
+
+    const handleCambiarEstado = async (nuevoEstado: string) => {
+        if (!token || !detalle) return;
+        setActualizando(true);
+        try {
+            const actualizado = await actualizarEstadoPedidoAdmin(token, detalle.numero, nuevoEstado);
+            setDetalle(actualizado);
+            setVentas((prev) => prev.map((v) => (v.numero === detalle.numero ? actualizado : v)));
+        } catch (err: any) {
+            alert(err.message || "No se pudo actualizar el estado del pedido");
+        } finally {
+            setActualizando(false);
+        }
+    };
+
+    const filtradas = ventas.filter((v) => {
         if (desde && v.fecha.slice(0, 10) < desde) return false;
         if (hasta && v.fecha.slice(0, 10) > hasta) return false;
         const q = busqueda.trim().toLowerCase();
-        if (q && !v.numero.toLowerCase().includes(q) && !v.cliente.toLowerCase().includes(q) && !(v.documento && v.documento.includes(q))) return false;
+        if (q) {
+            const nMatch = v.numero.toLowerCase().includes(q);
+            const cMatch = (v.cliente || "").toLowerCase().includes(q);
+            const dMatch = v.comprobante?.documento ? v.comprobante.documento.includes(q) : false;
+            if (!nMatch && !cMatch && !dMatch) return false;
+        }
         return true;
     });
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white">Registro de Ventas</h1>
-                <p className="text-sm text-slate-500 mt-1">{filtradas.length} comprobantes y transacciones encontradas.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Registro de Ventas</h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {filtradas.length} comprobantes y transacciones en PostgreSQL.
+                    </p>
+                </div>
+                <button
+                    onClick={cargar}
+                    className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
+                >
+                    ↻ Actualizar
+                </button>
             </div>
+
+            {error && (
+                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-600 dark:text-red-400">
+                    {error}
+                </div>
+            )}
 
             {/* Filtros */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
@@ -60,6 +128,7 @@ function Ventas() {
                         <tr>
                             <th>N° Venta</th>
                             <th>Cliente</th>
+                            <th>Comprobante</th>
                             <th>Fecha</th>
                             <th>Estado / Despacho</th>
                             <th>Total</th>
@@ -67,36 +136,54 @@ function Ventas() {
                         </tr>
                     </thead>
                     <tbody>
-                        {filtradas.map((v) => (
-                            <tr key={v.numero}>
-                                <td className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">{v.numero}</td>
-                                <td className="font-semibold text-slate-900 dark:text-white">{v.cliente}</td>
-                                <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
-                                <td>
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">{v.estado}</span>
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                                            {v.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío Courier"}
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="font-mono font-bold text-slate-900 dark:text-white">
-                                    S/ {v.total.toLocaleString("es-PE")}
-                                </td>
-                                <td>
-                                    <button className="btn-mini" onClick={() => setDetalle(v)}>
-                                        Ver detalle
-                                    </button>
+                        {cargando ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
+                                    Cargando ventas desde PostgreSQL...
                                 </td>
                             </tr>
-                        ))}
+                        ) : filtradas.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
+                                    No hay ventas registradas para los filtros seleccionados.
+                                </td>
+                            </tr>
+                        ) : (
+                            filtradas.map((v) => (
+                                <tr key={v.numero}>
+                                    <td className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                                        {v.numero}
+                                    </td>
+                                    <td className="font-semibold text-slate-900 dark:text-white">
+                                        {v.cliente || v.comprobante?.nombreRazonSocial || "Cliente"}
+                                    </td>
+                                    <td className="text-xs text-slate-500">
+                                        {v.comprobante ? `${v.comprobante.tipo}: ${v.comprobante.documento}` : "Ticket"}
+                                    </td>
+                                    <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
+                                    <td>
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                                {v.estado || "Pendiente"}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                                                {v.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío Courier"}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="font-mono font-bold text-slate-900 dark:text-white">
+                                        S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td>
+                                        <button className="btn-mini" onClick={() => setDetalle(v)}>
+                                            Ver detalle
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
-                {filtradas.length === 0 && (
-                    <div className="text-center py-10 text-sm text-slate-500">
-                        No hay ventas para los filtros seleccionados.
-                    </div>
-                )}
             </div>
 
             {detalle && (
@@ -105,9 +192,13 @@ function Ventas() {
                         <div className="modal-head">
                             <div>
                                 <h2>Comprobante {detalle.numero}</h2>
-                                <p className="text-xs text-slate-500 mt-0.5">{fechaCorta(detalle.fecha)} · {detalle.cliente}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    {fechaCorta(detalle.fecha)} · {detalle.cliente || detalle.comprobante?.nombreRazonSocial}
+                                </p>
                             </div>
-                            <button className="modal-cerrar" onClick={() => setDetalle(null)}>✕</button>
+                            <button className="modal-cerrar" onClick={() => setDetalle(null)}>
+                                ✕
+                            </button>
                         </div>
 
                         <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
@@ -116,16 +207,13 @@ function Ventas() {
                                     Cambiar estado:
                                 </label>
                                 <select
-                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                                    value={detalle.estado}
-                                    onChange={(e) => {
-                                        const nuevo = e.target.value as EstadoPedido;
-                                        actualizarEstadoPedido(detalle.numero, nuevo);
-                                        setDetalle({ ...detalle, estado: nuevo });
-                                        setRefresh(r => r + 1);
-                                    }}
+                                    disabled={actualizando}
+                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer disabled:opacity-50"
+                                    value={detalle.estado || "Pendiente"}
+                                    onChange={(e) => handleCambiarEstado(e.target.value)}
                                 >
                                     <option value="Pendiente">Pendiente</option>
+                                    <option value="Pagado">Pagado</option>
                                     <option value="Procesando">Procesando</option>
                                     <option value="Enviado">Enviado</option>
                                     <option value="Listo para recojo">Listo para recojo</option>
@@ -134,22 +222,47 @@ function Ventas() {
                                 </select>
                             </div>
                             <span className="text-xs text-slate-500">
-                                Modalidad: <strong className="text-slate-800 dark:text-slate-200">{detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}</strong>
+                                Modalidad:{" "}
+                                <strong className="text-slate-800 dark:text-slate-200">
+                                    {detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}
+                                </strong>
                             </span>
                         </div>
+
+                        {detalle.comprobante && (
+                            <div className="mb-4 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-xs text-slate-700 dark:text-slate-300 grid grid-cols-2 gap-2">
+                                <div>
+                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Tipo y Documento:</span>
+                                    <strong>{detalle.comprobante.tipo} {detalle.comprobante.documento}</strong>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Razón Social:</span>
+                                    <strong>{detalle.comprobante.nombreRazonSocial}</strong>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="tabla-wrap mb-4">
                             <table className="tabla">
                                 <thead>
-                                    <tr><th>Producto</th><th>Cant.</th><th>P. Unitario</th><th>Subtotal</th></tr>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th>Cant.</th>
+                                        <th>P. Unitario</th>
+                                        <th>Subtotal</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
                                     {detalle.items.map((it) => (
                                         <tr key={it.id}>
                                             <td className="font-semibold text-xs">{it.nombre}</td>
                                             <td className="font-mono text-xs">{it.cantidad}</td>
-                                            <td className="font-mono text-xs">S/ {it.precio.toLocaleString("es-PE")}</td>
-                                            <td className="font-mono font-bold text-xs">S/ {(it.precio * it.cantidad).toLocaleString("es-PE")}</td>
+                                            <td className="font-mono text-xs">
+                                                S/ {Number(it.precio).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="font-mono font-bold text-xs">
+                                                S/ {(Number(it.precio) * it.cantidad).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -159,7 +272,7 @@ function Ventas() {
                         <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
                             <span className="text-sm font-bold uppercase text-slate-500">Monto Total</span>
                             <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
-                                S/ {detalle.total.toLocaleString("es-PE")}
+                                S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                             </strong>
                         </div>
                     </div>

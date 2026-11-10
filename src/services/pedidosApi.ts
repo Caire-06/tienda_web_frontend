@@ -52,6 +52,7 @@ interface ComprobanteBackend {
 interface PedidoBackend {
     numero: string;
     fecha: string;
+    cliente?: string | null;
     estado?: string | null;
     tipoEntrega?: string | null;
     metodoPago?: string | null;
@@ -78,6 +79,7 @@ function mapear(p: PedidoBackend): Pedido {
         numero: p.numero,
         fecha: p.fecha,
         usuarioId: "",
+        cliente: p.cliente || p.comprobante?.nombreRazonSocial || "Cliente",
         items: (p.items ?? []).map(
             (it): ItemPedido => ({
                 id: it.id,
@@ -118,4 +120,29 @@ export async function listarMisCompras(token: string): Promise<Pedido[]> {
     if (!resp.ok) throw new Error("No se pudo consultar el historial");
     const data = (await resp.json()) as PedidoBackend[];
     return (Array.isArray(data) ? data : []).map(mapear);
+}
+
+/** Trae todos los pedidos del sistema para el panel de administración (GET /api/pedidos). */
+export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
+    const resp = await fetch("/api/pedidos", {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error("No se pudieron cargar las ventas de la base de datos");
+    const data = (await resp.json()) as PedidoBackend[];
+    return (Array.isArray(data) ? data : []).map(mapear);
+}
+
+/** Actualiza el estado de un pedido (PUT /api/pedidos/{numero}/estado). */
+export async function actualizarEstadoPedidoAdmin(token: string, numero: string, estado: string): Promise<Pedido> {
+    const resp = await fetch(`/api/pedidos/${encodeURIComponent(numero)}/estado`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ estado }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "No se pudo actualizar el estado del pedido");
+    return mapear(data as PedidoBackend);
 }

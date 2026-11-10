@@ -26,6 +26,7 @@ export interface Pedido {
     numero: string;
     fecha: string;
     usuarioId: string;
+    cliente?: string;
     items: ItemPedido[];
     total: number;
     metodoPago?: MetodoPago;

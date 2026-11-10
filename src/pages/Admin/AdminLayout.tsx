@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 
@@ -8,15 +8,20 @@ function AdminLayout() {
     const navigate = useNavigate();
     const { usuario, logout } = useAuth();
 
-    // Solo el admin puede entrar aquí
-    if (!usuario || usuario.rol !== "admin") {
+    // Si está logueado pero no tiene rol admin, redirigir directamente al inicio
+    if (usuario && usuario.rol !== "admin") {
+        return <Navigate to="/inicio" replace />;
+    }
+
+    // Si no ha iniciado sesión, mostrar aviso para ir al login
+    if (!usuario) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                 <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center text-3xl font-bold">
                     !
                 </div>
                 <h1 className="text-2xl font-black">Acceso denegado</h1>
-                <p className="text-sm text-slate-500 max-w-xs">Ingresa con la cuenta de administrador (admin / admin123 o admin / 123).</p>
+                <p className="text-sm text-slate-500 max-w-xs">Ingresa con la cuenta de administrador para acceder al panel.</p>
                 <button
                     className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm transition-all cursor-pointer"
                     onClick={() => navigate("/login")}

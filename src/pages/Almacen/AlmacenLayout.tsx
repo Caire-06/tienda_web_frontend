@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 
@@ -8,15 +8,20 @@ function AlmacenLayout() {
     const navigate = useNavigate();
     const { usuario, logout } = useAuth();
 
-    // Solo Almacén y Admin pueden entrar aquí
-    if (!usuario || (usuario.rol !== "almacen" && usuario.rol !== "admin")) {
+    // Si está logueado pero sin permisos de almacén o admin, redirigir directamente al inicio
+    if (usuario && usuario.rol !== "almacen" && usuario.rol !== "admin") {
+        return <Navigate to="/inicio" replace />;
+    }
+
+    // Si no ha iniciado sesión, mostrar aviso para ir al login
+    if (!usuario) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                 <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center text-3xl font-bold">
                     !
                 </div>
                 <h1 className="text-2xl font-black">Acceso denegado</h1>
-                <p className="text-sm text-slate-500 max-w-xs">Ingresa con la cuenta de operador de almacén (almacen / 123).</p>
+                <p className="text-sm text-slate-500 max-w-xs">Ingresa con la cuenta de operador de almacén o administrador.</p>
                 <button
                     className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm transition-all cursor-pointer"
                     onClick={() => navigate("/login")}
@@ -129,6 +134,14 @@ function AlmacenLayout() {
                                 </svg>
                                 Ver tienda pública
                             </NavLink>
+                            {usuario.rol === "admin" && (
+                                <NavLink to="/admin" className={linkClass}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    </svg>
+                                    Panel de Admin
+                                </NavLink>
+                            )}
                         </nav>
                     </div>
                 </div>

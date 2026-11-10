@@ -42,6 +42,7 @@ function Dashboard() {
     const totalProductos = kpis?.totalProductos ?? 0;
     const totalUsuarios = kpis?.totalUsuarios ?? 0;
     const stockCriticoCount = kpis?.stockCriticoCount ?? 0;
+    const pendientesDespacho = kpis?.pedidosPendientesDespacho ?? 0;
 
     const recientes = kpis?.ultimasVentas ?? [];
     const top = kpis?.topProductos ?? [];
@@ -92,6 +93,31 @@ function Dashboard() {
                     <strong>{stockCriticoCount}</strong>
                 </div>
             </section>
+
+            {/* Aviso Logístico de Cola en Almacén */}
+            {pendientesDespacho > 0 && (
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg font-bold shrink-0">
+                            📦
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                                {pendientesDespacho} {pendientesDespacho === 1 ? "pedido pendiente" : "pedidos pendientes"} de despacho en Almacén
+                            </h3>
+                            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                Almacén aún no ha consolidado estos pedidos en un lote de envío al courier.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => navigate("/admin/despachos")}
+                        className="self-start sm:self-auto px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
+                    >
+                        Supervisar Despachos →
+                    </button>
+                </div>
+            )}
 
             {cargando && (
                 <div className="text-center py-4 text-xs text-slate-400">

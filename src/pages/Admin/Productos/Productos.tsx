@@ -9,12 +9,14 @@ import {
 import type { ProductoInv } from "../../../context/InventarioContext";
 
 const CATALOGO_CATEGORIAS = [
-    { id: 1, nombre: "Laptops", codigo: "CAT-01" },
+    { id: 1, nombre: "Computadoras", codigo: "CAT-01" },
     { id: 2, nombre: "Smartphones", codigo: "CAT-02" },
     { id: 3, nombre: "Audio", codigo: "CAT-03" },
-    { id: 4, nombre: "Monitores", codigo: "CAT-04" },
+    { id: 4, nombre: "Periféricos", codigo: "CAT-04" },
     { id: 5, nombre: "Accesorios", codigo: "CAT-05" },
-    { id: 6, nombre: "Componentes", codigo: "CAT-06" },
+    { id: 6, nombre: "Monitores", codigo: "CAT-06" },
+    { id: 7, nombre: "Laptops", codigo: "CAT-07" },
+    { id: 8, nombre: "Componentes", codigo: "CAT-08" },
 ];
 
 const CATALOGO_MARCAS = [

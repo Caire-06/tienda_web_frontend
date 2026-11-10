@@ -71,7 +71,7 @@ export async function obtenerReporteParametrizado(token: string, tipo: "usuarios
 
     if (tipo === "ventas") {
         try {
-            const res = await fetch("/api/pedidos/admin", { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch("/api/pedidos", { headers: { Authorization: `Bearer ${token}` } });
             const pedidos = res.ok ? await res.json() : [];
             const totalPedidos = pedidos.length;
             const totalVentas = pedidos.reduce((acc: number, p: any) => acc + (Number(p.total) || 0), 0);

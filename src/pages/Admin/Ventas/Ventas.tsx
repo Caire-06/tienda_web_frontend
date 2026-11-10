@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { listarPedidosAdmin, actualizarEstadoPedidoAdmin } from "../../../services/pedidosApi";
+import { listarPedidosAdmin } from "../../../services/pedidosApi";
 import type { Pedido } from "../../../data/pedidos";
 
 function fechaCorta(fechaStr: string) {
@@ -24,7 +25,18 @@ function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
     };
 }
 
+function badgeDeEstado(estado?: string) {
+    const e = (estado || "Pendiente").toLowerCase();
+    if (e === "pendiente") return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
+    if (e === "procesando") return "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300";
+    if (e === "listo para recojo") return "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300";
+    if (e === "enviado") return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300";
+    if (e === "entregado") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300";
+    return "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300";
+}
+
 function Ventas() {
+    const navigate = useNavigate();
     const { token } = useAuth();
     const [ventas, setVentas] = useState<Pedido[]>([]);
     const [cargando, setCargando] = useState(true);
@@ -34,7 +46,6 @@ function Ventas() {
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [detalle, setDetalle] = useState<Pedido | null>(null);
-    const [actualizando, setActualizando] = useState(false);
 
     const cargar = async () => {
         if (!token) return;
@@ -53,20 +64,6 @@ function Ventas() {
     useEffect(() => {
         cargar();
     }, [token]);
-
-    const handleCambiarEstado = async (nuevoEstado: string) => {
-        if (!token || !detalle) return;
-        setActualizando(true);
-        try {
-            const actualizado = await actualizarEstadoPedidoAdmin(token, detalle.numero, nuevoEstado);
-            setDetalle(actualizado);
-            setVentas((prev) => prev.map((v) => (v.numero === detalle.numero ? actualizado : v)));
-        } catch (err: any) {
-            alert(err.message || "No se pudo actualizar el estado del pedido");
-        } finally {
-            setActualizando(false);
-        }
-    };
 
     const filtradas = ventas.filter((v) => {
         if (desde && v.fecha.slice(0, 10) < desde) return false;
@@ -90,7 +87,7 @@ function Ventas() {
                         Registro de Ventas
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Seguimiento de pedidos, emisión de comprobantes oficiales y estado de entrega.
+                        Supervisión de compras, emisión de comprobantes oficiales y estado logístico gestionado por Almacén.
                     </p>
                 </div>
                 <button
@@ -143,7 +140,7 @@ function Ventas() {
                             <th>Cliente</th>
                             <th>Comprobante</th>
                             <th>Fecha</th>
-                            <th>Estado / Despacho</th>
+                            <th>Estado (Logística Almacén)</th>
                             <th>Total</th>
                             <th>Acciones</th>
                         </tr>
@@ -165,6 +162,7 @@ function Ventas() {
                             filtradas.map((v) => {
                                 const doc = obtenerSerieComprobante(v);
                                 const esFactura = doc.tipo === "FACTURA";
+                                const estado = v.estado || "Pendiente";
                                 return (
                                     <tr key={v.numero}>
                                         <td>
@@ -190,12 +188,16 @@ function Ventas() {
                                         </td>
                                         <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
                                         <td>
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                                    {v.estado || "Pendiente"}
+                                            <div className="flex flex-col items-start gap-1">
+                                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${badgeDeEstado(estado)}`}>
+                                                    {estado}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                                                    {v.tipoEntrega === "recojo" ? "Recojo en Tienda" : "Envío a Domicilio"}
+                                                    {v.codigoLoteDespacho
+                                                        ? `Lote ${v.codigoLoteDespacho} · ${v.empresaTransporte || "Courier"}`
+                                                        : v.tipoEntrega === "recojo"
+                                                            ? "Recojo en Tienda"
+                                                            : "En espera de Almacén"}
                                                 </span>
                                             </div>
                                         </td>
@@ -253,39 +255,40 @@ function Ventas() {
                                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
                                     <div className="font-bold text-amber-700 dark:text-amber-300">4. Despacho</div>
                                     <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                        {detalle.tipoEntrega === "recojo" ? "Recojo Tienda" : "Envío Courier"}
+                                        {detalle.codigoLoteDespacho
+                                            ? `${detalle.codigoLoteDespacho} (${detalle.empresaTransporte})`
+                                            : detalle.tipoEntrega === "recojo"
+                                                ? "Recojo Tienda"
+                                                : "En espera de Almacén"}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Modificación de Ciclo de Vida */}
+                        {/* Estado Operativo (Solo Supervisión — Almacén gestiona los cambios) */}
                         <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                    Estado del Pedido:
-                                </label>
-                                <select
-                                    disabled={actualizando}
-                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer disabled:opacity-50"
-                                    value={detalle.estado || "Pendiente"}
-                                    onChange={(e) => handleCambiarEstado(e.target.value)}
-                                >
-                                    <option value="Pendiente">Pendiente</option>
-                                    <option value="Pagado">Pagado</option>
-                                    <option value="Procesando">Procesando</option>
-                                    <option value="Enviado">Enviado</option>
-                                    <option value="Listo para recojo">Listo para recojo</option>
-                                    <option value="Entregado">Entregado</option>
-                                    <option value="Cancelado">Cancelado</option>
-                                </select>
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                        Estado Actual:
+                                    </span>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeDeEstado(detalle.estado)}`}>
+                                        {detalle.estado || "Pendiente"}
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                    El control físico de preparación y despacho lo gestiona directamente Almacén.
+                                </p>
                             </div>
-                            <span className="text-xs text-slate-500">
-                                Modalidad:{" "}
-                                <strong className="text-slate-800 dark:text-slate-200">
-                                    {detalle.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}
-                                </strong>
-                            </span>
+                            <button
+                                onClick={() => {
+                                    setDetalle(null);
+                                    navigate("/almacen/despachos");
+                                }}
+                                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer"
+                            >
+                                Ver en Almacén →
+                            </button>
                         </div>
 
                         {detalle.comprobante && (

@@ -9,6 +9,7 @@ import Detalle from "./pages/Detalle/Detalle";
 import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminDashboard from "./pages/Admin/Dashboard/Dashboard";
 import AdminVentas from "./pages/Admin/Ventas/Ventas";
+import AdminDespachos from "./pages/Admin/Despachos/Despachos";
 import AdminProductos from "./pages/Admin/Productos/Productos";
 import AdminUsuarios from "./pages/Admin/Usuarios/Usuarios";
 import AdminReportes from "./pages/Admin/Reportes/Reportes";
@@ -17,6 +18,7 @@ import AlmacenDashboard from "./pages/Almacen/Dashboard/Dashboard";
 import AlmacenProductos from "./pages/Almacen/Productos/Productos";
 import AlmacenEntradas from "./pages/Almacen/Entradas/Entradas";
 import AlmacenKardex from "./pages/Almacen/Kardex/Kardex";
+import AlmacenDespachos from "./pages/Almacen/Despachos/Despachos";
 import MisCompras from "./pages/MisCompras/MisCompras";
 import MiCuenta from "./pages/MiCuenta/MiCuenta";
 import NotFound from "./pages/NotFound/NotFound";
@@ -61,6 +63,7 @@ function App() {
                   <Route index element={<AdminDashboard />} />
                   <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="ventas" element={<AdminVentas />} />
+                  <Route path="despachos" element={<AdminDespachos />} />
                   <Route path="productos" element={<AdminProductos />} />
                   <Route path="usuarios" element={<AdminUsuarios />} />
                   <Route path="reportes" element={<AdminReportes />} />
@@ -72,6 +75,7 @@ function App() {
                   <Route path="productos" element={<AlmacenProductos />} />
                   <Route path="entradas" element={<AlmacenEntradas />} />
                   <Route path="kardex" element={<AlmacenKardex />} />
+                  <Route path="despachos" element={<AlmacenDespachos />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

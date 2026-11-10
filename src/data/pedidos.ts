@@ -33,6 +33,8 @@ export interface Pedido {
     comprobante?: ComprobanteInfo;
     tipoEntrega?: TipoEntrega;
     estado?: EstadoPedido;
+    codigoLoteDespacho?: string;
+    empresaTransporte?: string;
 }
 
 export const CLAVE_PEDIDOS = "techstore-pedidos";

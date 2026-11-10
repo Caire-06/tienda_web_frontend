@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SubmitEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { Rol } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
@@ -37,7 +37,12 @@ function Login() {
     const [cargando, setCargando] = useState(false);
 
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { usuario, login } = useAuth();
+
+    // Si el usuario ya inició sesión, restringir el acceso al login y redirigir según su rol
+    if (usuario) {
+        return <Navigate to={RUTA_POR_ROL[usuario.rol] || "/inicio"} replace />;
+    }
 
     async function iniciarSesion(e: SubmitEvent) {
         e.preventDefault();

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { obtenerResumen } from "../../../services/kardexApi";
 import type { KardexResumen } from "../../../services/kardexApi";
+import { listarPedidosPendientesDespacho } from "../../../services/despachosApi";
 
 function fechaCorta(iso: string) {
     const d = new Date(iso);
@@ -13,6 +14,7 @@ function Dashboard() {
     const navigate = useNavigate();
     const { token } = useAuth();
     const [resumen, setResumen] = useState<KardexResumen | null>(null);
+    const [pendientesDespacho, setPendientesDespacho] = useState<number>(0);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
@@ -22,9 +24,16 @@ function Dashboard() {
             return;
         }
         setCargando(true);
-        obtenerResumen(token)
-            .then((r) => { if (activo) setResumen(r); })
-            .catch(() => { if (activo) setResumen(null); })
+        Promise.all([
+            obtenerResumen(token).catch(() => null),
+            listarPedidosPendientesDespacho(token).catch(() => []),
+        ])
+            .then(([r, pendientes]) => {
+                if (activo) {
+                    setResumen(r);
+                    setPendientesDespacho(Array.isArray(pendientes) ? pendientes.length : 0);
+                }
+            })
             .finally(() => { if (activo) setCargando(false); });
         return () => { activo = false; };
     }, [token]);
@@ -64,6 +73,31 @@ function Dashboard() {
                     <strong>{cargandoKpis ? "..." : movimientos}</strong>
                 </div>
             </section>
+
+            {/* Alerta de Pedidos Nuevos Pendientes de Preparación */}
+            {pendientesDespacho > 0 && (
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg font-bold shrink-0">
+                            📦
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                                {pendientesDespacho} {pendientesDespacho === 1 ? "pedido nuevo pendiente" : "pedidos nuevos pendientes"} por atender
+                            </h3>
+                            <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                                Tienes pedidos recién comprados listos para iniciar preparación y enviar al courier.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => navigate("/almacen/despachos")}
+                        className="self-start sm:self-auto px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
+                    >
+                        ▶ Empezar a Atender →
+                    </button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Últimos movimientos */}

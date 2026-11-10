@@ -117,7 +117,11 @@ function MisCompras() {
                                             <div className="flex flex-col">
                                                 <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">{p.estado || "Pendiente"}</span>
                                                 <span className="text-[10px] text-slate-400">
-                                                    {p.tipoEntrega === "recojo" ? "Recojo en tienda" : "Envío a domicilio"}
+                                                    {p.codigoLoteDespacho
+                                                        ? `Vía ${p.empresaTransporte || "Courier"} (${p.codigoLoteDespacho})`
+                                                        : p.tipoEntrega === "recojo"
+                                                            ? "Recojo en tienda"
+                                                            : "Envío a domicilio"}
                                                 </span>
                                             </div>
                                         </td>
@@ -163,6 +167,11 @@ function MisCompras() {
                                     <div><strong>Titular:</strong> {detalle.comprobante.nombreRazonSocial}</div>
                                     {detalle.metodoPago && (
                                         <div><strong>Método de pago:</strong> {detalle.metodoPago === "tarjeta" ? "Tarjeta Débito/Crédito" : detalle.metodoPago === "yape" ? "Yape / Plin" : "Transferencia Bancaria"}</div>
+                                    )}
+                                    {detalle.codigoLoteDespacho && (
+                                        <div className="pt-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                                            📦 Despachado con {detalle.empresaTransporte} (Lote {detalle.codigoLoteDespacho})
+                                        </div>
                                     )}
                                 </div>
                             )}

@@ -86,14 +86,13 @@ function Inicio() {
 
     useEffect(() => {
         let activo = true;
-        if (!token) return;
         listarProductos(token)
             .then((lista) => { if (activo) setBackendProductos(lista); })
             .catch(() => { if (activo) setBackendProductos([]); });
         return () => { activo = false; };
     }, [token]);
 
-    const productos: ProductoInv[] = token ? backendProductos : [];
+    const productos: ProductoInv[] = backendProductos;
 
     const destacados = productos.filter((p) => p.activo && p.stock > 0).slice(0, 4);
     const masVendidos = [...productos].filter((p) => p.activo).sort((a, b) => b.vendidos - a.vendidos).slice(0, 4);

@@ -1,20 +1,36 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import ProductCard from "../../components/ProductCard/ProductCard";
 import { CATEGORIAS } from "../../data/productos";
-import { useInventario } from "../../context/InventarioContext";
+import { useAuth } from "../../context/AuthContext";
+import { listarProductos } from "../../services/productosApi";
+import type { ProductoInv } from "../../context/InventarioContext";
 
 type Orden = "relevancia" | "precio-asc" | "precio-desc" | "popular" | "stock";
 
 const FILTRO_TODOS = "Todos";
 
 function Productos() {
+    const { token } = useAuth();
+    const [backendProductos, setBackendProductos] = useState<ProductoInv[]>([]);
+    const [cargando, setCargando] = useState(true);
+
     const [categoria, setCategoria] = useState(FILTRO_TODOS);
     const [orden, setOrden] = useState<Orden>("relevancia");
     const [busqueda, setBusqueda] = useState("");
 
-    const { productos } = useInventario();
+    useEffect(() => {
+        let activo = true;
+        setCargando(true);
+        listarProductos(token)
+            .then((lista) => { if (activo) setBackendProductos(lista); })
+            .catch(() => { if (activo) setBackendProductos([]); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [token]);
+
+    const productos: ProductoInv[] = backendProductos;
 
     const nombresCategorias = [FILTRO_TODOS, ...CATEGORIAS.map((c) => c.nombre)];
 
@@ -123,7 +139,11 @@ function Productos() {
                 </div>
 
                 {/* Grid */}
-                {filtrados.length > 0 ? (
+                {cargando ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-sm text-slate-500 shadow-sm my-8">
+                        Cargando productos...
+                    </div>
+                ) : filtrados.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
                         {filtrados.map((p) => (
                             <ProductCard key={p.id} producto={p} />

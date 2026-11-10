@@ -3,22 +3,40 @@ import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import ProductCard from "../../components/ProductCard/ProductCard";
-import { useInventario } from "../../context/InventarioContext";
+import { useAuth } from "../../context/AuthContext";
+import { obtenerProducto, listarProductos } from "../../services/productosApi";
+import type { ProductoInv } from "../../context/InventarioContext";
 import { useCarrito } from "../../context/CarritoContext";
 
 function Detalle() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { token } = useAuth();
     const { agregar } = useCarrito();
     const [cantidad, setCantidad] = useState(1);
-
-    const { productos } = useInventario();
-    const producto = productos.find((p) => p.id === Number(id));
+    const [producto, setProducto] = useState<ProductoInv | null>(null);
+    const [backendProductos, setBackendProductos] = useState<ProductoInv[]>([]);
 
     useEffect(() => {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         setCantidad(1);
-    }, [id]);
+        let activo = true;
+        const cargar = async () => {
+            setBackendProductos([]);
+            setProducto(null);
+            try {
+                const [p, todos] = await Promise.all([obtenerProducto(token, Number(id)), listarProductos(token)]);
+                if (activo) {
+                    setProducto(p);
+                    setBackendProductos(todos);
+                }
+            } catch {
+                if (activo) setProducto(null);
+            }
+        };
+        cargar();
+        return () => { activo = false; };
+    }, [id, token]);
 
     if (!producto) {
         return (
@@ -39,7 +57,7 @@ function Detalle() {
     }
 
     const agotado = producto.stock === 0;
-    const relacionados = productos.filter(
+    const relacionados = backendProductos.filter(
         (p) => p.activo && p.categoria === producto.categoria && p.id !== producto.id
     ).slice(0, 4);
 

@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useInventario } from "../../../context/InventarioContext";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import { listarMovimientos } from "../../../services/kardexApi";
+import type { Movimiento } from "../../../context/InventarioContext";
 
 function fechaCorta(iso: string) {
     const d = new Date(iso);
@@ -13,14 +15,14 @@ function diaISO(iso: string) {
 }
 
 function Kardex() {
-    const { productos, movimientos } = useInventario();
+    const { token } = useAuth();
+    const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+    const [cargando, setCargando] = useState(true);
 
     const [producto, setProducto] = useState("Todos");
     const [tipo, setTipo] = useState("Todos");
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
-
-    const POR_PAGINA = 8;
     const [pagina, setPagina] = useState(1);
 
     const filtrados = movimientos.filter((m) => {
@@ -43,15 +45,29 @@ function Kardex() {
         setPagina(1);
     };
 
-    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 8));
     const paginaActual = Math.min(pagina, totalPaginas);
-    const visibles = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
+    const visibles = filtrados.slice((paginaActual - 1) * 8, paginaActual * 8);
 
     const totalEntradas = filtrados.filter((m) => m.tipo === "Entrada").length;
     const totalSalidas = filtrados.filter((m) => m.tipo === "Salida").length;
 
     const selectClass =
         "px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer";
+
+    useEffect(() => {
+        let activo = true;
+        if (!token) {
+            setCargando(false);
+            return;
+        }
+        setCargando(true);
+        listarMovimientos(token)
+            .then((lista) => { if (activo) setMovimientos(lista); })
+            .catch(() => { if (activo) setMovimientos([]); })
+            .finally(() => { if (activo) setCargando(false); });
+        return () => { activo = false; };
+    }, [token]);
 
     return (
         <div className="space-y-6">
@@ -64,8 +80,8 @@ function Kardex() {
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-2.5 items-center shadow-xs">
                 <select className={selectClass} value={producto} onChange={(e) => cambiarProducto(e.target.value)}>
                     <option>Todos</option>
-                    {productos.map((p) => (
-                        <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                    {Array.from(new Set(movimientos.map((m) => m.producto).filter(Boolean))).map((nombre) => (
+                        <option key={nombre} value={nombre}>{nombre}</option>
                     ))}
                 </select>
 
@@ -120,27 +136,33 @@ function Kardex() {
                         </tr>
                     </thead>
                     <tbody>
-                        {visibles.map((m) => (
-                            <tr key={m.id}>
-                                <td className="text-xs text-slate-500">{fechaCorta(m.fecha)}</td>
-                                <td className="font-semibold text-xs">{m.producto}</td>
-                                <td>
-                                    <span className={`badge ${m.tipo === "Entrada" ? "ok" : "off"}`}>
-                                        {m.tipo === "Entrada" ? "↑ Entrada" : "↓ Salida"}
-                                    </span>
-                                </td>
-                                <td className={`font-mono font-bold text-xs ${m.tipo === "Entrada" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                    {m.tipo === "Entrada" ? `+${m.cantidad}` : `-${m.cantidad}`}
-                                </td>
-                                <td className="font-mono text-xs text-slate-500">{m.stockAnterior}</td>
-                                <td className="font-mono font-bold text-xs">{m.stockNuevo}</td>
-                                <td className="text-xs text-slate-600 dark:text-slate-400">{m.motivo}</td>
-                                <td className="text-xs text-slate-500">{m.usuario}</td>
+                        {cargando ? (
+                            <tr>
+                                <td colSpan={8} className="text-center py-10 text-sm text-slate-500">Cargando movimientos...</td>
                             </tr>
-                        ))}
+                        ) : (
+                            visibles.map((m) => (
+                                <tr key={m.id}>
+                                    <td className="text-xs text-slate-500">{fechaCorta(m.fecha)}</td>
+                                    <td className="font-semibold text-xs">{m.producto}</td>
+                                    <td>
+                                        <span className={`badge ${m.tipo === "Entrada" ? "ok" : "off"}`}>
+                                            {m.tipo === "Entrada" ? "↑ Entrada" : "↓ Salida"}
+                                        </span>
+                                    </td>
+                                    <td className={`font-mono font-bold text-xs ${m.tipo === "Entrada" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                                        {m.tipo === "Entrada" ? `+${m.cantidad}` : `-${m.cantidad}`}
+                                    </td>
+                                    <td className="font-mono text-xs text-slate-500">{m.stockAnterior}</td>
+                                    <td className="font-mono font-bold text-xs">{m.stockNuevo}</td>
+                                    <td className="text-xs text-slate-600 dark:text-slate-400">{m.motivo}</td>
+                                    <td className="text-xs text-slate-500">{m.usuario}</td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
-                {filtrados.length === 0 && (
+                {!cargando && filtrados.length === 0 && (
                     <div className="text-center py-10 text-sm text-slate-500">
                         Sin movimientos para los filtros seleccionados.
                     </div>

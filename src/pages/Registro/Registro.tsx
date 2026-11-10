@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 
@@ -18,7 +18,13 @@ function Registro() {
     const [creada, setCreada] = useState(false);
 
     const navigate = useNavigate();
-    const { registro } = useAuth();
+    const { usuario, registro } = useAuth();
+
+    // Si ya inició sesión, redirigir directamente sin permitir volver a registrarse
+    if (usuario && !creada) {
+        const ruta = usuario.rol === "admin" ? "/admin" : usuario.rol === "almacen" ? "/almacen" : "/inicio";
+        return <Navigate to={ruta} replace />;
+    }
 
     // Fuerza de contraseña: 0-4 puntos (largo, número, mayúscula, símbolo)
     const fuerza = [

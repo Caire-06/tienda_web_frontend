@@ -81,11 +81,14 @@
   .modal-fondo {
     @apply fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4;
   }
-  .modal, .modal-chico {
-    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto;
+  .modal, .modal-chico, .modal-mediano {
+    @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto;
   }
   .modal-chico {
     @apply max-w-md;
+  }
+  .modal-mediano {
+    @apply max-w-xl;
   }
   .modal-head {
     @apply flex items-center justify-between pb-4 mb-4 border-b border-slate-200 dark:border-slate-800;

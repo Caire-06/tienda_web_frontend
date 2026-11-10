@@ -59,10 +59,10 @@ function Footer() {
                             Ayuda
                         </h3>
                         <ul className="space-y-2">
-                            <li><button className={linkButtonClass}>Preguntas frecuentes</button></li>
-                            <li><button className={linkButtonClass}>Métodos de pago</button></li>
-                            <li><button className={linkButtonClass}>Envíos y entregas</button></li>
-                            <li><button className={linkButtonClass} onClick={() => navigate("/contactanos")}>Contáctanos</button></li>
+                            <li><button type="button" className={linkButtonClass} onClick={() => navigate("/preguntas-frecuentes")}>Preguntas frecuentes</button></li>
+                            <li><button type="button" className={linkButtonClass} onClick={() => navigate("/metodos-de-pago")}>Métodos de pago</button></li>
+                            <li><button type="button" className={linkButtonClass} onClick={() => navigate("/envios-y-entregas")}>Envíos y entregas</button></li>
+                            <li><button type="button" className={linkButtonClass} onClick={() => navigate("/contactanos")}>Contáctanos</button></li>
                         </ul>
                     </div>
 
@@ -78,7 +78,12 @@ function Footer() {
                             </li>
                             <li className="flex flex-col">
                                 <span className="text-slate-400 font-medium">Correo</span>
-                                <span className="font-semibold text-slate-700 dark:text-slate-300">contacto@techstore.com</span>
+                                <a
+                                    href="mailto:contacto@techstore.com"
+                                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                    contacto@techstore.com
+                                </a>
                             </li>
                             <li className="flex flex-col">
                                 <span className="text-slate-400 font-medium">Horario</span>
@@ -93,8 +98,20 @@ function Footer() {
                         © 2026 TechStore — Proyecto Desarrollo Full Stack (UTP - San Juan de Lurigancho).
                     </span>
                     <div className="flex gap-4">
-                        <button className="hover:text-blue-600 transition-colors cursor-pointer">Términos y condiciones</button>
-                        <button className="hover:text-blue-600 transition-colors cursor-pointer">Política de privacidad</button>
+                        <button
+                            type="button"
+                            onClick={() => navigate("/terminos-y-condiciones")}
+                            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                        >
+                            Términos y condiciones
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate("/politica-de-privacidad")}
+                            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                        >
+                            Política de privacidad
+                        </button>
                     </div>
                 </div>
             </div>

@@ -7,6 +7,7 @@ import { leerPedidos } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
+import FormularioCambioPassword from "../../components/FormularioCambioPassword/FormularioCambioPassword";
 
 interface Perfil {
     nombre: string;
@@ -34,10 +35,11 @@ interface MiCuentaDetalleProps {
     usuario: Usuario;
     logout: () => void;
     actualizarNombre: (nombre: string) => void;
+    marcarPasswordActualizada: () => void;
     token: string;
 }
 
-function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaDetalleProps) {
+function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActualizada, token }: MiCuentaDetalleProps) {
     const navigate = useNavigate();
     const [perfil, setPerfil] = useState<Perfil>({ nombre: usuario.nombre, correo: usuario.acceso,
         telefono: "", documento: "", direccion: "", ciudad: "", miembroDesde: "2026" });
@@ -48,6 +50,8 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaD
     const [error, setError] = useState("");
     const [editando, setEditando] = useState(false);
     const [guardado, setGuardado] = useState(false);
+    const [cambiandoClave, setCambiandoClave] = useState(false);
+    const [claveActualizadaMsg, setClaveActualizadaMsg] = useState("");
     const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
     useEffect(() => {
         let activo = true;
@@ -223,6 +227,51 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaD
 
                         {error && <p role="alert" className="text-xs text-red-600 font-semibold">{error}</p>}
                         {guardado && <p className="text-xs text-emerald-600 font-semibold">Cambios guardados correctamente.</p>}
+
+                        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                        Seguridad y contraseña
+                                    </h3>
+                                    {usuario.requiereCambioPassword && (
+                                        <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                            Pendiente cambiar la contraseña temporal asignada.
+                                        </p>
+                                    )}
+                                </div>
+                                {!cambiandoClave && (
+                                    <button
+                                        type="button"
+                                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                        onClick={() => {
+                                            setCambiandoClave(true);
+                                            setClaveActualizadaMsg("");
+                                        }}
+                                    >
+                                        Cambiar contraseña
+                                    </button>
+                                )}
+                            </div>
+
+                            {claveActualizadaMsg && (
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    ✓ {claveActualizadaMsg}
+                                </p>
+                            )}
+
+                            {cambiandoClave && (
+                                <FormularioCambioPassword
+                                    token={token}
+                                    onExito={(msg) => {
+                                        marcarPasswordActualizada();
+                                        setCambiandoClave(false);
+                                        setClaveActualizadaMsg(msg);
+                                    }}
+                                    onCancelar={() => setCambiandoClave(false)}
+                                />
+                            )}
+                        </div>
                     </section>
 
                     {/* Último pedido */}
@@ -276,7 +325,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, token }: MiCuentaD
 
 function MiCuenta() {
     const navigate = useNavigate();
-    const { usuario, token, logout, actualizarNombre } = useAuth();
+    const { usuario, token, logout, actualizarNombre, marcarPasswordActualizada } = useAuth();
 
     if (!usuario || !token) {
         return (
@@ -303,6 +352,7 @@ function MiCuenta() {
             usuario={usuario}
             logout={logout}
             actualizarNombre={actualizarNombre}
+            marcarPasswordActualizada={marcarPasswordActualizada}
             token={token}
         />
     );

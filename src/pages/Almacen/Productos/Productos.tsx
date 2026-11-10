@@ -3,6 +3,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { listarProductos, crearProducto, actualizarProducto, subirImagen, eliminarProducto as apiEliminar } from "../../../services/productosApi";
 import { CATEGORIAS } from "../../../data/productos";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
+import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 
 type FiltroEstado = "todos" | "disponible" | "bajo" | "sin" | "inactivo";
 
@@ -225,7 +226,7 @@ function Productos() {
                                 <td>
                                     <div className="flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 p-1 flex items-center justify-center shrink-0">
-                                            <img src={p.imagen} alt={p.nombre} className="h-full w-full object-contain" />
+                                            <ImagenProducto src={p.imagen} alt={p.nombre} compact className="h-full w-full object-contain" />
                                         </div>
                                         <span className="font-semibold text-xs">{p.nombre}</span>
                                     </div>

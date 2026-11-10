@@ -6,6 +6,7 @@ export interface Usuario {
     nombre: string;
     acceso: string; // usuario o correo con el que ingresa
     rol: Rol;
+    requiereCambioPassword?: boolean;
 }
 
 export interface CuentaDemo {

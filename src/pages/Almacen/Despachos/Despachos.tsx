@@ -62,10 +62,14 @@ function Despachos() {
                 listarPedidosPendientesDespacho(token).catch(() => []),
                 listarLotesDespacho(token).catch(() => []),
             ]);
-            // Incluir TODOS los pedidos activos (Delivery Propio, Agencia y Recojo en Tienda)
+            // Incluir pedidos pagados/verificados activos (excluir pendientes de confirmación de transferencia)
             const fuente = todosPedidos.length > 0 ? todosPedidos : pendientesData;
             const activos = fuente.filter(
-                (p) => p.estado !== "Entregado" && p.estado !== "Cancelado"
+                (p) =>
+                    p.estado !== "Entregado" &&
+                    p.estado !== "Cancelado" &&
+                    p.estado !== "Pendiente de pago" &&
+                    p.estadoPago !== "Por verificar"
             );
             setPedidosActivos(activos);
             setLotes(lData);

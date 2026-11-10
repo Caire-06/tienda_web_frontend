@@ -27,6 +27,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { InventarioProvider } from "./context/InventarioContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ScrollToTop from "./components/ScrollToTop";
+import AvisoCambioPassword from "./components/AvisoCambioPassword/AvisoCambioPassword";
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
           <CarritoProvider>
             <BrowserRouter>
               <ScrollToTop />
+              <AvisoCambioPassword />
               <Routes>
                 <Route path="/" element={<Navigate to="/inicio" replace />} />
 

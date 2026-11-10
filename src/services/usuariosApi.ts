@@ -9,16 +9,25 @@ export interface UsuarioDTO {
     estado?: string;
     fechaRegistro: string;
     ultimoAcceso: string;
+    requiereCambioPassword?: boolean;
 }
 
 export interface CrearUsuarioDatos {
     username: string;
-    password: string;
+    password?: string;
     rol: string;
-    nombres?: string;
-    apellidos?: string;
+    nombres: string;
+    apellidos: string;
+    dni: string;
     correo?: string;
+    tipoCorreo?: string;
     telefono?: string;
+    tipoTelefono?: string;
+}
+
+export interface UsuarioCreadoAdmin {
+    usuario: UsuarioDTO;
+    passwordTemporal: string;
 }
 
 export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
@@ -29,7 +38,7 @@ export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
     return res.json();
 }
 
-export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Promise<UsuarioDTO> {
+export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Promise<UsuarioCreadoAdmin> {
     const res = await fetch("/api/usuarios", {
         method: "POST",
         headers: {
@@ -38,9 +47,27 @@ export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Pro
         },
         body: JSON.stringify(datos)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error al crear usuario");
-    return data;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || "Error al crear usuario");
+    return data as UsuarioCreadoAdmin;
+}
+
+export async function cambiarPasswordPerfil(
+    token: string,
+    passwordActual: string,
+    passwordNueva: string
+): Promise<string> {
+    const res = await fetch("/api/perfil/password", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ passwordActual, passwordNueva })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || "No se pudo actualizar la contraseña");
+    return String(data.mensaje || "Contraseña actualizada correctamente");
 }
 
 export async function cambiarRolUsuario(token: string, id: number, rol: string): Promise<UsuarioDTO> {

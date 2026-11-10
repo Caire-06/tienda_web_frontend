@@ -12,6 +12,7 @@ interface AuthContexto {
   registro: (datos: DatosRegistro) => Promise<Resultado>;
   logout: () => void;
   actualizarNombre: (nombre: string) => void;
+  marcarPasswordActualizada: () => void;
 }
 const AuthContext = createContext<AuthContexto | null>(null);
 const SESION = "techstore-auth-v2";
@@ -53,7 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("techstore-perfiles");
     if (!sesion) return;
     fetch("/api/perfil", { headers: { Authorization: `Bearer ${sesion.token}` } })
-      .then((resp) => { if (!resp.ok) guardarSesion(null); })
+      .then(async (resp) => {
+        if (!resp.ok) {
+          guardarSesion(null);
+          return;
+        }
+        const perfil = await respuestaJson(resp);
+        const requiere = Boolean(perfil.requiereCambioPassword);
+        if (Boolean(sesion.usuario.requiereCambioPassword) !== requiere) {
+          guardarSesion({ ...sesion, usuario: { ...sesion.usuario, requiereCambioPassword: requiere } });
+        }
+      })
       .catch(() => guardarSesion(null));
     // Validar la sesión al montar la aplicación.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: String(data.nombreUsuario || acceso.trim()), acceso: String(data.nombreUsuario || acceso.trim()),
         nombre: `${perfil.nombres || ""} ${perfil.apellidos || ""}`.trim() || String(data.nombreUsuario),
         rol: rolDeBackend(data.rol),
+        requiereCambioPassword: Boolean(data.requiereCambioPassword || perfil.requiereCambioPassword),
       };
       guardarSesion({ usuario: cuenta, token: String(data.token) });
       return { ok: true, usuario: cuenta };
@@ -107,7 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!sesion) return;
     guardarSesion({ ...sesion, usuario: { ...sesion.usuario, nombre } });
   };
-  return <AuthContext.Provider value={{ usuario, token, login, registro, logout, actualizarNombre }}>{children}</AuthContext.Provider>;
+  const marcarPasswordActualizada = () => {
+    if (!sesion) return;
+    guardarSesion({ ...sesion, usuario: { ...sesion.usuario, requiereCambioPassword: false } });
+  };
+  return <AuthContext.Provider value={{ usuario, token, login, registro, logout, actualizarNombre, marcarPasswordActualizada }}>{children}</AuthContext.Provider>;
 }
 export function useAuth(): AuthContexto {
   const ctx = useContext(AuthContext);

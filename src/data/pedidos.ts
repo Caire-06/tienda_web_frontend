@@ -19,7 +19,7 @@ export interface ComprobanteInfo {
     total: number;
 }
 
-export type TipoEntrega = "envio" | "recojo";
+export type TipoEntrega = "delivery_propio" | "agencia_destino" | "recojo" | "envio";
 export type EstadoPedido = "Pendiente" | "Procesando" | "Enviado" | "Listo para recojo" | "Entregado" | "Cancelado";
 
 export interface Pedido {
@@ -29,12 +29,40 @@ export interface Pedido {
     cliente?: string;
     items: ItemPedido[];
     total: number;
+    costoEnvio?: number;
     metodoPago?: MetodoPago;
     comprobante?: ComprobanteInfo;
     tipoEntrega?: TipoEntrega;
     estado?: EstadoPedido;
     codigoLoteDespacho?: string;
     empresaTransporte?: string;
+    fechaProcesando?: string;
+    fechaEnvio?: string;
+    fechaEntrega?: string;
+}
+
+export function etiquetaTipoEntrega(tipo?: string): string {
+    if (!tipo) return "Delivery";
+    if (tipo === "recojo") return "Recojo en Tienda";
+    if (tipo === "agencia_destino") return "Agencia (Pago en destino)";
+    if (tipo === "delivery_propio" || tipo === "envio") return "Delivery Propio (SJL)";
+    return tipo;
+}
+
+export function formatearFechaHora(fechaStr?: string | null): string {
+    if (!fechaStr) return "—";
+    try {
+        const d = new Date(fechaStr);
+        if (isNaN(d.getTime())) return fechaStr;
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, "0");
+        const min = String(d.getMinutes()).padStart(2, "0");
+        return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+    } catch {
+        return fechaStr;
+    }
 }
 
 export const CLAVE_PEDIDOS = "techstore-pedidos";

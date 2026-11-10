@@ -8,18 +8,7 @@ import {
     type DespachoLoteDTO,
 } from "../../../services/despachosApi";
 import { actualizarEstadoPedido, listarPedidosAdmin } from "../../../services/pedidosApi";
-import type { Pedido } from "../../../data/pedidos";
-
-function fechaCorta(fechaStr: string) {
-    if (!fechaStr) return "—";
-    try {
-        const d = new Date(fechaStr);
-        if (isNaN(d.getTime())) return fechaStr;
-        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    } catch {
-        return fechaStr;
-    }
-}
+import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
 
 const EMPRESAS_COURIER = [
     "Olva Courier",
@@ -42,12 +31,13 @@ function badgeDeEstado(estado?: string) {
 function Despachos() {
     const { token } = useAuth();
     const [tab, setTab] = useState<"pendientes" | "lotes">("pendientes");
+    const [filtroModalidad, setFiltroModalidad] = useState<string>("todas");
     const [pedidosActivos, setPedidosActivos] = useState<Pedido[]>([]);
     const [lotes, setLotes] = useState<DespachoLoteDTO[]>([]);
     const [cargando, setCargando] = useState(true);
     const [actualizandoNumero, setActualizandoNumero] = useState<string | null>(null);
 
-    // Selección múltiple para armar lote courier
+    // Selección múltiple para armar lote courier (solo envíos, no recojo en tienda)
     const [seleccionados, setSeleccionados] = useState<string[]>([]);
 
     // Modal de Consolidación de Lote
@@ -72,7 +62,7 @@ function Despachos() {
                 listarPedidosPendientesDespacho(token).catch(() => []),
                 listarLotesDespacho(token).catch(() => []),
             ]);
-            // Mostrar todos los pedidos que aún requieren gestión operativa en Almacén (no entregados ni cancelados)
+            // Incluir TODOS los pedidos activos (Delivery Propio, Agencia y Recojo en Tienda)
             const fuente = todosPedidos.length > 0 ? todosPedidos : pendientesData;
             const activos = fuente.filter(
                 (p) => p.estado !== "Entregado" && p.estado !== "Cancelado"
@@ -115,12 +105,19 @@ function Despachos() {
         );
     };
 
+    const pedidosFiltrados = pedidosActivos.filter((p) => {
+        if (filtroModalidad === "todas") return true;
+        if (filtroModalidad === "delivery_propio") return p.tipoEntrega === "delivery_propio" || p.tipoEntrega === "envio";
+        return p.tipoEntrega === filtroModalidad;
+    });
+
+    const elegiblesLote = pedidosFiltrados.filter((p) => !p.codigoLoteDespacho && p.tipoEntrega !== "recojo");
+
     const toggleTodos = () => {
-        const elegibles = pedidosActivos.filter((p) => !p.codigoLoteDespacho);
-        if (seleccionados.length === elegibles.length) {
+        if (seleccionados.length === elegiblesLote.length && elegiblesLote.length > 0) {
             setSeleccionados([]);
         } else {
-            setSeleccionados(elegibles.map((p) => p.numero));
+            setSeleccionados(elegiblesLote.map((p) => p.numero));
         }
     };
 
@@ -166,7 +163,6 @@ function Despachos() {
         }
     };
 
-    const elegiblesLote = pedidosActivos.filter((p) => !p.codigoLoteDespacho);
     const valorSeleccionado = pedidosActivos
         .filter((p) => seleccionados.includes(p.numero))
         .reduce((acc, p) => acc + Number(p.total || 0), 0);
@@ -177,7 +173,7 @@ function Despachos() {
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Despachos y Preparación</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Recibe los pedidos pendientes del cliente, inicia la preparación física y agrupa envíos para el courier.
+                        Prepara pedidos de tienda y envío, registra horas exactas y agrupa entregas para el courier.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -209,7 +205,7 @@ function Despachos() {
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                 >
-                    <span>Pedidos por Atender</span>
+                    <span>Pedidos por Atender (Tienda y Envío)</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
                         {pedidosActivos.length}
                     </span>
@@ -235,9 +231,34 @@ function Despachos() {
                 </div>
             ) : tab === "pendientes" ? (
                 <div className="space-y-3">
-                    {pedidosActivos.length === 0 ? (
+                    {/* Filtro rápido por modalidad */}
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            { id: "todas", label: "Todos" },
+                            { id: "delivery_propio", label: "🛵 Delivery Propio" },
+                            { id: "agencia_destino", label: "📦 Agencia (Olva / Shalom)" },
+                            { id: "recojo", label: "🏪 Recojo en Tienda" },
+                        ].map((f) => (
+                            <button
+                                key={f.id}
+                                onClick={() => {
+                                    setFiltroModalidad(f.id);
+                                    setSeleccionados([]);
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                                    filtroModalidad === f.id
+                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {pedidosFiltrados.length === 0 ? (
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-sm text-slate-500">
-                            ¡Todo al día! No hay pedidos pendientes de preparación o envío en Almacén.
+                            ¡Todo al día! No hay pedidos pendientes en esta modalidad.
                         </div>
                     ) : (
                         <div className="tabla-wrap">
@@ -250,10 +271,10 @@ function Despachos() {
                                                 checked={elegiblesLote.length > 0 && seleccionados.length === elegiblesLote.length}
                                                 onChange={toggleTodos}
                                                 className="w-4 h-4 rounded cursor-pointer accent-emerald-600"
-                                                title="Seleccionar todos para enviar en lote"
+                                                title="Seleccionar todos los envíos elegibles para lote"
                                             />
                                         </th>
-                                        <th>N° Pedido</th>
+                                        <th>N° Pedido &amp; Fechas</th>
                                         <th>Cliente</th>
                                         <th>Modalidad / Ítems</th>
                                         <th>Estado Actual</th>
@@ -261,8 +282,9 @@ function Despachos() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pedidosActivos.map((p) => {
+                                    {pedidosFiltrados.map((p) => {
                                         const isSelected = seleccionados.includes(p.numero);
+                                        const esRecojo = p.tipoEntrega === "recojo";
                                         const yaEnLote = Boolean(p.codigoLoteDespacho);
                                         const estadoActual = p.estado || "Pendiente";
                                         const procesandoAccion = actualizandoNumero === p.numero;
@@ -276,7 +298,9 @@ function Despachos() {
                                                 }`}
                                             >
                                                 <td>
-                                                    {!yaEnLote ? (
+                                                    {esRecojo ? (
+                                                        <span className="text-xs" title="Recojo en tienda (se alista en mostrador)">🏪</span>
+                                                    ) : !yaEnLote ? (
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
@@ -284,7 +308,7 @@ function Despachos() {
                                                             className="w-4 h-4 rounded cursor-pointer accent-emerald-600"
                                                         />
                                                     ) : (
-                                                        <span className="text-[10px] font-mono text-emerald-600 font-bold" title={`Lote ${p.codigoLoteDespacho}`}>
+                                                        <span className="text-xs font-mono text-emerald-600 font-bold" title={`Lote ${p.codigoLoteDespacho}`}>
                                                             📦
                                                         </span>
                                                     )}
@@ -293,20 +317,32 @@ function Despachos() {
                                                     <div className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
                                                         {p.numero}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400">{fechaCorta(p.fecha)}</div>
+                                                    <div className="text-[10px] text-slate-500">
+                                                        Compra: {formatearFechaHora(p.fecha)}
+                                                    </div>
+                                                    {p.fechaProcesando && (
+                                                        <div className="text-[10px] text-blue-600 dark:text-blue-400">
+                                                            Prep.: {formatearFechaHora(p.fechaProcesando)}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="font-semibold text-xs">
                                                     {p.cliente || p.comprobante?.nombreRazonSocial || "Cliente"}
                                                 </td>
                                                 <td className="text-xs">
-                                                    <div className="font-medium">
-                                                        {p.tipoEntrega === "recojo" ? "🏪 Recojo en tienda" : "🚚 Delivery / Courier"}
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                        {etiquetaTipoEntrega(p.tipoEntrega)}
                                                     </div>
+                                                    {p.tipoEntrega === "agencia_destino" && (
+                                                        <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                            Flete por pagar al recibir
+                                                        </div>
+                                                    )}
                                                     <button
                                                         onClick={() => setPedidoPicking(p)}
-                                                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer mt-0.5"
                                                     >
-                                                        Ver {totalUnidades} {totalUnidades === 1 ? "producto" : "productos"} →
+                                                        Ver {totalUnidades} {totalUnidades === 1 ? "producto" : "productos"} y horas →
                                                     </button>
                                                 </td>
                                                 <td>
@@ -331,7 +367,7 @@ function Despachos() {
                                                             </button>
                                                         )}
 
-                                                        {estadoActual === "Procesando" && p.tipoEntrega === "recojo" && (
+                                                        {estadoActual === "Procesando" && esRecojo && (
                                                             <button
                                                                 disabled={procesandoAccion}
                                                                 onClick={() => cambiarEstadoRapido(p, "Listo para recojo")}
@@ -341,7 +377,7 @@ function Despachos() {
                                                             </button>
                                                         )}
 
-                                                        {estadoActual === "Procesando" && p.tipoEntrega !== "recojo" && (
+                                                        {estadoActual === "Procesando" && !esRecojo && (
                                                             <button
                                                                 disabled={procesandoAccion}
                                                                 onClick={() => {
@@ -396,7 +432,7 @@ function Despachos() {
                                 <th>N° Guía Remisión</th>
                                 <th>Pedidos Agrupados</th>
                                 <th>Despachado Por</th>
-                                <th>Fecha Salida</th>
+                                <th>Fecha / Hora Salida</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -565,7 +601,7 @@ function Despachos() {
                 </div>
             )}
 
-            {/* Modal Lista de Picking (Qué productos empaquetar) */}
+            {/* Modal Lista de Empaque & Registro de Fechas con Hora */}
             {pedidoPicking && (
                 <div className="modal-fondo">
                     <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
@@ -575,10 +611,31 @@ function Despachos() {
                                 ✕
                             </button>
                         </div>
-                        <div className="text-xs text-slate-500 mb-3">
-                            Cliente: <strong className="text-slate-800 dark:text-slate-200">{pedidoPicking.cliente}</strong> ·{" "}
-                            Estado: <strong className="text-blue-600">{pedidoPicking.estado}</strong>
+                        <div className="text-xs text-slate-500 mb-3 space-y-1">
+                            <div>Cliente: <strong className="text-slate-800 dark:text-slate-200">{pedidoPicking.cliente}</strong></div>
+                            <div>Entrega: <strong className="text-slate-800 dark:text-slate-200">{etiquetaTipoEntrega(pedidoPicking.tipoEntrega)}</strong></div>
                         </div>
+
+                        {/* Trazabilidad de Fechas con Hora */}
+                        <div className="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-2 text-[11px]">
+                            <div>
+                                <span className="text-slate-400 block">Fecha Compra:</span>
+                                <strong className="font-mono">{formatearFechaHora(pedidoPicking.fecha)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block">Inicio Preparación:</span>
+                                <strong className="font-mono">{formatearFechaHora(pedidoPicking.fechaProcesando)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block">{pedidoPicking.tipoEntrega === "recojo" ? "Listo Recojo:" : "Fecha Envío:"}</span>
+                                <strong className="font-mono">{formatearFechaHora(pedidoPicking.fechaEnvio)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block">Entrega Final:</span>
+                                <strong className="font-mono">{formatearFechaHora(pedidoPicking.fechaEntrega)}</strong>
+                            </div>
+                        </div>
+
                         <div className="divide-y divide-slate-200 dark:divide-slate-800 mb-4">
                             {(pedidoPicking.items || []).map((it) => (
                                 <div key={it.id} className="py-2 flex items-center justify-between gap-2 text-xs">

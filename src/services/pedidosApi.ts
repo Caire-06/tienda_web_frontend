@@ -14,6 +14,7 @@ export interface DatosNuevoPedido {
     total: number;
     metodoPago?: MetodoPago;
     tipoEntrega?: string;
+    costoEnvio?: number;
     correoContacto?: string;
     celularContacto?: string;
     direccionEnvio?: string;
@@ -56,11 +57,15 @@ interface PedidoBackend {
     estado?: string | null;
     tipoEntrega?: string | null;
     metodoPago?: string | null;
+    costoEnvio?: number | null;
     total: number;
     items: ItemPedidoBackend[];
     comprobante?: ComprobanteBackend | null;
     codigoLoteDespacho?: string | null;
     empresaTransporte?: string | null;
+    fechaProcesando?: string | null;
+    fechaEnvio?: string | null;
+    fechaEntrega?: string | null;
 }
 
 // Convierte un pedido del backend al formato que ya usan las páginas
@@ -92,12 +97,16 @@ function mapear(p: PedidoBackend): Pedido {
             }) as ItemPedido
         ),
         total: Number(p.total),
+        costoEnvio: p.costoEnvio != null ? Number(p.costoEnvio) : 0,
         metodoPago: (p.metodoPago as MetodoPago) ?? undefined,
         comprobante,
         tipoEntrega: (p.tipoEntrega as Pedido["tipoEntrega"]) ?? undefined,
         estado: (p.estado as Pedido["estado"]) ?? "Pendiente",
         codigoLoteDespacho: p.codigoLoteDespacho ?? undefined,
         empresaTransporte: p.empresaTransporte ?? undefined,
+        fechaProcesando: p.fechaProcesando ?? undefined,
+        fechaEnvio: p.fechaEnvio ?? undefined,
+        fechaEntrega: p.fechaEntrega ?? undefined,
     };
 }
 

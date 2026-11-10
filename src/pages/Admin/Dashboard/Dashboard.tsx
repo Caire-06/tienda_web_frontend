@@ -2,17 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { obtenerDashboardKpis, type DashboardKpis } from "../../../services/dashboardApi";
-
-function fechaCorta(fechaStr: string) {
-    if (!fechaStr) return "—";
-    try {
-        const d = new Date(fechaStr);
-        if (isNaN(d.getTime())) return fechaStr;
-        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-    } catch {
-        return fechaStr;
-    }
-}
+import { formatearFechaHora } from "../../../data/pedidos";
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -162,7 +152,7 @@ function Dashboard() {
                                             <td className="font-medium">
                                                 {v.cliente || v.comprobante?.nombreRazonSocial || "Cliente"}
                                             </td>
-                                            <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
+                                            <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(v.fecha)}</td>
                                             <td className="font-mono font-bold">
                                                 S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                                             </td>

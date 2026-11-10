@@ -2,18 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { listarPedidosAdmin } from "../../../services/pedidosApi";
-import type { Pedido } from "../../../data/pedidos";
-
-function fechaCorta(fechaStr: string) {
-    if (!fechaStr) return "—";
-    try {
-        const d = new Date(fechaStr);
-        if (isNaN(d.getTime())) return fechaStr;
-        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    } catch {
-        return fechaStr;
-    }
-}
+import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
 
 function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
     const tipo = v.comprobante?.tipo ? v.comprobante.tipo.toUpperCase() : "BOLETA";
@@ -186,7 +175,7 @@ function Ventas() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="text-xs text-slate-500">{fechaCorta(v.fecha)}</td>
+                                        <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(v.fecha)}</td>
                                         <td>
                                             <div className="flex flex-col items-start gap-1">
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${badgeDeEstado(estado)}`}>
@@ -195,9 +184,7 @@ function Ventas() {
                                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">
                                                     {v.codigoLoteDespacho
                                                         ? `Lote ${v.codigoLoteDespacho} · ${v.empresaTransporte || "Courier"}`
-                                                        : v.tipoEntrega === "recojo"
-                                                            ? "Recojo en Tienda"
-                                                            : "En espera de Almacén"}
+                                                        : etiquetaTipoEntrega(v.tipoEntrega)}
                                                 </span>
                                             </div>
                                         </td>
@@ -224,12 +211,32 @@ function Ventas() {
                             <div>
                                 <h2>Detalle de Pedido: {detalle.numero}</h2>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    {fechaCorta(detalle.fecha)} · {detalle.cliente || detalle.comprobante?.nombreRazonSocial}
+                                    {formatearFechaHora(detalle.fecha)} · {detalle.cliente || detalle.comprobante?.nombreRazonSocial}
                                 </p>
                             </div>
                             <button className="modal-cerrar" onClick={() => setDetalle(null)}>
                                 ✕
                             </button>
+                        </div>
+
+                        {/* Trazabilidad de Fechas y Horas por Etapa */}
+                        <div className="mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                            <div>
+                                <span className="text-slate-400 block font-semibold">Compra:</span>
+                                <strong className="font-mono text-slate-800 dark:text-slate-200">{formatearFechaHora(detalle.fecha)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block font-semibold">En Preparación:</span>
+                                <strong className="font-mono text-slate-800 dark:text-slate-200">{formatearFechaHora(detalle.fechaProcesando)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block font-semibold">{detalle.tipoEntrega === "recojo" ? "Listo Recojo:" : "Envío Courier:"}</span>
+                                <strong className="font-mono text-slate-800 dark:text-slate-200">{formatearFechaHora(detalle.fechaEnvio)}</strong>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block font-semibold">Entrega Final:</span>
+                                <strong className="font-mono text-slate-800 dark:text-slate-200">{formatearFechaHora(detalle.fechaEntrega)}</strong>
+                            </div>
                         </div>
 
                         {/* Flujo de Estados del Pedido */}
@@ -253,13 +260,11 @@ function Ventas() {
                                     </div>
                                 </div>
                                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                                    <div className="font-bold text-amber-700 dark:text-amber-300">4. Despacho</div>
+                                    <div className="font-bold text-amber-700 dark:text-amber-300">4. Modalidad</div>
                                     <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
                                         {detalle.codigoLoteDespacho
                                             ? `${detalle.codigoLoteDespacho} (${detalle.empresaTransporte})`
-                                            : detalle.tipoEntrega === "recojo"
-                                                ? "Recojo Tienda"
-                                                : "En espera de Almacén"}
+                                            : etiquetaTipoEntrega(detalle.tipoEntrega)}
                                     </div>
                                 </div>
                             </div>
@@ -332,7 +337,16 @@ function Ventas() {
                         </div>
 
                         <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
-                            <span className="text-sm font-bold uppercase text-slate-500">Monto Total</span>
+                            <div>
+                                <span className="text-sm font-bold uppercase text-slate-500 block">Monto Total Cobrado</span>
+                                <span className="text-[11px] text-slate-400">
+                                    {detalle.tipoEntrega === "agencia_destino"
+                                        ? "Flete de agencia por pagar al recibir"
+                                        : detalle.costoEnvio && detalle.costoEnvio > 0
+                                            ? `Incluye envío S/ ${Number(detalle.costoEnvio).toFixed(2)}`
+                                            : "Envío S/ 0.00"}
+                                </span>
+                            </div>
                             <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
                                 S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                             </strong>

@@ -20,6 +20,8 @@ export interface DatosNuevoPedido {
     direccionEnvio?: string;
     referenciaEnvio?: string;
     distritoEnvio?: string;
+    codigoOperacionPago?: string;
+    comprobantePagoUrl?: string;
     comprobante?: {
         tipo: string;
         documento: string;
@@ -66,6 +68,11 @@ interface PedidoBackend {
     fechaProcesando?: string | null;
     fechaEnvio?: string | null;
     fechaEntrega?: string | null;
+    estadoPago?: string | null;
+    codigoOperacionPago?: string | null;
+    comprobantePagoUrl?: string | null;
+    fechaConfirmacionPago?: string | null;
+    usuarioConfirmoPago?: string | null;
 }
 
 // Convierte un pedido del backend al formato que ya usan las páginas
@@ -107,6 +114,11 @@ function mapear(p: PedidoBackend): Pedido {
         fechaProcesando: p.fechaProcesando ?? undefined,
         fechaEnvio: p.fechaEnvio ?? undefined,
         fechaEntrega: p.fechaEntrega ?? undefined,
+        estadoPago: p.estadoPago ?? "Pagado",
+        codigoOperacionPago: p.codigoOperacionPago ?? undefined,
+        comprobantePagoUrl: p.comprobantePagoUrl ?? undefined,
+        fechaConfirmacionPago: p.fechaConfirmacionPago ?? undefined,
+        usuarioConfirmoPago: p.usuarioConfirmoPago ?? undefined,
     };
 }
 
@@ -158,6 +170,40 @@ export async function actualizarEstadoPedido(token: string, numero: string, esta
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || "No se pudo actualizar el estado del pedido");
     return mapear(data as PedidoBackend);
+}
+
+export async function subirComprobantePago(token: string, archivo: File): Promise<{ url: string; publicId: string }> {
+    const form = new FormData();
+    form.append("archivo", archivo);
+    const resp = await fetch("/api/pedidos/comprobante-pago", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok) {
+        throw new Error(String((data as { error?: string }).error || "No se pudo subir la captura del comprobante"));
+    }
+    return {
+        url: String(data.url || ""),
+        publicId: String(data.publicId || ""),
+    };
+}
+
+export async function confirmarPagoTransferencia(token: string, numero: string, aprobado: boolean): Promise<Pedido> {
+    const resp = await fetch(`/api/pedidos/${encodeURIComponent(numero)}/pago`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ aprobado }),
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok) {
+        throw new Error(String((data as { error?: string }).error || "No se pudo verificar el pago"));
+    }
+    return mapear(data as unknown as PedidoBackend);
 }
 
 export const actualizarEstadoPedidoAdmin = actualizarEstadoPedido;

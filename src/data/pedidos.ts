@@ -20,7 +20,7 @@ export interface ComprobanteInfo {
 }
 
 export type TipoEntrega = "delivery_propio" | "agencia_destino" | "recojo" | "envio";
-export type EstadoPedido = "Pendiente" | "Procesando" | "Enviado" | "Listo para recojo" | "Entregado" | "Cancelado";
+export type EstadoPedido = "Pendiente de pago" | "Pendiente" | "Procesando" | "Enviado" | "Listo para recojo" | "Entregado" | "Cancelado";
 
 export interface Pedido {
     numero: string;
@@ -31,6 +31,11 @@ export interface Pedido {
     total: number;
     costoEnvio?: number;
     metodoPago?: MetodoPago;
+    estadoPago?: "Pagado" | "Por verificar" | "Rechazado" | string;
+    codigoOperacionPago?: string;
+    comprobantePagoUrl?: string;
+    fechaConfirmacionPago?: string;
+    usuarioConfirmoPago?: string;
     comprobante?: ComprobanteInfo;
     tipoEntrega?: TipoEntrega;
     estado?: EstadoPedido;

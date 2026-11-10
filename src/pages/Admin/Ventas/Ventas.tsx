@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { listarPedidosAdmin } from "../../../services/pedidosApi";
+import { confirmarPagoTransferencia, listarPedidosAdmin } from "../../../services/pedidosApi";
 import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
 
 function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
@@ -16,6 +16,7 @@ function obtenerSerieComprobante(v: Pedido): { serie: string; tipo: string } {
 
 function badgeDeEstado(estado?: string) {
     const e = (estado || "Pendiente").toLowerCase();
+    if (e === "pendiente de pago") return "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-200 dark:border-orange-800";
     if (e === "pendiente") return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
     if (e === "procesando") return "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300";
     if (e === "listo para recojo") return "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300";
@@ -34,6 +35,8 @@ function Ventas() {
     const [busqueda, setBusqueda] = useState("");
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
+    const [soloPorVerificar, setSoloPorVerificar] = useState(false);
+    const [procesandoPago, setProcesandoPago] = useState(false);
     const [detalle, setDetalle] = useState<Pedido | null>(null);
 
     const cargar = async () => {
@@ -54,7 +57,31 @@ function Ventas() {
         cargar();
     }, [token]);
 
+    const pendientesVerificar = ventas.filter(
+        (v) => v.estadoPago === "Por verificar" || v.estado === "Pendiente de pago"
+    ).length;
+
+    const handleConfirmarPago = async (numero: string, aprobado: boolean) => {
+        if (!token) return;
+        if (!aprobado && !window.confirm(`¿Rechazar el comprobante de transferencia y cancelar el pedido ${numero}?`)) {
+            return;
+        }
+        setProcesandoPago(true);
+        try {
+            const actualizado = await confirmarPagoTransferencia(token, numero, aprobado);
+            setVentas((prev) => prev.map((v) => (v.numero === numero ? actualizado : v)));
+            if (detalle?.numero === numero) setDetalle(actualizado);
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : "No se pudo verificar el pago.");
+        } finally {
+            setProcesandoPago(false);
+        }
+    };
+
     const filtradas = ventas.filter((v) => {
+        if (soloPorVerificar && v.estadoPago !== "Por verificar" && v.estado !== "Pendiente de pago") {
+            return false;
+        }
         if (desde && v.fecha.slice(0, 10) < desde) return false;
         if (hasta && v.fecha.slice(0, 10) > hasta) return false;
         const q = busqueda.trim().toLowerCase();
@@ -90,6 +117,25 @@ function Ventas() {
             {error && (
                 <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-600 dark:text-red-400">
                     {error}
+                </div>
+            )}
+
+            {pendientesVerificar > 0 && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+                    <span>
+                        Tienes <strong>{pendientesVerificar}</strong> {pendientesVerificar === 1 ? "transferencia bancaria pendiente" : "transferencias bancarias pendientes"} de verificación antes de pasar a Almacén.
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setSoloPorVerificar((prev) => !prev)}
+                        className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-colors ${
+                            soloPorVerificar
+                                ? "bg-amber-600 text-white"
+                                : "bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
+                        }`}
+                    >
+                        {soloPorVerificar ? "Mostrar todas las ventas" : "Ver solo por verificar"}
+                    </button>
                 </div>
             )}
 
@@ -181,6 +227,11 @@ function Ventas() {
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${badgeDeEstado(estado)}`}>
                                                     {estado}
                                                 </span>
+                                                {v.estadoPago === "Por verificar" && (
+                                                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                                                        Transferencia por validar
+                                                    </span>
+                                                )}
                                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">
                                                     {v.codigoLoteDespacho
                                                         ? `Lote ${v.codigoLoteDespacho} · ${v.empresaTransporte || "Courier"}`
@@ -205,7 +256,7 @@ function Ventas() {
             </div>
 
             {detalle && (
-                <div className="modal-fondo">
+                <div className="modal-fondo" onClick={() => setDetalle(null)}>
                     <div className="modal max-w-2xl" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-head">
                             <div>
@@ -268,6 +319,83 @@ function Ventas() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Estado de Pago y Verificación de Transferencia / Yape */}
+                        <div className="mb-4 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3 text-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold uppercase tracking-wider text-slate-500">Pago ({detalle.metodoPago || "tarjeta"}):</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                        detalle.estadoPago === "Por verificar"
+                                            ? "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
+                                            : detalle.estadoPago === "Rechazado"
+                                                ? "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
+                                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                    }`}>
+                                        {detalle.estadoPago || "Pagado"}
+                                    </span>
+                                </div>
+                                {detalle.codigoOperacionPago && (
+                                    <span className="font-mono text-slate-700 dark:text-slate-200">
+                                        Op.: <strong>{detalle.codigoOperacionPago}</strong>
+                                    </span>
+                                )}
+                            </div>
+
+                            {detalle.comprobantePagoUrl ? (
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <img
+                                        src={detalle.comprobantePagoUrl}
+                                        alt={`Captura de transferencia ${detalle.numero}`}
+                                        className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 bg-white"
+                                    />
+                                    <div className="space-y-1">
+                                        <p className="font-semibold text-slate-700 dark:text-slate-200">
+                                            Comprobante de transferencia adjuntado
+                                        </p>
+                                        <a
+                                            href={detalle.comprobantePagoUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-block text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                                        >
+                                            Abrir captura en tamaño completo ↗
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : detalle.metodoPago === "transferencia" ? (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700">
+                                    Captura de comprobante: en proceso (futuras actualizaciones). Valida el abono usando el número de operación bancaria.
+                                </p>
+                            ) : null}
+
+                            {detalle.fechaConfirmacionPago && (
+                                <p className="text-[11px] text-slate-500">
+                                    Verificado el {formatearFechaHora(detalle.fechaConfirmacionPago)} por <strong>{detalle.usuarioConfirmoPago || "admin"}</strong>.
+                                </p>
+                            )}
+
+                            {(detalle.estadoPago === "Por verificar" || detalle.estado === "Pendiente de pago") && (
+                                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        disabled={procesandoPago}
+                                        onClick={() => handleConfirmarPago(detalle.numero, true)}
+                                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                                    >
+                                        {procesandoPago ? "Procesando..." : "✓ Confirmar abono y habilitar a Almacén"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={procesandoPago}
+                                        onClick={() => handleConfirmarPago(detalle.numero, false)}
+                                        className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                                    >
+                                        ✕ Rechazar pago
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Estado Operativo (Solo Supervisión — Almacén gestiona los cambios) */}

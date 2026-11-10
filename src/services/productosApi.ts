@@ -22,7 +22,7 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
         precio: Number(p.precio),
         stock: p.stock,
         vendidos: p.vendidos,
-        imagen: p.imagen || "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&auto=format&fit=crop",
+        imagen: p.imagen || "",
         descripcion: p.descripcion,
         activo: p.activo,
     };

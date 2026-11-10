@@ -7,6 +7,7 @@ import {
     darDeBajaLogicaProducto,
 } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
+import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 
 const CATALOGO_CATEGORIAS = [
     { id: 1, nombre: "Computadoras", codigo: "CAT-01" },
@@ -280,9 +281,10 @@ function Productos() {
                                     <tr key={p.id}>
                                         <td>
                                             <div className="flex items-center gap-3">
-                                                <img
-                                                    src={p.imagen || "https://images.unsplash.com/photo-1518770660439-4636190af475?w=100"}
+                                                <ImagenProducto
+                                                    src={p.imagen}
                                                     alt={p.nombre}
+                                                    compact
                                                     className="w-10 h-10 rounded-lg object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
                                                 />
                                                 <div>

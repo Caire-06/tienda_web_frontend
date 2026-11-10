@@ -95,7 +95,7 @@ function Inicio() {
     const productos: ProductoInv[] = backendProductos;
 
     const destacados = productos.filter((p) => p.activo && p.stock > 0).slice(0, 4);
-    const masVendidos = [...productos].filter((p) => p.activo).sort((a, b) => b.vendidos - a.vendidos).slice(0, 4);
+    const masVendidos = [...productos].filter((p) => p.activo && p.stock > 0).sort((a, b) => b.vendidos - a.vendidos).slice(0, 4);
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">

@@ -115,7 +115,11 @@ function MisCompras() {
                                         <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(p.fecha)}</td>
                                         <td>
                                             <div className="flex flex-col">
-                                                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">{p.estado || "Pendiente"}</span>
+                                                <span className={`font-semibold text-xs ${
+                                                    p.estado === "Pendiente de pago"
+                                                        ? "text-amber-600 dark:text-amber-400"
+                                                        : "text-slate-800 dark:text-slate-200"
+                                                }`}>{p.estado || "Pendiente"}</span>
                                                 <span className="text-[10px] text-slate-400">
                                                     {p.codigoLoteDespacho
                                                         ? `Vía ${p.empresaTransporte || "Courier"} (${p.codigoLoteDespacho})`
@@ -184,7 +188,18 @@ function MisCompras() {
                                     <div><strong>Comprobante:</strong> {detalle.comprobante.tipo} Electrónica ({detalle.comprobante.documento})</div>
                                     <div><strong>Titular:</strong> {detalle.comprobante.nombreRazonSocial}</div>
                                     {detalle.metodoPago && (
-                                        <div><strong>Método de pago:</strong> {detalle.metodoPago === "tarjeta" ? "Tarjeta Débito/Crédito" : detalle.metodoPago === "yape" ? "Yape / Plin" : "Transferencia Bancaria"}</div>
+                                        <div>
+                                            <strong>Método de pago:</strong> {detalle.metodoPago === "tarjeta" ? "Tarjeta Débito/Crédito" : detalle.metodoPago === "yape" ? "Yape / Plin" : "Transferencia Bancaria"}
+                                            {detalle.estadoPago && ` (${detalle.estadoPago})`}
+                                            {detalle.codigoOperacionPago && ` · Op. ${detalle.codigoOperacionPago}`}
+                                        </div>
+                                    )}
+                                    {detalle.comprobantePagoUrl && (
+                                        <div>
+                                            <a href={detalle.comprobantePagoUrl} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+                                                Ver captura de transferencia adjunta ↗
+                                            </a>
+                                        </div>
                                     )}
                                     {detalle.tipoEntrega === "agencia_destino" && (
                                         <div className="text-amber-600 dark:text-amber-400 font-medium">

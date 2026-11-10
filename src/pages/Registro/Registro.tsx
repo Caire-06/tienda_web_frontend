@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
+import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
 
 function Registro() {
     const [nombre, setNombre] = useState("");
@@ -25,23 +26,6 @@ function Registro() {
         const ruta = usuario.rol === "admin" ? "/admin" : usuario.rol === "almacen" ? "/almacen" : "/inicio";
         return <Navigate to={ruta} replace />;
     }
-
-    // Fuerza de contraseña: 0-4 puntos (largo, número, mayúscula, símbolo)
-    const fuerza = [
-        password.length >= 8,
-        /\d/.test(password),
-        /[A-Z]/.test(password),
-        /[^A-Za-z0-9]/.test(password),
-    ].filter(Boolean).length;
-
-    const etiquetaFuerza = ["", "Débil", "Media", "Buena", "Fuerte"][fuerza];
-    const colorFuerza = [
-        "bg-slate-200 dark:bg-slate-700",
-        "bg-red-500",
-        "bg-amber-500",
-        "bg-blue-500",
-        "bg-emerald-500",
-    ][fuerza];
 
     async function registrarse(e: FormEvent) {
         e.preventDefault();
@@ -268,23 +252,7 @@ function Registro() {
                                         </button>
                                     </div>
 
-                                    {password && (
-                                        <div className="pt-1.5 flex items-center justify-between gap-3">
-                                            <div className="flex-1 grid grid-cols-4 gap-1.5">
-                                                {[1, 2, 3, 4].map((n) => (
-                                                    <div
-                                                        key={n}
-                                                        className={`h-1.5 rounded-full transition-colors ${
-                                                            n <= fuerza ? colorFuerza : "bg-slate-200 dark:bg-slate-700"
-                                                        }`}
-                                                    />
-                                                ))}
-                                            </div>
-                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                                                {etiquetaFuerza}
-                                            </span>
-                                        </div>
-                                    )}
+                                    <IndicadorSeguridadPassword password={password} />
                                 </div>
 
                                 <div className="space-y-1.5">
@@ -307,7 +275,29 @@ function Registro() {
                                         onChange={(e) => setTerminos(e.target.checked)}
                                         className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700"
                                     />
-                                    <span>Acepto los términos y condiciones de TechStore</span>
+                                    <span>
+                                        Acepto los{" "}
+                                        <Link
+                                            to="/terminos-y-condiciones"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                        >
+                                            términos y condiciones
+                                        </Link>{" "}
+                                        y la{" "}
+                                        <Link
+                                            to="/politica-de-privacidad"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                        >
+                                            política de privacidad
+                                        </Link>{" "}
+                                        de TechStore
+                                    </span>
                                 </label>
 
                                 {error && (

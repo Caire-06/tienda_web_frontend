@@ -35,7 +35,7 @@ function Productos() {
     const nombresCategorias = [FILTRO_TODOS, ...CATEGORIAS.map((c) => c.nombre)];
 
     const filtrados = useMemo(() => {
-        let lista = productos.filter((p) => p.activo);
+        let lista = productos.filter((p) => p.activo && p.stock > 0);
 
         if (categoria !== FILTRO_TODOS) {
             lista = lista.filter((p) => p.categoria === categoria);

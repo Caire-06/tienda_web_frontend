@@ -177,7 +177,7 @@ function Header() {
                             </button>
 
                             <button
-                                className={actionButtonClass}
+                                className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200/50 dark:border-red-900/40 transition-colors cursor-pointer"
                                 onClick={salir}
                                 title="Cerrar sesión"
                             >

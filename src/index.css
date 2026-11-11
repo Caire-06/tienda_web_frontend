@@ -5,16 +5,16 @@
 @layer components {
   /* Tablas Modernas Tailwind */
   .tabla-wrap {
-    @apply overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm;
+    @apply w-full max-w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm;
   }
   .tabla {
-    @apply w-full border-collapse text-sm text-left bg-white dark:bg-slate-900;
+    @apply w-full border-collapse text-xs sm:text-sm text-left bg-white dark:bg-slate-900;
   }
   .tabla th {
-    @apply px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800;
+    @apply px-3 py-2.5 sm:px-4 sm:py-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 whitespace-nowrap;
   }
   .tabla td {
-    @apply px-4 py-3.5 text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 whitespace-nowrap;
+    @apply px-3 py-3 sm:px-4 sm:py-3.5 text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 whitespace-nowrap;
   }
   .tabla tr:last-child td {
     @apply border-b-0;
@@ -65,13 +65,13 @@
     @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6;
   }
   .admin-card {
-    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col gap-1.5 shadow-sm hover:shadow-md hover:border-blue-500/50 transition-all;
+    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-1.5 shadow-sm hover:shadow-md hover:border-blue-500/50 transition-all min-w-0;
   }
   .admin-card span {
-    @apply text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider;
+    @apply text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider;
   }
   .admin-card strong {
-    @apply text-2xl font-black text-slate-900 dark:text-white font-mono;
+    @apply text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono break-words;
   }
   .admin-card.alerta strong {
     @apply text-red-600 dark:text-red-400;
@@ -79,10 +79,10 @@
 
   /* Modal */
   .modal-fondo {
-    @apply fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4;
+    @apply fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4;
   }
   .modal, .modal-chico, .modal-mediano {
-    @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto;
+    @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto;
   }
   .modal-chico {
     @apply max-w-md;
@@ -91,10 +91,10 @@
     @apply max-w-xl;
   }
   .modal-head {
-    @apply flex items-center justify-between pb-4 mb-4 border-b border-slate-200 dark:border-slate-800;
+    @apply flex items-start sm:items-center justify-between gap-2 pb-3 sm:pb-4 mb-4 border-b border-slate-200 dark:border-slate-800;
   }
   .modal-head h2 {
-    @apply text-lg font-bold text-slate-900 dark:text-white;
+    @apply text-base sm:text-lg font-bold text-slate-900 dark:text-white;
   }
   .modal-cerrar {
     @apply w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-sm font-bold;
@@ -226,6 +226,7 @@
     color: var(--text-main);
     transition: background-color 0.2s ease, color 0.2s ease;
     min-height: 100vh;
+    overflow-x: hidden;
   }
 
   #root {
@@ -234,6 +235,7 @@
     flex-direction: column;
     background-color: var(--bg-page);
     color: var(--text-main);
+    overflow-x: hidden;
   }
 
   /* Selección de texto con identidad de marca */

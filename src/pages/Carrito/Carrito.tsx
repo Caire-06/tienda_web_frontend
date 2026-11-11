@@ -651,10 +651,10 @@ function Carrito() {
                             </div>
 
                             {/* Pestañas de pasos */}
-                            <div className="grid grid-cols-3 gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+                            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
                                 <button
                                     type="button"
-                                    className={`py-2 px-2 text-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    className={`py-2 px-1 sm:px-2 text-center rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                         pasoCheckout === 1 
                                             ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60" 
                                             : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent"
@@ -665,7 +665,7 @@ function Carrito() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`py-2 px-2 text-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    className={`py-2 px-1 sm:px-2 text-center rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                         pasoCheckout === 2 
                                             ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60" 
                                             : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent"
@@ -676,7 +676,7 @@ function Carrito() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`py-2 px-2 text-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    className={`py-2 px-1 sm:px-2 text-center rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                         pasoCheckout === 3 
                                             ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60" 
                                             : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent"
@@ -884,7 +884,7 @@ function Carrito() {
                                 {/* ===== PASO 2: DATOS DE FACTURACIÓN SUNAT ===== */}
                                 {pasoCheckout === 2 && (
                                     <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                             <button
                                                 type="button"
                                                 className={`flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
@@ -1064,7 +1064,7 @@ function Carrito() {
                                 {/* ===== PASO 3: MEDIO DE PAGO ===== */}
                                 {pasoCheckout === 3 && (
                                     <div className="space-y-4">
-                                        <div className="grid grid-cols-3 gap-2.5 mb-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
                                             <button
                                                 type="button"
                                                 className={`flex flex-col items-center text-center p-3 rounded-xl border transition-all cursor-pointer ${
@@ -1139,7 +1139,7 @@ function Carrito() {
                                                     />
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <div className="flex flex-col gap-1.5">
                                                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                                             Vencimiento (MM/AA)

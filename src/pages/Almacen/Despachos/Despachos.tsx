@@ -624,7 +624,7 @@ function Despachos() {
                         </div>
 
                         {/* Trazabilidad de Fechas con Hora */}
-                        <div className="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                             <div>
                                 <span className="text-slate-400 block">Fecha Compra:</span>
                                 <strong className="font-mono">{formatearFechaHora(pedidoPicking.fecha)}</strong>

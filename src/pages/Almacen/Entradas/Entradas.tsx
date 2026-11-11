@@ -132,7 +132,7 @@ function Entradas() {
                     </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                             Cantidad a Ingresar
@@ -177,7 +177,7 @@ function Entradas() {
 
                 {/* Cálculo automático: solo se muestra cuando hay un producto seleccionado */}
                 {prod && (
-                <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
                     <div>
                         <span className="block text-[11px] font-semibold text-slate-400">Stock Actual</span>
                         <strong className="block text-lg font-mono font-bold text-slate-700 dark:text-slate-300">{stockActual}</strong>

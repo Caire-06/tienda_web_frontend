@@ -143,7 +143,7 @@ function Detalle() {
                                 </div>
 
                                 <button
-                                    className="flex-1 min-w-[200px] h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
+                                    className="w-full sm:flex-1 sm:min-w-[200px] h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
                                     onClick={agregarYVerCarrito}
                                 >
                                     Agregar al carrito

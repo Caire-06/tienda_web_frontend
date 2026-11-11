@@ -81,7 +81,7 @@ function AdminDespachos() {
             </div>
 
             {/* KPI Cards */}
-            <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <div className={`admin-card ${pendientes.length > 0 ? "alerta" : ""}`}>
                     <span>En Cola de Almacén</span>
                     <strong>{pendientes.length} pedidos</strong>

@@ -101,9 +101,9 @@ function Inicio() {
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
             <Header />
 
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-16">
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-10 sm:space-y-16">
                 {/* 1. Banner Principal Hero */}
-                <section className="relative rounded-3xl overflow-hidden bg-slate-900 shadow-xl min-h-[380px] sm:min-h-[460px] flex items-center">
+                <section className="relative rounded-3xl overflow-hidden bg-slate-900 shadow-xl min-h-[340px] sm:min-h-[460px] flex items-center">
                     <div className="absolute inset-0">
                         <img
                             src="/src/assets/hero.png"
@@ -113,7 +113,7 @@ function Inicio() {
                         <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent" />
                     </div>
 
-                    <div className="relative z-10 p-8 sm:p-14 max-w-2xl space-y-4 text-white">
+                    <div className="relative z-10 p-6 sm:p-14 max-w-2xl space-y-4 text-white">
                         <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30">
                             Tecnología para todos los días
                         </span>
@@ -141,7 +141,7 @@ function Inicio() {
                 </section>
 
                 {/* 2. Beneficios */}
-                <section className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
+                <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 sm:p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
                     <div className="flex items-center gap-3.5">
                         <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                             {ICONOS_BENEFICIO.envios}

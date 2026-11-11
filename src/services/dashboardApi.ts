@@ -1,5 +1,6 @@
 import type { Pedido } from "../data/pedidos";
 import { PRODUCTOS } from "../data/productos";
+import { apiUrl } from "../config/api";
 
 export interface ProductoStockCritico {
     id: number;
@@ -37,7 +38,7 @@ export interface DashboardKpis {
 export async function obtenerDashboardKpis(token: string): Promise<DashboardKpis> {
     // 1. Intento principal: invocar el endpoint centralizado del backend
     try {
-        const res = await fetch("/api/admin/dashboard/kpis", {
+        const res = await fetch(apiUrl("/api/admin/dashboard/kpis"), {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -50,13 +51,13 @@ export async function obtenerDashboardKpis(token: string): Promise<DashboardKpis
     // 2. Respaldo dinámico: calcular métricas a partir de los datos existentes sin bloquear al administrador
     try {
         const [pedidosResp, productosResp, usuariosResp] = await Promise.all([
-            fetch("/api/pedidos", { headers: { Authorization: `Bearer ${token}` } })
+            fetch(apiUrl("/api/pedidos"), { headers: { Authorization: `Bearer ${token}` } })
                 .then((r) => (r.ok ? r.json() : []))
                 .catch(() => []),
-            fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` } })
+            fetch(apiUrl("/api/productos"), { headers: { Authorization: `Bearer ${token}` } })
                 .then((r) => (r.ok ? r.json() : []))
                 .catch(() => []),
-            fetch("/api/usuarios", { headers: { Authorization: `Bearer ${token}` } })
+            fetch(apiUrl("/api/usuarios"), { headers: { Authorization: `Bearer ${token}` } })
                 .then((r) => (r.ok ? r.json() : []))
                 .catch(() => []),
         ]);

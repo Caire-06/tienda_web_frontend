@@ -1,3 +1,5 @@
+import { apiUrl } from "../config/api";
+
 export interface ItemEntrada {
     idProducto: number;
     cantidad: number;
@@ -12,7 +14,7 @@ export interface Entrada {
 
 /** POST /api/entradas — registrar una entrada de mercadería (3FN: entrada + líneas). */
 export async function registrarEntradaBackend(token: string, items: ItemEntrada[]): Promise<Entrada> {
-    const resp = await fetch("/api/entradas", {
+    const resp = await fetch(apiUrl("/api/entradas"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ items }),
@@ -25,7 +27,7 @@ export async function registrarEntradaBackend(token: string, items: ItemEntrada[
 
 /** GET /api/entradas/mias — historial de entradas del usuario autenticado. */
 export async function listarEntradas(token: string): Promise<Entrada[]> {
-    const resp = await fetch("/api/entradas/mis-entradas", { headers: { Authorization: `Bearer ${token}` } });
+    const resp = await fetch(apiUrl("/api/entradas/mis-entradas"), { headers: { Authorization: `Bearer ${token}` } });
     const data = (await resp.json().catch(() => [])) as Entrada[] | Entrada;
     if (!resp.ok) throw new Error("No se pudo listar las entradas");
     const lista = Array.isArray(data) ? data : [];

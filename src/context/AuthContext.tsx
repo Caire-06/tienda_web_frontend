@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Rol, Usuario } from "../data/usuarios";
+import { apiUrl } from "../config/api";
 export type { Rol, Usuario };
 
 export interface DatosRegistro { nombre: string; apellido: string; correo: string; direccion?: string; password: string; }
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("techstore-sesion");
     localStorage.removeItem("techstore-perfiles");
     if (!sesion) return;
-    fetch("/api/perfil", { headers: { Authorization: `Bearer ${sesion.token}` } })
+    fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${sesion.token}` } })
       .then(async (resp) => {
         if (!resp.ok) {
           guardarSesion(null);
@@ -71,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const login = async (acceso: string, password: string): Promise<Resultado> => {
     try {
-      const resp = await fetch("/api/auth/login", {
+      const resp = await fetch(apiUrl("/api/auth/login"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nombreUsuario: acceso.trim(), contrasena: password }),
       });
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bloqueado: resp.status === 423 || !!data.cuentaBloqueada,
         segundosEspera: Number(data.segundosEspera) || 0,
       };
-      const perfilResp = await fetch("/api/perfil", { headers: { Authorization: `Bearer ${data.token}` } });
+      const perfilResp = await fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${data.token}` } });
       const perfil = await respuestaJson(perfilResp);
       if (!perfilResp.ok) return { ok: false, error: "No fue posible validar la sesión en Mi Cuenta" };
       const cuenta: Usuario = {
@@ -96,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const registro = async (datos: DatosRegistro): Promise<Resultado> => {
     try {
-      const resp = await fetch("/api/auth/registro", {
+      const resp = await fetch(apiUrl("/api/auth/registro"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...datos, nombre: datos.nombre.trim(), apellido: datos.apellido.trim(), correo: datos.correo.trim().toLowerCase(), direccion: datos.direccion?.trim() || "" }),
       });
@@ -112,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { return { ok: false, error: "No hay conexión con Spring Boot. No se creó una cuenta local." }; }
   };
   const logout = () => {
-    if (token) void fetch("/api/auth/logout", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    if (token) void fetch(apiUrl("/api/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     guardarSesion(null);
   };
   const actualizarNombre = (nombre: string) => {

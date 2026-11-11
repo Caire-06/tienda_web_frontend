@@ -1,3 +1,5 @@
+import { apiUrl } from "../config/api";
+
 export interface UsuarioDTO {
     id: number;
     username: string;
@@ -56,7 +58,7 @@ export interface UsuarioCreadoAdmin {
 }
 
 export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
-    const res = await fetch("/api/usuarios", {
+    const res = await fetch(apiUrl("/api/usuarios"), {
         headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) throw new Error("Error al listar usuarios");
@@ -65,7 +67,7 @@ export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
 }
 
 export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Promise<UsuarioCreadoAdmin> {
-    const res = await fetch("/api/usuarios", {
+    const res = await fetch(apiUrl("/api/usuarios"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -86,7 +88,7 @@ export async function cambiarPasswordPerfil(
     passwordActual: string,
     passwordNueva: string
 ): Promise<string> {
-    const res = await fetch("/api/perfil/password", {
+    const res = await fetch(apiUrl("/api/perfil/password"), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -100,7 +102,7 @@ export async function cambiarPasswordPerfil(
 }
 
 export async function cambiarRolUsuario(token: string, id: number, rol: string): Promise<UsuarioDTO> {
-    const res = await fetch(`/api/usuarios/${id}/rol`, {
+    const res = await fetch(apiUrl(`/api/usuarios/${id}/rol`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -114,7 +116,7 @@ export async function cambiarRolUsuario(token: string, id: number, rol: string):
 }
 
 export async function cambiarEstadoUsuario(token: string, id: number, bloqueado: boolean): Promise<UsuarioDTO> {
-    const res = await fetch(`/api/usuarios/${id}/estado`, {
+    const res = await fetch(apiUrl(`/api/usuarios/${id}/estado`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -128,7 +130,7 @@ export async function cambiarEstadoUsuario(token: string, id: number, bloqueado:
 }
 
 export async function darDeBajaLogicaUsuario(token: string, id: number): Promise<UsuarioDTO> {
-    const res = await fetch(`/api/usuarios/${id}/baja-logica`, {
+    const res = await fetch(apiUrl(`/api/usuarios/${id}/baja-logica`), {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` }
     });

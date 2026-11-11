@@ -7,6 +7,7 @@ import { leerPedidos } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
+import { apiUrl } from "../../config/api";
 import FormularioCambioPassword from "../../components/FormularioCambioPassword/FormularioCambioPassword";
 import {
     esDocumentoPeruanoValido,
@@ -95,7 +96,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
     const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
     useEffect(() => {
         let activo = true;
-        fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
+        fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${token}` } })
             .then(async r => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data.error || "No se pudo consultar el perfil");
@@ -145,7 +146,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
         }
         setGuardando(true);
         try {
-            const resp = await fetch("/api/perfil", {
+            const resp = await fetch(apiUrl("/api/perfil"), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ nombres: borrador.nombres.trim(), apellidos: borrador.apellidos.trim(),

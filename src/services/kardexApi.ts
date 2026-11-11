@@ -1,8 +1,9 @@
 import type { Movimiento } from "../context/InventarioContext";
+import { apiUrl } from "../config/api";
 
 /** GET /api/kardex/movimientos -> movimientos de entrada/salida con saldos. */
 export async function listarMovimientos(token: string): Promise<Movimiento[]> {
-    const resp = await fetch("/api/kardex/movimientos", { headers: { Authorization: `Bearer ${token}` } });
+    const resp = await fetch(apiUrl("/api/kardex/movimientos"), { headers: { Authorization: `Bearer ${token}` } });
     const data = (await resp.json().catch(() => [])) as Movimiento[];
     if (!resp.ok) throw new Error("No se pudo listar los movimientos del Kardex");
     const lista = Array.isArray(data) ? data : [];
@@ -33,7 +34,7 @@ export interface KardexResumen {
 
 /** GET /api/kardex/resumen -> resumen del Kardex para el dashboard del almacén. */
 export async function obtenerResumen(token: string): Promise<KardexResumen> {
-    const resp = await fetch("/api/kardex/resumen", { headers: { Authorization: `Bearer ${token}` } });
+    const resp = await fetch(apiUrl("/api/kardex/resumen"), { headers: { Authorization: `Bearer ${token}` } });
     const data = (await resp.json().catch(() => null)) as KardexResumen | null;
     if (!resp.ok) throw new Error("No se pudo obtener el resumen del Kardex");
     return data ?? {

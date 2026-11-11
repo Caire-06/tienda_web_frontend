@@ -12,6 +12,7 @@ import { crearPedidoBackend } from "../../services/pedidosApi";
 import type { TipoComprobante, MetodoPago, ComprobanteInfo, EstadoPedido, Pedido } from "../../data/pedidos";
 import { consultarDNI, consultarRUC } from "../../services/sunatApi";
 import { descargarComprobantePdf } from "../../services/comprobantePdf";
+import { apiUrl } from "../../config/api";
 import {
     esCorreoValido,
     limpiarCodigoAlfanumerico,
@@ -75,7 +76,7 @@ function Carrito() {
     useEffect(() => {
         if (!token) return;
         let activo = true;
-        fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
+        fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${token}` } })
             .then((r) => (r.ok ? r.json() : null))
             .then((perfil) => {
                 if (!activo || !perfil) return;

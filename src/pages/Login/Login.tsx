@@ -77,10 +77,15 @@ function Login() {
         navigate(RUTA_POR_ROL[res.usuario.rol]);
     }
 
-    // Rellena el formulario con una cuenta demo
+    // Rellena el formulario solo en entorno de desarrollo local (Vite elimina este bloque en build)
     function usarDemo(usuario: string) {
+        if (!import.meta.env.DEV) return;
         setAcceso(usuario);
-        setPassword(usuario === "admin" ? "admin123" : "123");
+        const demoPass =
+            usuario === "admin"
+                ? (import.meta.env.VITE_DEMO_ADMIN_PASS as string | undefined) || ""
+                : (import.meta.env.VITE_DEMO_USER_PASS as string | undefined) || "";
+        if (demoPass) setPassword(demoPass);
         setError("");
     }
 
@@ -159,7 +164,7 @@ function Login() {
                                     value={acceso}
                                     disabled={bloqueado || cargando}
                                     onChange={(e) => setAcceso(e.target.value)}
-                                    placeholder="admin, almacen o tu correo"
+                                    placeholder="Ingresa tu usuario o correo"
                                 />
                             </div>
 
@@ -200,35 +205,37 @@ function Login() {
                             </button>
                         </form>
 
-                        {/* Cuentas Demo Rápidas */}
-                        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
-                                Cuentas de prueba (clic para usar)
-                            </p>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("admin")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Admin / admin123
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("almacen")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Almacén / 123
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("cliente")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Cliente / 123
-                                </button>
+                        {/* Cuentas Demo Rápidas (solo visibles en modo desarrollo local, nunca en producción Render) */}
+                        {import.meta.env.DEV && (
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
+                                    Cuentas de prueba local (clic para usar)
+                                </p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("admin")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Admin
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("almacen")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Almacén
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("cliente")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Cliente
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Link a Registro */}
                         <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">

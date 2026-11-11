@@ -1,4 +1,5 @@
 import type { ComprobanteInfo, ItemPedido, MetodoPago, Pedido, TipoComprobante } from "../data/pedidos";
+import { apiUrl } from "../config/api";
 
 // ===== Contratos que espera el backend (com.utp.tienda.vistas.dto) =====
 export interface ItemPedidoEntrada {
@@ -124,7 +125,7 @@ function mapear(p: PedidoBackend): Pedido {
 
 /** Registra un pedido en PostgreSQL (POST /api/pedidos). Requiere token de sesión. */
 export async function crearPedidoBackend(token: string, datos: DatosNuevoPedido): Promise<Pedido> {
-    const resp = await fetch("/api/pedidos", {
+    const resp = await fetch(apiUrl("/api/pedidos"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(datos),
@@ -139,7 +140,7 @@ export async function crearPedidoBackend(token: string, datos: DatosNuevoPedido)
 
 /** Trae el historial de compras (GET /api/pedidos/mis-compras). Requiere token de sesión. */
 export async function listarMisCompras(token: string): Promise<Pedido[]> {
-    const resp = await fetch("/api/pedidos/mis-compras", {
+    const resp = await fetch(apiUrl("/api/pedidos/mis-compras"), {
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) throw new Error("No se pudo consultar el historial");
@@ -149,7 +150,7 @@ export async function listarMisCompras(token: string): Promise<Pedido[]> {
 
 /** Trae todos los pedidos del sistema para el panel de administración (GET /api/pedidos). */
 export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
-    const resp = await fetch("/api/pedidos", {
+    const resp = await fetch(apiUrl("/api/pedidos"), {
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) throw new Error("No se pudieron cargar las ventas de la base de datos");
@@ -159,7 +160,7 @@ export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
 
 /** Actualiza el estado de un pedido por Almacén (PUT /api/pedidos/{numero}/estado). */
 export async function actualizarEstadoPedido(token: string, numero: string, estado: string): Promise<Pedido> {
-    const resp = await fetch(`/api/pedidos/${encodeURIComponent(numero)}/estado`, {
+    const resp = await fetch(apiUrl(`/api/pedidos/${encodeURIComponent(numero)}/estado`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -175,7 +176,7 @@ export async function actualizarEstadoPedido(token: string, numero: string, esta
 export async function subirComprobantePago(token: string, archivo: File): Promise<{ url: string; publicId: string }> {
     const form = new FormData();
     form.append("archivo", archivo);
-    const resp = await fetch("/api/pedidos/comprobante-pago", {
+    const resp = await fetch(apiUrl("/api/pedidos/comprobante-pago"), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
@@ -191,7 +192,7 @@ export async function subirComprobantePago(token: string, archivo: File): Promis
 }
 
 export async function confirmarPagoTransferencia(token: string, numero: string, aprobado: boolean): Promise<Pedido> {
-    const resp = await fetch(`/api/pedidos/${encodeURIComponent(numero)}/pago`, {
+    const resp = await fetch(apiUrl(`/api/pedidos/${encodeURIComponent(numero)}/pago`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",

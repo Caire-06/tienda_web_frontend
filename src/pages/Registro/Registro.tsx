@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
+import PanelVerificacionCodigo from "../../components/PanelVerificacionCodigo/PanelVerificacionCodigo";
 import { esCorreoValido, limpiarSoloLetras } from "../../utils/validaciones";
 
 function Registro() {
@@ -18,9 +19,12 @@ function Registro() {
     const [error, setError] = useState("");
     const [cargando, setCargando] = useState(false);
     const [creada, setCreada] = useState(false);
+    const [desafio, setDesafio] = useState<{ token: string; correoDestino: string } | null>(null);
+    const [verificandoOtp, setVerificandoOtp] = useState(false);
+    const [errorOtp, setErrorOtp] = useState("");
 
     const navigate = useNavigate();
-    const { usuario, registro } = useAuth();
+    const { usuario, registro, verificarCorreo, reenviarCodigo } = useAuth();
 
     // Si ya inició sesión, redirigir directamente sin permitir volver a registrarse
     if (usuario && !creada) {
@@ -67,6 +71,15 @@ function Registro() {
                 password,
             });
 
+            if (res.requiereVerificacionCorreo && res.desafioToken) {
+                setErrorOtp("");
+                setDesafio({
+                    token: res.desafioToken,
+                    correoDestino: res.correoDestino || correo.trim().toLowerCase(),
+                });
+                return;
+            }
+
             if (!res.ok) {
                 setError(res.error || "Error al registrar la cuenta.");
                 return;
@@ -78,6 +91,32 @@ function Registro() {
         } finally {
             setCargando(false);
         }
+    }
+
+    async function confirmarCodigoRegistro(codigo: string) {
+        if (!desafio) return;
+        setErrorOtp("");
+        setVerificandoOtp(true);
+        const res = await verificarCorreo(desafio.token, codigo);
+        setVerificandoOtp(false);
+        if (!res.ok) {
+            setErrorOtp(res.error || "El código ingresado no es válido.");
+            return;
+        }
+        setDesafio(null);
+        setCreada(true);
+    }
+
+    async function reenviarCodigoRegistro() {
+        if (!desafio) return { ok: false, error: "Sesión de verificación no disponible." };
+        const res = await reenviarCodigo(desafio.token);
+        if (res.ok && res.desafioToken) {
+            setDesafio({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || desafio.correoDestino,
+            });
+        }
+        return res;
     }
 
     const inputClass =
@@ -177,6 +216,22 @@ function Registro() {
                                     Entrar a la tienda
                                 </button>
                             </div>
+                        ) : desafio ? (
+                            <PanelVerificacionCodigo
+                                titulo="Verifica tu correo electrónico"
+                                subtitulo="Ingresa el código de 6 dígitos que enviamos a:"
+                                correoDestino={desafio.correoDestino}
+                                textoBoton="Verificar y activar cuenta"
+                                errorExterno={errorOtp}
+                                cargando={verificandoOtp}
+                                onVerificar={confirmarCodigoRegistro}
+                                onReenviar={reenviarCodigoRegistro}
+                                onCancelar={() => {
+                                    setDesafio(null);
+                                    setErrorOtp("");
+                                }}
+                                textoCancelar="Volver al formulario"
+                            />
                         ) : (
                             <form className="space-y-4" onSubmit={registrarse}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

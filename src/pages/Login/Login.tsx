@@ -4,6 +4,8 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { Rol } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
+import PanelVerificacionCodigo from "../../components/PanelVerificacionCodigo/PanelVerificacionCodigo";
+import PanelRecuperarPassword from "../../components/PanelRecuperarPassword/PanelRecuperarPassword";
 
 // A dónde va cada rol después de ingresar
 const RUTA_POR_ROL: Record<Rol, string> = {
@@ -35,9 +37,17 @@ function Login() {
         return () => window.clearInterval(intervalo);
     }, [bloqueadoHasta]);
     const [cargando, setCargando] = useState(false);
+    const [vista, setVista] = useState<"login" | "otp" | "recuperar">("login");
+    const [desafioOtp, setDesafioOtp] = useState<{
+        token: string;
+        correoDestino: string;
+        modo: "2fa" | "correo";
+    } | null>(null);
+    const [errorOtp, setErrorOtp] = useState("");
+    const [avisoExito, setAvisoExito] = useState("");
 
     const navigate = useNavigate();
-    const { usuario, login } = useAuth();
+    const { usuario, login, verificar2fa, verificarCorreo, reenviarCodigo } = useAuth();
 
     // Si el usuario ya inició sesión, restringir el acceso al login y redirigir según su rol
     if (usuario) {
@@ -59,9 +69,32 @@ function Login() {
             return;
         }
 
+        setAvisoExito("");
         setCargando(true);
         const res = await login(acceso, password);
         setCargando(false);
+
+        if (res.requiere2fa && res.desafioToken) {
+            setErrorOtp("");
+            setDesafioOtp({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || "",
+                modo: "2fa",
+            });
+            setVista("otp");
+            return;
+        }
+
+        if (res.requiereVerificacionCorreo && res.desafioToken) {
+            setErrorOtp("");
+            setDesafioOtp({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || "",
+                modo: "correo",
+            });
+            setVista("otp");
+            return;
+        }
 
         if (!res.ok || !res.usuario) {
             if (res.bloqueado && (res.segundosEspera ?? 0) > 0) {
@@ -75,6 +108,36 @@ function Login() {
 
         // Redirige según el rol del usuario que acaba de ingresar
         navigate(RUTA_POR_ROL[res.usuario.rol]);
+    }
+
+    async function confirmarOtp(codigo: string) {
+        if (!desafioOtp) return;
+        setErrorOtp("");
+        setCargando(true);
+        const res =
+            desafioOtp.modo === "2fa"
+                ? await verificar2fa(desafioOtp.token, codigo)
+                : await verificarCorreo(desafioOtp.token, codigo);
+        setCargando(false);
+
+        if (!res.ok || !res.usuario) {
+            setErrorOtp(res.error || "El código ingresado no es válido.");
+            return;
+        }
+        navigate(RUTA_POR_ROL[res.usuario.rol]);
+    }
+
+    async function reenviarOtp() {
+        if (!desafioOtp) return { ok: false, error: "Sesión de verificación no disponible." };
+        const res = await reenviarCodigo(desafioOtp.token);
+        if (res.ok && res.desafioToken) {
+            setDesafioOtp({
+                ...desafioOtp,
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || desafioOtp.correoDestino,
+            });
+        }
+        return res;
     }
 
     // Rellena el formulario solo en entorno de desarrollo local (Vite elimina este bloque en build)
@@ -152,6 +215,44 @@ function Login() {
 
                     {/* Tarjeta de Formulario */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm">
+                        {vista === "otp" && desafioOtp ? (
+                            <PanelVerificacionCodigo
+                                titulo={
+                                    desafioOtp.modo === "2fa"
+                                        ? "Verificación en dos pasos (2FA)"
+                                        : "Verifica tu correo electrónico"
+                                }
+                                subtitulo={
+                                    desafioOtp.modo === "2fa"
+                                        ? "Ingresa el código de seguridad enviado a:"
+                                        : "Tu cuenta aún requiere activar su correo. Ingresa el código enviado a:"
+                                }
+                                correoDestino={desafioOtp.correoDestino}
+                                textoBoton="Confirmar e ingresar"
+                                errorExterno={errorOtp}
+                                cargando={cargando}
+                                onVerificar={confirmarOtp}
+                                onReenviar={reenviarOtp}
+                                onCancelar={() => {
+                                    setVista("login");
+                                    setDesafioOtp(null);
+                                    setErrorOtp("");
+                                }}
+                                textoCancelar="Cambiar usuario"
+                            />
+                        ) : vista === "recuperar" ? (
+                            <PanelRecuperarPassword
+                                correoInicial={acceso}
+                                onVolver={() => setVista("login")}
+                                onExito={(msg) => {
+                                    setVista("login");
+                                    setPassword("");
+                                    setError("");
+                                    setAvisoExito(msg);
+                                }}
+                            />
+                        ) : (
+                        <>
                         <form className="space-y-4" onSubmit={iniciarSesion}>
                             {/* Usuario o correo */}
                             <div className="space-y-1.5">
@@ -170,9 +271,22 @@ function Login() {
 
                             {/* Contraseña */}
                             <div className="space-y-1.5">
-                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                    Contraseña
-                                </label>
+                                <div className="flex items-center justify-between gap-2">
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                        Contraseña
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setError("");
+                                            setAvisoExito("");
+                                            setVista("recuperar");
+                                        }}
+                                        className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+                                    >
+                                        ¿Olvidaste tu contraseña?
+                                    </button>
+                                </div>
                                 <input
                                     className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                     type="password"
@@ -182,6 +296,12 @@ function Login() {
                                     placeholder="••••••••"
                                 />
                             </div>
+
+                            {avisoExito && (
+                                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-700 dark:text-emerald-400">
+                                    {avisoExito}
+                                </div>
+                            )}
 
                             {/* Error Banner */}
                             {error && (
@@ -247,6 +367,8 @@ function Login() {
                                 Registrarse
                             </button>
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </div>

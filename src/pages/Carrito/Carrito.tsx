@@ -403,51 +403,85 @@ function Carrito() {
                         )}
 
                         {comprobanteEmitido && (
-                            <div className="bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
-                                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
-                                    <span className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                        {comprobanteEmitido.tipo} Electrónica
-                                    </span>
-                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                                        RUC: 20601234567
-                                    </span>
-                                </div>
-                                <div className="flex flex-col gap-1.5 text-xs sm:text-sm text-slate-800 dark:text-slate-200">
-                                    <div><strong>Receptor:</strong> {comprobanteEmitido.nombreRazonSocial}</div>
-                                    <div><strong>{comprobanteEmitido.tipo === "Boleta" ? "DNI" : "RUC"}:</strong> {comprobanteEmitido.documento}</div>
-                                    {comprobanteEmitido.direccion && (
-                                        <div><strong>Dirección:</strong> {comprobanteEmitido.direccion}</div>
-                                    )}
-                                    <div className="flex flex-col gap-1 border-t border-slate-200 dark:border-slate-800 pt-3 mt-2 text-xs text-slate-600 dark:text-slate-400">
-                                        <span>Op. Gravada: S/ {comprobanteEmitido.subtotal.toFixed(2)}</span>
-                                        <span>IGV (18%): S/ {comprobanteEmitido.igv.toFixed(2)}</span>
-                                        <strong className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                                            Total: S/ {comprobanteEmitido.total.toFixed(2)}
-                                        </strong>
+                            estadoPedidoEmitido === "Pendiente de pago" ? (
+                                <div className="bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
+                                    <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/40 pb-3 mb-3">
+                                        <span className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>📋</span> Solicitud de {comprobanteEmitido.tipo}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
+                                            Emisión pendiente
+                                        </span>
                                     </div>
-                                    {pedidoEmitido && (
-                                        <button
-                                            type="button"
-                                            disabled={generandoPdf}
-                                            onClick={async () => {
-                                                setGenerandoPdf(true);
-                                                try {
-                                                    await descargarComprobantePdf(pedidoEmitido);
-                                                } finally {
-                                                    setGenerandoPdf(false);
-                                                }
-                                            }}
-                                            className="mt-3 w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                                        >
-                                            <span>
-                                                {generandoPdf
-                                                    ? "Generando PDF..."
-                                                    : `Descargar ${comprobanteEmitido.tipo} PDF`}
-                                            </span>
-                                        </button>
-                                    )}
+                                    <div className="flex flex-col gap-1.5 text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+                                        <div><strong>Receptor:</strong> {comprobanteEmitido.nombreRazonSocial}</div>
+                                        <div><strong>{comprobanteEmitido.tipo === "Boleta" ? "DNI" : "RUC"}:</strong> {comprobanteEmitido.documento}</div>
+                                        {comprobanteEmitido.direccion && (
+                                            <div><strong>Dirección:</strong> {comprobanteEmitido.direccion}</div>
+                                        )}
+                                        <div className="flex flex-col gap-1 border-t border-amber-200 dark:border-amber-900/40 pt-3 mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                            <span>Op. Gravada referencial: S/ {comprobanteEmitido.subtotal.toFixed(2)}</span>
+                                            <span>IGV referencial (18%): S/ {comprobanteEmitido.igv.toFixed(2)}</span>
+                                            <strong className="text-base font-bold text-amber-700 dark:text-amber-400 mt-1">
+                                                Total a confirmar: S/ {comprobanteEmitido.total.toFixed(2)}
+                                            </strong>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-amber-200/80 dark:border-amber-900/40 text-[11px] text-amber-900 dark:text-amber-200/90 bg-amber-100/50 dark:bg-amber-900/30 p-3 rounded-lg flex items-start gap-2 leading-relaxed">
+                                        <span className="text-base leading-none">ℹ️</span>
+                                        <p>
+                                            <strong>Validación tributaria SUNAT:</strong> Por normativa comercial y fiscal, el comprobante oficial (<strong>{comprobanteEmitido.tipo} Electrónica</strong>) y su descarga en PDF se emitirán automáticamente una vez que el administrador confirme la recepción de tu transferencia bancaria en <strong>Mis compras</strong>.
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-5 my-6 max-w-md mx-auto text-left shadow-xs">
+                                    <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
+                                        <span className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                            {comprobanteEmitido.tipo} Electrónica
+                                        </span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                            RUC: 20601234567
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col gap-1.5 text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+                                        <div><strong>Receptor:</strong> {comprobanteEmitido.nombreRazonSocial}</div>
+                                        <div><strong>{comprobanteEmitido.tipo === "Boleta" ? "DNI" : "RUC"}:</strong> {comprobanteEmitido.documento}</div>
+                                        {comprobanteEmitido.direccion && (
+                                            <div><strong>Dirección:</strong> {comprobanteEmitido.direccion}</div>
+                                        )}
+                                        <div className="flex flex-col gap-1 border-t border-slate-200 dark:border-slate-800 pt-3 mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                            <span>Op. Gravada: S/ {comprobanteEmitido.subtotal.toFixed(2)}</span>
+                                            <span>IGV (18%): S/ {comprobanteEmitido.igv.toFixed(2)}</span>
+                                            <strong className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                                                Total: S/ {comprobanteEmitido.total.toFixed(2)}
+                                            </strong>
+                                        </div>
+                                        {pedidoEmitido && (
+                                            <button
+                                                type="button"
+                                                disabled={generandoPdf}
+                                                onClick={async () => {
+                                                    setGenerandoPdf(true);
+                                                    try {
+                                                        await descargarComprobantePdf(pedidoEmitido);
+                                                    } finally {
+                                                        setGenerandoPdf(false);
+                                                    }
+                                                }}
+                                                className="mt-3 w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                <span>
+                                                    {generandoPdf
+                                                        ? "Generando PDF..."
+                                                        : `Descargar ${comprobanteEmitido.tipo} PDF`}
+                                                </span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )
                         )}
 
                         <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto mt-6">

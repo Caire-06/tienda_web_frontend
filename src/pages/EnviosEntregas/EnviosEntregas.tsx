@@ -1,8 +1,17 @@
 import PaginaInformativa from "../../components/PaginaInformativa/PaginaInformativa";
+import {
+    IconoCamion,
+    IconoCheckCirculo,
+    IconoMoto,
+    IconoPaquete,
+    IconoReloj,
+    IconoTienda,
+} from "../../components/Iconos/Iconos";
 
 const MODALIDADES_ENVIO = [
     {
-        icono: "🛵",
+        icono: <IconoMoto size={22} />,
+        iconoClase: "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400",
         titulo: "Delivery Propio (Zona SJL)",
         badge: "Gratis desde S/ 499",
         badgeClass: "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300",
@@ -12,7 +21,8 @@ const MODALIDADES_ENVIO = [
             "Reparto directo dentro de San Juan de Lurigancho. Registra tu dirección exacta y una referencia cercana para agilizar la entrega.",
     },
     {
-        icono: "📦",
+        icono: <IconoPaquete size={22} />,
+        iconoClase: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400",
         titulo: "Agencia Courier (Olva / Shalom)",
         badge: "Pago en destino",
         badgeClass: "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300",
@@ -22,7 +32,8 @@ const MODALIDADES_ENVIO = [
             "Despachamos a todo el Perú mediante Olva Courier o Shalom. Puedes indicar agencia de destino o domicilio según cobertura.",
     },
     {
-        icono: "🏪",
+        icono: <IconoTienda size={22} />,
+        iconoClase: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
         titulo: "Recojo en Tienda Central",
         badge: "Sin costo",
         badgeClass: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
@@ -36,21 +47,25 @@ const MODALIDADES_ENVIO = [
 const ESTADOS_PEDIDO = [
     {
         estado: "Pendiente de pago",
+        icono: <IconoReloj size={13} />,
         descripcion:
             "Aplica a compras por transferencia bancaria mientras validamos tu número de operación.",
     },
     {
         estado: "Pendiente",
+        icono: <IconoPaquete size={13} />,
         descripcion:
             "Tu pago fue confirmado y nuestro almacén está alistando y embalando los equipos.",
     },
     {
         estado: "En camino",
+        icono: <IconoCamion size={13} />,
         descripcion:
             "El pedido ya salió a reparto local, fue entregado al courier o está listo para recojo.",
     },
     {
         estado: "Entregado",
+        icono: <IconoCheckCirculo size={13} />,
         descripcion:
             "Entrega completada satisfactoriamente al destinatario o en tienda.",
     },
@@ -76,7 +91,10 @@ function EnviosEntregas() {
                     >
                         <div className="space-y-3">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-2xl" aria-hidden="true">
+                                <span
+                                    className={`inline-flex w-10 h-10 rounded-xl items-center justify-center ${item.iconoClase}`}
+                                    aria-hidden="true"
+                                >
                                     {item.icono}
                                 </span>
                                 <span
@@ -118,13 +136,13 @@ function EnviosEntregas() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {ESTADOS_PEDIDO.map((paso, idx) => (
+                    {ESTADOS_PEDIDO.map((paso) => (
                         <div
                             key={paso.estado}
                             className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2"
                         >
-                            <span className="inline-flex w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold items-center justify-center">
-                                {idx + 1}
+                            <span className="inline-flex w-7 h-7 rounded-full bg-blue-600 text-white items-center justify-center">
+                                {paso.icono}
                             </span>
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                                 {paso.estado}

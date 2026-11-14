@@ -227,6 +227,18 @@ function Carrito() {
             codigoOperacionPago = numeroOperacionTransf.trim();
         }
 
+        // Validación final de stock antes de confirmar la compra (el backend re-valida dentro de la transacción)
+        const sinStock = lineas.filter((l) => l.producto.stock <= 0);
+        if (sinStock.length > 0) {
+            setErrorPago("Algunos productos de tu carrito ya no tienen stock disponible. Por favor, revísalos antes de continuar con la compra.");
+            return;
+        }
+        const cantidadExcedida = lineas.find((l) => l.cantidad > l.producto.stock);
+        if (cantidadExcedida) {
+            setErrorPago(`La cantidad solicitada de "${cantidadExcedida.producto.nombre}" supera el stock disponible (${cantidadExcedida.producto.stock}).`);
+            return;
+        }
+
         setProcesandoPago(true);
         try {
             const fecha = new Date().toISOString();
@@ -305,14 +317,18 @@ function Carrito() {
                 guardarPedido(pedidoConfirmado);
             }
 
-            lineas.forEach((l) =>
-                registrarSalida(
-                    l.producto.id,
-                    l.cantidad,
-                    `Venta ${numero} (${tipoComprobante})`,
-                    usuario?.nombre ?? nombreRazonSocial
-                )
-            );
+            // El backend registra la salida de inventario (descuento de stock + movimiento Kardex) al crear el pedido.
+            // Solo para compras sin sesión (invitados) se registra la salida en el inventario local.
+            if (!token) {
+                lineas.forEach((l) =>
+                    registrarSalida(
+                        l.producto.id,
+                        l.cantidad,
+                        `Venta ${numero} (${tipoComprobante})`,
+                        usuario?.nombre ?? nombreRazonSocial
+                    )
+                );
+            }
 
             setPedidoEmitido(pedidoConfirmado);
             setComprobanteEmitido(infoComprobante);
@@ -551,11 +567,15 @@ function Carrito() {
                                                 </button>
                                             </div>
 
-                                            {cantidad >= producto.stock && (
+                                            {producto.stock <= 0 ? (
+                                                <span className="block text-xs font-medium text-red-600 dark:text-red-400 mt-2">
+                                                    Este producto ya no tiene stock disponible.
+                                                </span>
+                                            ) : cantidad >= producto.stock ? (
                                                 <span className="block text-xs font-medium text-amber-600 dark:text-amber-400 mt-2">
                                                     Stock máximo disponible ({producto.stock})
                                                 </span>
-                                            )}
+                                            ) : null}
                                         </div>
                                         <div className="text-right sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800 sm:self-center font-mono text-lg font-black text-slate-900 dark:text-white whitespace-nowrap">
                                             <strong>S/ {(producto.precio * cantidad).toLocaleString("es-PE")}</strong>

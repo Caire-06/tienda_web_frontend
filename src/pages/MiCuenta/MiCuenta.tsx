@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useAuth } from "../../context/AuthContext";
-import { leerPedidos } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
@@ -134,7 +133,9 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
         return () => { activo = false; };
     }, [token]);
 
-    const pedidos = [...pedidosBackend, ...leerPedidos().filter((p) => p.usuarioId === usuario.id)];
+    // Historial definitivo desde PostgreSQL (vía GET /api/pedidos/mis-compras).
+    // No se mezclan pedidos locales: la fuente definitiva es el backend.
+    const pedidos = pedidosBackend;
     const totalGastado = pedidos.reduce((acc, p) => acc + p.total, 0);
     const unidades = pedidos.reduce((acc, p) => acc + p.items.reduce((a, it) => a + it.cantidad, 0), 0);
     const ultimoPedido = pedidos[0] ?? null;

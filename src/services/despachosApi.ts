@@ -1,4 +1,5 @@
 import type { Pedido } from "../data/pedidos";
+import { apiUrl } from "../config/api";
 
 export interface DespachoLoteDTO {
     id: number;
@@ -27,7 +28,7 @@ export interface CrearDespachoLoteDatos {
 
 export async function listarLotesDespacho(token: string): Promise<DespachoLoteDTO[]> {
     try {
-        const res = await fetch("/api/despachos", {
+        const res = await fetch(apiUrl("/api/despachos"), {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) return await res.json();
@@ -39,7 +40,7 @@ export async function listarLotesDespacho(token: string): Promise<DespachoLoteDT
 
 export async function listarPedidosPendientesDespacho(token: string): Promise<Pedido[]> {
     try {
-        const res = await fetch("/api/despachos/pendientes", {
+        const res = await fetch(apiUrl("/api/despachos/pendientes"), {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) return await res.json();
@@ -48,7 +49,7 @@ export async function listarPedidosPendientesDespacho(token: string): Promise<Pe
     }
 
     try {
-        const res = await fetch("/api/pedidos", {
+        const res = await fetch(apiUrl("/api/pedidos"), {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -64,7 +65,7 @@ export async function listarPedidosPendientesDespacho(token: string): Promise<Pe
 }
 
 export async function crearLoteDespacho(token: string, datos: CrearDespachoLoteDatos): Promise<DespachoLoteDTO> {
-    const res = await fetch("/api/despachos", {
+    const res = await fetch(apiUrl("/api/despachos"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -80,7 +81,7 @@ export async function crearLoteDespacho(token: string, datos: CrearDespachoLoteD
 }
 
 export async function completarLoteDespacho(token: string, id: number): Promise<DespachoLoteDTO> {
-    const res = await fetch(`/api/despachos/${id}/completar`, {
+    const res = await fetch(apiUrl(`/api/despachos/${id}/completar`), {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
     });

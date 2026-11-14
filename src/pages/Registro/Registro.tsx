@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
+import PanelVerificacionCodigo from "../../components/PanelVerificacionCodigo/PanelVerificacionCodigo";
 import { esCorreoValido, limpiarSoloLetras } from "../../utils/validaciones";
 
 function Registro() {
@@ -18,9 +20,14 @@ function Registro() {
     const [error, setError] = useState("");
     const [cargando, setCargando] = useState(false);
     const [creada, setCreada] = useState(false);
+    const [desafio, setDesafio] = useState<{ token: string; correoDestino: string } | null>(null);
+    const [verificandoOtp, setVerificandoOtp] = useState(false);
+    const [errorOtp, setErrorOtp] = useState("");
+    const [captchaToken, setCaptchaToken] = useState("");
+    const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
     const navigate = useNavigate();
-    const { usuario, registro } = useAuth();
+    const { usuario, registro, verificarCorreo, reenviarCodigo } = useAuth();
 
     // Si ya inició sesión, redirigir directamente sin permitir volver a registrarse
     if (usuario && !creada) {
@@ -57,6 +64,11 @@ function Registro() {
             return;
         }
 
+        if (turnstileSiteKey && !captchaToken) {
+            setError("Por favor, completa la verificación de seguridad (CAPTCHA).");
+            return;
+        }
+
         setCargando(true);
         try {
             const res = await registro({
@@ -65,7 +77,17 @@ function Registro() {
                 correo: correo.trim(),
                 direccion: direccion.trim(),
                 password,
+                ...(captchaToken ? { captchaToken } : {}),
             });
+
+            if (res.requiereVerificacionCorreo && res.desafioToken) {
+                setErrorOtp("");
+                setDesafio({
+                    token: res.desafioToken,
+                    correoDestino: res.correoDestino || correo.trim().toLowerCase(),
+                });
+                return;
+            }
 
             if (!res.ok) {
                 setError(res.error || "Error al registrar la cuenta.");
@@ -78,6 +100,32 @@ function Registro() {
         } finally {
             setCargando(false);
         }
+    }
+
+    async function confirmarCodigoRegistro(codigo: string) {
+        if (!desafio) return;
+        setErrorOtp("");
+        setVerificandoOtp(true);
+        const res = await verificarCorreo(desafio.token, codigo);
+        setVerificandoOtp(false);
+        if (!res.ok) {
+            setErrorOtp(res.error || "El código ingresado no es válido.");
+            return;
+        }
+        setDesafio(null);
+        setCreada(true);
+    }
+
+    async function reenviarCodigoRegistro() {
+        if (!desafio) return { ok: false, error: "Sesión de verificación no disponible." };
+        const res = await reenviarCodigo(desafio.token);
+        if (res.ok && res.desafioToken) {
+            setDesafio({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || desafio.correoDestino,
+            });
+        }
+        return res;
     }
 
     const inputClass =
@@ -177,6 +225,22 @@ function Registro() {
                                     Entrar a la tienda
                                 </button>
                             </div>
+                        ) : desafio ? (
+                            <PanelVerificacionCodigo
+                                titulo="Verifica tu correo electrónico"
+                                subtitulo="Ingresa el código de 6 dígitos que enviamos a:"
+                                correoDestino={desafio.correoDestino}
+                                textoBoton="Verificar y activar cuenta"
+                                errorExterno={errorOtp}
+                                cargando={verificandoOtp}
+                                onVerificar={confirmarCodigoRegistro}
+                                onReenviar={reenviarCodigoRegistro}
+                                onCancelar={() => {
+                                    setDesafio(null);
+                                    setErrorOtp("");
+                                }}
+                                textoCancelar="Volver al formulario"
+                            />
                         ) : (
                             <form className="space-y-4" onSubmit={registrarse}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -307,6 +371,21 @@ function Registro() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                         <span>{error}</span>
+                                    </div>
+                                )}
+
+                                {turnstileSiteKey && (
+                                    <div className="flex justify-center pt-1 pb-1">
+                                        <Turnstile
+                                            siteKey={turnstileSiteKey}
+                                            onSuccess={(token) => {
+                                                setCaptchaToken(token);
+                                                setError("");
+                                            }}
+                                            onExpire={() => setCaptchaToken("")}
+                                            onError={() => setCaptchaToken("")}
+                                            options={{ theme: "auto" }}
+                                        />
                                     </div>
                                 )}
 

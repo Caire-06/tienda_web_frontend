@@ -4,6 +4,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { obtenerResumen } from "../../../services/kardexApi";
 import type { KardexResumen } from "../../../services/kardexApi";
 import { listarPedidosPendientesDespacho } from "../../../services/despachosApi";
+import { IconoFlechaDerecha, IconoPaquete, IconoRayo } from "../../../components/Iconos/Iconos";
 
 function fechaCorta(iso: string) {
     const d = new Date(iso);
@@ -55,7 +56,7 @@ function Dashboard() {
             </div>
 
             {/* KPIs */}
-            <section className="admin-cards grid-cols-2 md:grid-cols-4">
+            <section className="admin-cards grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                 <div className="admin-card">
                     <span>Productos registrados</span>
                     <strong>{cargandoKpis ? "..." : productos}</strong>
@@ -78,8 +79,8 @@ function Dashboard() {
             {pendientesDespacho > 0 && (
                 <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg font-bold shrink-0">
-                            📦
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <IconoPaquete size={20} />
                         </div>
                         <div>
                             <h3 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
@@ -92,9 +93,9 @@ function Dashboard() {
                     </div>
                     <button
                         onClick={() => navigate("/almacen/despachos")}
-                        className="self-start sm:self-auto px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
+                        className="self-start sm:self-auto inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
                     >
-                        ▶ Empezar a Atender →
+                        <IconoRayo size={13} /> Empezar a atender <IconoFlechaDerecha size={13} />
                     </button>
                 </div>
             )}

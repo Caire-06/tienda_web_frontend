@@ -4,10 +4,12 @@ import { defineConfig, loadEnv } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Carga .env del frontend; VITE_APIPERU_TOKEN es el token de dniruc.apisperu.com
-  // y se inyecta en el proxy (el navegador nunca necesita incluirlo).
   const env = loadEnv(mode, process.cwd(), '')
-  const tokenApis = (env.VITE_APIPERU_TOKEN || env.VITE_APISPERU_TOKEN || '').trim()
+
+  // Proxy exclusivo de desarrollo local: redirige /api hacia Spring Boot local.
+  // En producción (Render Static Site) se usa VITE_API_URL o Rewrite /api/* hacia el backend en Render.
+  // Referencia local: http://localhost:8080
+  const proxyTarget = (env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080').trim()
 
   return {
     plugins: [
@@ -17,14 +19,8 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: 'http://localhost:8080',
+          target: proxyTarget,
           changeOrigin: true,
-        },
-        '/api-peru': {
-          target: 'https://dniruc.apisperu.com',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api-peru/, ''),
-          headers: tokenApis ? { Authorization: `Bearer ${tokenApis}` } : undefined,
         },
       },
     },

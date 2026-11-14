@@ -1,4 +1,5 @@
 import type { ProductoInv } from "../context/InventarioContext";
+import { apiUrl } from "../config/api";
 
 // Contrato que devuelve el backend (ProductoDTO).
 interface ProductoBackend {
@@ -35,7 +36,7 @@ function cabecerasOpcionales(token?: string | null): HeadersInit {
 
 /** GET /api/productos — listar productos registrados en PostgreSQL. */
 export async function listarProductos(token?: string | null): Promise<ProductoInv[]> {
-    const resp = await fetch("/api/productos", {
+    const resp = await fetch(apiUrl("/api/productos"), {
         headers: cabecerasOpcionales(token),
     });
 
@@ -57,7 +58,7 @@ export async function obtenerProducto(
     token: string | null | undefined,
     id: number
 ): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}`, {
+    const resp = await fetch(apiUrl(`/api/productos/${id}`), {
         headers: cabecerasOpcionales(token),
     });
 
@@ -82,7 +83,7 @@ export async function crearProducto(
         descripcion: string;
     }
 ): Promise<ProductoInv> {
-    const resp = await fetch("/api/productos", {
+    const resp = await fetch(apiUrl("/api/productos"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -118,7 +119,7 @@ export async function subirImagen(
     const form = new FormData();
     form.append("archivo", archivo);
 
-    const resp = await fetch("/api/productos/imagen", {
+    const resp = await fetch(apiUrl("/api/productos/imagen"), {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -147,7 +148,7 @@ export async function darDeBajaLogicaProducto(
     token: string,
     id: number
 ): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}/baja-logica`, {
+    const resp = await fetch(apiUrl(`/api/productos/${id}/baja-logica`), {
         method: "PATCH",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -170,7 +171,7 @@ export async function eliminarProducto(
     token: string,
     id: number
 ): Promise<void> {
-    const resp = await fetch(`/api/productos/${id}`, {
+    const resp = await fetch(apiUrl(`/api/productos/${id}`), {
         method: "DELETE",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -196,7 +197,7 @@ export async function actualizarProducto(
         activo?: boolean;
     }
 ): Promise<ProductoInv> {
-    const resp = await fetch(`/api/productos/${id}`, {
+    const resp = await fetch(apiUrl(`/api/productos/${id}`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",

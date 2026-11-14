@@ -1,15 +1,39 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Rol, Usuario } from "../data/usuarios";
+import { apiUrl } from "../config/api";
+import {
+  loginApi,
+  reenviarCodigoApi,
+  registroApi,
+  verificarCorreoApi,
+  verificarTwoFactorApi,
+  type LoginRespuestaBackend,
+} from "../services/authApi";
 export type { Rol, Usuario };
 
 export interface DatosRegistro { nombre: string; apellido: string; correo: string; direccion?: string; password: string; }
-interface Resultado { ok: boolean; error?: string; usuario?: Usuario; bloqueado?: boolean; segundosEspera?: number }
+export interface ResultadoReenvio { ok: boolean; error?: string; desafioToken?: string; correoDestino?: string; cooldownSegundos?: number; }
+export interface Resultado {
+  ok: boolean;
+  error?: string;
+  mensaje?: string;
+  usuario?: Usuario;
+  bloqueado?: boolean;
+  segundosEspera?: number;
+  requiereVerificacionCorreo?: boolean;
+  requiere2fa?: boolean;
+  desafioToken?: string;
+  correoDestino?: string;
+}
 interface AuthContexto {
   usuario: Usuario | null;
   token: string | null;
   login: (acceso: string, password: string) => Promise<Resultado>;
   registro: (datos: DatosRegistro) => Promise<Resultado>;
+  verificarCorreo: (desafioToken: string, codigo: string) => Promise<Resultado>;
+  verificar2fa: (desafioToken: string, codigo: string) => Promise<Resultado>;
+  reenviarCodigo: (desafioToken: string) => Promise<ResultadoReenvio>;
   logout: () => void;
   actualizarNombre: (nombre: string) => void;
   marcarPasswordActualizada: () => void;
@@ -30,10 +54,10 @@ function rolDeBackend(valor: string): Rol {
   if (valor === "ALMACEN") return "almacen";
   return "cliente";
 }
-async function respuestaJson(resp: Response): Promise<Record<string, any>> {
-  return await resp.json().catch(() => ({}));
+async function respuestaJson(resp: Response): Promise<Record<string, unknown>> {
+  return (await resp.json().catch(() => ({}))) as Record<string, unknown>;
 }
-function errorRespuesta(data: Record<string, any>, alternativo: string): string {
+function errorRespuesta(data: { mensaje?: unknown; error?: unknown }, alternativo: string): string {
   return String(data.mensaje || data.error || alternativo);
 }
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -53,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("techstore-sesion");
     localStorage.removeItem("techstore-perfiles");
     if (!sesion) return;
-    fetch("/api/perfil", { headers: { Authorization: `Bearer ${sesion.token}` } })
+    fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${sesion.token}` } })
       .then(async (resp) => {
         if (!resp.ok) {
           guardarSesion(null);
@@ -69,50 +93,122 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Validar la sesión al montar la aplicación.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const login = async (acceso: string, password: string): Promise<Resultado> => {
-    try {
-      const resp = await fetch("/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombreUsuario: acceso.trim(), contrasena: password }),
-      });
-      const data = await respuestaJson(resp);
-      if (!resp.ok || !data.exitoso || !data.token) return {
-        ok: false, error: errorRespuesta(data, "No se pudo iniciar sesión"),
-        bloqueado: resp.status === 423 || !!data.cuentaBloqueada,
+  async function finalizarSesionDesdeRespuesta(
+    data: LoginRespuestaBackend,
+    accesoAlternativo = ""
+  ): Promise<Resultado> {
+    const tokenNuevo = String(data.token || "");
+    const perfilResp = await fetch(apiUrl("/api/perfil"), {
+      headers: { Authorization: `Bearer ${tokenNuevo}` },
+    });
+    const perfil = await respuestaJson(perfilResp);
+    if (!perfilResp.ok) {
+      return { ok: false, error: "No fue posible validar la sesión en Mi Cuenta" };
+    }
+    const acceso = String(data.nombreUsuario || accesoAlternativo);
+    const cuenta: Usuario = {
+      id: acceso,
+      acceso,
+      nombre: `${perfil.nombres || ""} ${perfil.apellidos || ""}`.trim() || acceso,
+      rol: rolDeBackend(String(data.rol || "CLIENTE")),
+      requiereCambioPassword: Boolean(data.requiereCambioPassword || perfil.requiereCambioPassword),
+    };
+    guardarSesion({ usuario: cuenta, token: tokenNuevo });
+    return { ok: true, usuario: cuenta };
+  }
+
+  async function mapearRespuestaAuth(
+    ok: boolean,
+    status: number,
+    data: LoginRespuestaBackend,
+    errorDefault: string,
+    accesoAlternativo = ""
+  ): Promise<Resultado> {
+    if (data.requiereVerificacionCorreo && data.desafioToken) {
+      return {
+        ok: false,
+        requiereVerificacionCorreo: true,
+        desafioToken: String(data.desafioToken),
+        correoDestino: String(data.correoDestino || ""),
+        mensaje: String(data.mensaje || "Verifica tu correo electrónico."),
+      };
+    }
+    if (data.requiere2fa && data.desafioToken) {
+      return {
+        ok: false,
+        requiere2fa: true,
+        desafioToken: String(data.desafioToken),
+        correoDestino: String(data.correoDestino || ""),
+        mensaje: String(data.mensaje || "Ingresa el código de verificación en dos pasos."),
+      };
+    }
+    if (!ok || !data.exitoso || !data.token) {
+      return {
+        ok: false,
+        error: errorRespuesta(data, errorDefault),
+        bloqueado: status === 423 || !!data.cuentaBloqueada,
         segundosEspera: Number(data.segundosEspera) || 0,
       };
-      const perfilResp = await fetch("/api/perfil", { headers: { Authorization: `Bearer ${data.token}` } });
-      const perfil = await respuestaJson(perfilResp);
-      if (!perfilResp.ok) return { ok: false, error: "No fue posible validar la sesión en Mi Cuenta" };
-      const cuenta: Usuario = {
-        id: String(data.nombreUsuario || acceso.trim()), acceso: String(data.nombreUsuario || acceso.trim()),
-        nombre: `${perfil.nombres || ""} ${perfil.apellidos || ""}`.trim() || String(data.nombreUsuario),
-        rol: rolDeBackend(data.rol),
-        requiereCambioPassword: Boolean(data.requiereCambioPassword || perfil.requiereCambioPassword),
-      };
-      guardarSesion({ usuario: cuenta, token: String(data.token) });
-      return { ok: true, usuario: cuenta };
-    } catch { return { ok: false, error: "No hay conexión con Spring Boot. Comprueba que el backend esté encendido." }; }
+    }
+    return finalizarSesionDesdeRespuesta(data, accesoAlternativo);
+  }
+
+  const login = async (acceso: string, password: string): Promise<Resultado> => {
+    try {
+      const { ok, status, data } = await loginApi(acceso.trim(), password);
+      return await mapearRespuestaAuth(ok, status, data, "No se pudo iniciar sesión", acceso.trim());
+    } catch {
+      return { ok: false, error: "No hay conexión con Spring Boot. Comprueba que el backend esté encendido." };
+    }
   };
   const registro = async (datos: DatosRegistro): Promise<Resultado> => {
     try {
-      const resp = await fetch("/api/auth/registro", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...datos, nombre: datos.nombre.trim(), apellido: datos.apellido.trim(), correo: datos.correo.trim().toLowerCase(), direccion: datos.direccion?.trim() || "" }),
+      const { ok, status, data } = await registroApi({
+        ...datos,
+        nombre: datos.nombre.trim(),
+        apellido: datos.apellido.trim(),
+        correo: datos.correo.trim().toLowerCase(),
+        direccion: datos.direccion?.trim() || "",
       });
-      const data = await respuestaJson(resp);
-      if (!resp.ok || !data.exitoso) return { ok: false, error: errorRespuesta(data, "No se pudo registrar la cuenta") };
-      if (!data.token) return { ok: false, error: "La cuenta se creó, pero el servidor no devolvió una sesión. Inicia sesión manualmente." };
-      const cuenta: Usuario = {
-        id: String(data.nombreUsuario || datos.correo), acceso: datos.correo.trim().toLowerCase(),
-        nombre: `${datos.nombre.trim()} ${datos.apellido.trim()}`, rol: "cliente",
+      return await mapearRespuestaAuth(ok, status, data, "No se pudo registrar la cuenta", datos.correo.trim().toLowerCase());
+    } catch {
+      return { ok: false, error: "No hay conexión con Spring Boot. No se creó una cuenta local." };
+    }
+  };
+  const verificarCorreo = async (desafioToken: string, codigo: string): Promise<Resultado> => {
+    try {
+      const { ok, status, data } = await verificarCorreoApi(desafioToken, codigo);
+      return await mapearRespuestaAuth(ok, status, data, "Código de verificación incorrecto o expirado");
+    } catch {
+      return { ok: false, error: "No hay conexión con el servidor para validar el código." };
+    }
+  };
+  const verificar2fa = async (desafioToken: string, codigo: string): Promise<Resultado> => {
+    try {
+      const { ok, status, data } = await verificarTwoFactorApi(desafioToken, codigo);
+      return await mapearRespuestaAuth(ok, status, data, "Código 2FA incorrecto o expirado");
+    } catch {
+      return { ok: false, error: "No hay conexión con el servidor para validar el código 2FA." };
+    }
+  };
+  const reenviarCodigo = async (desafioToken: string): Promise<ResultadoReenvio> => {
+    try {
+      const { ok, data } = await reenviarCodigoApi(desafioToken);
+      if (!ok) {
+        return { ok: false, error: String(data.error || "No se pudo reenviar el código.") };
+      }
+      return {
+        ok: true,
+        desafioToken: data.desafioToken,
+        correoDestino: data.correoDestino,
+        cooldownSegundos: Number(data.cooldownSegundos) || 45,
       };
-      guardarSesion({ usuario: cuenta, token: String(data.token) });
-      return { ok: true, usuario: cuenta };
-    } catch { return { ok: false, error: "No hay conexión con Spring Boot. No se creó una cuenta local." }; }
+    } catch {
+      return { ok: false, error: "No hay conexión con el servidor." };
+    }
   };
   const logout = () => {
-    if (token) void fetch("/api/auth/logout", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    if (token) void fetch(apiUrl("/api/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     guardarSesion(null);
   };
   const actualizarNombre = (nombre: string) => {
@@ -123,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!sesion) return;
     guardarSesion({ ...sesion, usuario: { ...sesion.usuario, requiereCambioPassword: false } });
   };
-  return <AuthContext.Provider value={{ usuario, token, login, registro, logout, actualizarNombre, marcarPasswordActualizada }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ usuario, token, login, registro, verificarCorreo, verificar2fa, reenviarCodigo, logout, actualizarNombre, marcarPasswordActualizada }}>{children}</AuthContext.Provider>;
 }
 export function useAuth(): AuthContexto {
   const ctx = useContext(AuthContext);

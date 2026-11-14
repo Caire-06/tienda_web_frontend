@@ -1,4 +1,5 @@
 import { PRODUCTOS } from "../data/productos";
+import { apiUrl } from "../config/api";
 
 export interface ReporteUsuarios {
     tipo: "usuarios";
@@ -59,7 +60,7 @@ export interface ReporteInventario {
 
 export async function obtenerReporteParametrizado(token: string, tipo: "usuarios" | "ventas" | "inventario"): Promise<any> {
     try {
-        const res = await fetch(`/api/admin/reportes/${tipo}`, {
+        const res = await fetch(apiUrl(`/api/admin/reportes/${tipo}`), {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -71,7 +72,7 @@ export async function obtenerReporteParametrizado(token: string, tipo: "usuarios
 
     if (tipo === "ventas") {
         try {
-            const res = await fetch("/api/pedidos", { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(apiUrl("/api/pedidos"), { headers: { Authorization: `Bearer ${token}` } });
             const pedidos = res.ok ? await res.json() : [];
             const totalPedidos = pedidos.length;
             const totalVentas = pedidos.reduce((acc: number, p: any) => acc + (Number(p.total) || 0), 0);
@@ -115,7 +116,7 @@ export async function obtenerReporteParametrizado(token: string, tipo: "usuarios
 
     if (tipo === "inventario") {
         try {
-            const res = await fetch("/api/productos", { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(apiUrl("/api/productos"), { headers: { Authorization: `Bearer ${token}` } });
             const productos = res.ok ? await res.json() : PRODUCTOS;
             const prods = Array.isArray(productos) && productos.length > 0 ? productos : PRODUCTOS;
             let stockTotal = 0;
@@ -158,7 +159,7 @@ export async function obtenerReporteParametrizado(token: string, tipo: "usuarios
 
     // Reporte de usuarios
     try {
-        const res = await fetch("/api/usuarios", { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(apiUrl("/api/usuarios"), { headers: { Authorization: `Bearer ${token}` } });
         const usuarios = res.ok ? await res.json() : [];
         const us = Array.isArray(usuarios) ? usuarios : [];
         const activos = us.filter((u: any) => u.estado !== "Inactivo" && !u.bloqueado).length;

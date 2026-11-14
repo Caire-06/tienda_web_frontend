@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarProductos, crearProducto, actualizarProducto, subirImagen, eliminarProducto as apiEliminar } from "../../../services/productosApi";
+import { listarProductos, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
 import { CATEGORIAS } from "../../../data/productos";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
@@ -181,24 +181,6 @@ function Productos() {
         }
     };
 
-    const eliminarProducto = async (id: number) => {
-        if (!token) return;
-        const objetivo = productos.find((p) => p.id === id);
-        if (!objetivo) return;
-        if (objetivo.vendidos > 0) {
-            alert(`⚠ El producto "${objetivo.nombre}" tiene ${objetivo.vendidos} ventas registradas y no puede eliminarse.`);
-            return;
-        }
-        if (!window.confirm(`¿Eliminar definitivamente el producto "${objetivo.nombre}"?`)) return;
-        try {
-            await apiEliminar(token, id);
-            await refrescar();
-        } catch (err) {
-            console.error("Error al eliminar producto", err);
-            alert("No se pudo eliminar el producto.");
-        }
-    };
-
     const editando = formId !== undefined ? productos.find((p) => p.id === formId) : undefined;
     const selectClass =
         "px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer";
@@ -215,18 +197,18 @@ function Productos() {
             {/* Toolbar */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-2.5 items-center shadow-xs">
                 <input
-                    className="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="w-full sm:flex-1 sm:min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     placeholder="Buscar producto..."
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                 />
-                <select className={selectClass} value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                <select className={`${selectClass} w-full sm:w-auto`} value={categoria} onChange={(e) => setCategoria(e.target.value)}>
                     <option>Todas</option>
                     {CATEGORIAS.map((c) => (
                         <option key={c.nombre}>{c.nombre}</option>
                     ))}
                 </select>
-                <select className={selectClass} value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)}>
+                <select className={`${selectClass} w-full sm:w-auto`} value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)}>
                     <option value="todos">Todos los estados</option>
                     <option value="disponible">Disponible</option>
                     <option value="bajo">Stock bajo</option>
@@ -234,7 +216,7 @@ function Productos() {
                     <option value="inactivo">Inactivos</option>
                 </select>
                 <button
-                    className="ml-auto px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer transition-colors"
+                    className="w-full sm:w-auto sm:ml-auto px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer transition-colors"
                     onClick={abrirNuevo}
                 >
                     + Nuevo producto
@@ -278,15 +260,6 @@ function Productos() {
                                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                                         </button>
                                         <button
-                                            className="btn-mini danger disabled:opacity-50 disabled:cursor-not-allowed"
-                                            disabled={p.vendidos > 0}
-                                            title={p.vendidos > 0 ? "No se puede eliminar un producto con ventas registradas" : "Eliminar producto"}
-                                            aria-label="Eliminar producto"
-                                            onClick={() => eliminarProducto(p.id)}
-                                        >
-                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                        </button>
-                                        <button
                                             className="btn-mini sec"
                                             onClick={() => cambiarActivo(p.id, !p.activo)}
                                             title={p.activo ? "Desactivar producto" : "Activar producto"}
@@ -321,8 +294,8 @@ function Productos() {
                         </div>
 
                         {editando && editando.vendidos > 0 && (
-                            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-700 dark:text-amber-400">
-                                ⚠ Tiene {editando.vendidos} ventas registradas: no se puede eliminar, solo editar o desactivar.
+                            <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-600 dark:text-slate-300">
+                                Este producto tiene {editando.vendidos} ventas registradas; puedes editarlo o desactivarlo cuando quieras.
                             </div>
                         )}
 
@@ -331,7 +304,7 @@ function Productos() {
                                 <label className="text-xs font-semibold text-slate-500">Nombre del producto</label>
                                 <input className={inputClass} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Categoría</label>
                                     <select className={selectClass + " w-full"} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
@@ -353,7 +326,7 @@ function Productos() {
                                     />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Stock {formId === null ? "inicial" : "actual"}</label>
                                     <input

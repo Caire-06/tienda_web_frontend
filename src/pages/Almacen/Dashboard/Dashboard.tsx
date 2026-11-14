@@ -56,7 +56,7 @@ function Dashboard() {
             </div>
 
             {/* KPIs */}
-            <section className="admin-cards grid-cols-2 md:grid-cols-4">
+            <section className="admin-cards grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                 <div className="admin-card">
                     <span>Productos registrados</span>
                     <strong>{cargandoKpis ? "..." : productos}</strong>

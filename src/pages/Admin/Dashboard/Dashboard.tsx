@@ -58,7 +58,7 @@ function Dashboard() {
             </div>
 
             {/* Tarjetas KPI */}
-            <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
+            <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
                 <div className="admin-card">
                     <span>Ventas hoy</span>
                     <strong>S/ {Number(totalHoy).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>

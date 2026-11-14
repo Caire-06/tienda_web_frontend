@@ -165,6 +165,16 @@ function dibujarQrSimulado(doc: jsPDF, x: number, y: number, size: number, semil
  * utilizando los datos del pedido y del comprobante registrado.
  */
 export async function descargarComprobantePdf(pedido: Pedido): Promise<void> {
+    if (pedido.estado === "Pendiente de pago" || pedido.estadoPago === "Por verificar") {
+        console.warn(
+            `[SUNAT/Comprobante] El pedido ${pedido.numero} está pendiente de pago por transferencia. No se puede emitir el comprobante tributario hasta su confirmación.`
+        );
+        alert(
+            "El comprobante oficial (Boleta/Factura) aún no ha sido emitido.\n\nPor normativa fiscal y comercial, estará disponible para descargar en 'Mis compras' una vez que el administrador verifique tu transferencia bancaria."
+        );
+        return;
+    }
+
     const [{ jsPDF: JsPDF }, { default: autoTable }] = await Promise.all([
         import("jspdf"),
         import("jspdf-autotable"),

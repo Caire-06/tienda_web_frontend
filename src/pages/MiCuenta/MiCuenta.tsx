@@ -6,7 +6,9 @@ import { useAuth } from "../../context/AuthContext";
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import type { Usuario } from "../../data/usuarios";
+import { apiUrl } from "../../config/api";
 import FormularioCambioPassword from "../../components/FormularioCambioPassword/FormularioCambioPassword";
+import { cambiarTwoFactorPerfil } from "../../services/usuariosApi";
 import {
     esDocumentoPeruanoValido,
     esTelefonoValido,
@@ -24,6 +26,8 @@ interface Perfil {
     direccion: string;
     ciudad: string;
     miembroDesde: string;
+    correoVerificado: boolean;
+    twoFactorActivo: boolean;
 }
 
 interface BorradorPerfil {
@@ -37,6 +41,7 @@ interface BorradorPerfil {
 type PerfilBackend = {
     idUsuario: number; nombres: string; apellidos: string; documento: string;
     correo: string; telefono: string; direccion: string; ciudad: string; rol: string;
+    correoVerificado?: boolean; twoFactorActivo?: boolean;
 };
 function desdeBackend(data: PerfilBackend): Perfil {
     const nombres = data.nombres || "";
@@ -47,6 +52,8 @@ function desdeBackend(data: PerfilBackend): Perfil {
         apellidos,
         correo: data.correo || "", telefono: data.telefono || "", documento: data.documento || "",
         direccion: data.direccion || "", ciudad: data.ciudad || "", miembroDesde: "2026",
+        correoVerificado: Boolean(data.correoVerificado ?? true),
+        twoFactorActivo: Boolean(data.twoFactorActivo),
     };
 }
 
@@ -80,6 +87,8 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
         direccion: "",
         ciudad: "",
         miembroDesde: "2026",
+        correoVerificado: true,
+        twoFactorActivo: false,
     };
     const [perfil, setPerfil] = useState<Perfil>(perfilInicial);
     const [borrador, setBorrador] = useState<BorradorPerfil>(aBorrador(perfilInicial));
@@ -91,10 +100,13 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
     const [guardado, setGuardado] = useState(false);
     const [cambiandoClave, setCambiandoClave] = useState(false);
     const [claveActualizadaMsg, setClaveActualizadaMsg] = useState("");
+    const [cambiando2fa, setCambiando2fa] = useState(false);
+    const [error2fa, setError2fa] = useState("");
+    const [msg2fa, setMsg2fa] = useState("");
     const [pedidosBackend, setPedidosBackend] = useState<Pedido[]>([]);
     useEffect(() => {
         let activo = true;
-        fetch("/api/perfil", { headers: { Authorization: `Bearer ${token}` } })
+        fetch(apiUrl("/api/perfil"), { headers: { Authorization: `Bearer ${token}` } })
             .then(async r => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data.error || "No se pudo consultar el perfil");
@@ -146,7 +158,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
         }
         setGuardando(true);
         try {
-            const resp = await fetch("/api/perfil", {
+            const resp = await fetch(apiUrl("/api/perfil"), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ nombres: borrador.nombres.trim(), apellidos: borrador.apellidos.trim(),
@@ -222,7 +234,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                 </div>
 
                 {/* Resumen de actividad */}
-                <section className="admin-cards grid-cols-2 md:grid-cols-4">
+                <section className="admin-cards grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                     <div className="admin-card cursor-pointer" onClick={() => navigate("/mis-compras")}>
                         <span>Pedidos realizados</span>
                         <strong>{pedidos.length}</strong>
@@ -345,6 +357,70 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                                     onCancelar={() => setCambiandoClave(false)}
                                 />
                             )}
+
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/70 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                            Verificación en dos pasos por correo (2FA)
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Solicita un código temporal de 6 dígitos en cada inicio de sesión.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={perfil.twoFactorActivo}
+                                        disabled={cargando || cambiando2fa}
+                                        onClick={async () => {
+                                            setError2fa("");
+                                            setMsg2fa("");
+                                            const proximo = !perfil.twoFactorActivo;
+                                            setCambiando2fa(true);
+                                            try {
+                                                const res = await cambiarTwoFactorPerfil(token, proximo);
+                                                setPerfil((prev) => ({
+                                                    ...prev,
+                                                    twoFactorActivo: res.twoFactorActivo,
+                                                    correoVerificado: res.correoVerificado,
+                                                }));
+                                                setMsg2fa(
+                                                    res.twoFactorActivo
+                                                        ? "Verificación en dos pasos activada correctamente."
+                                                        : "Verificación en dos pasos desactivada."
+                                                );
+                                            } catch (err) {
+                                                setError2fa(
+                                                    err instanceof Error
+                                                        ? err.message
+                                                        : "No se pudo actualizar la verificación en dos pasos."
+                                                );
+                                            } finally {
+                                                setCambiando2fa(false);
+                                            }
+                                        }}
+                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+                                            perfil.twoFactorActivo
+                                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                                                : "bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                                        }`}
+                                    >
+                                        <span
+                                            className={`w-2 h-2 rounded-full ${
+                                                perfil.twoFactorActivo ? "bg-emerald-500" : "bg-slate-400"
+                                            }`}
+                                        />
+                                        {cambiando2fa
+                                            ? "Actualizando..."
+                                            : perfil.twoFactorActivo
+                                            ? "Activado"
+                                            : "Desactivado"}
+                                    </button>
+                                </div>
+                                {error2fa && <p role="alert" className="text-xs text-red-600 font-semibold">{error2fa}</p>}
+                                {msg2fa && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{msg2fa}</p>}
+                            </div>
                         </div>
                     </section>
 

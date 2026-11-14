@@ -221,7 +221,7 @@ function Reportes() {
 
                     {tipoActivo === "usuarios" && (
                         <>
-                            <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="admin-card">
                                     <span>Total Cuentas</span>
                                     <strong>{datos.total || 0}</strong>

@@ -258,18 +258,18 @@ function Productos() {
             {/* Barra de Filtros */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
                 <input
-                    className="flex-1 min-w-[200px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full sm:flex-1 sm:min-w-[200px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Buscar producto por nombre..."
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                 />
-                <select className={selectClass} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+                <select className={`${selectClass} w-full sm:w-auto`} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
                     <option value="Todas">Todas las Categorías</option>
                     {CATALOGO_CATEGORIAS.map((c) => (
                         <option key={c.codigo} value={c.nombre}>{c.nombre}</option>
                     ))}
                 </select>
-                <select className={selectClass} value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+                <select className={`${selectClass} w-full sm:w-auto`} value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
                     <option value="Todos">Todos los Estados</option>
                     <option value="Disponible">Disponible</option>
                     <option value="Stock bajo">Stock bajo (&lt;10)</option>

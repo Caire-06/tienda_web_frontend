@@ -28,31 +28,11 @@ export const CLAVE_USUARIOS = "techstore-usuarios";
 export const CLAVE_SESION = "techstore-sesion";
 export const CLAVE_ESTADOS = "techstore-usuarios-estado"; // { id: "activo" | "inactivo" }
 
-// Cuentas fijas para el demo
-export const CUENTAS_FIJAS: CuentaDemo[] = [
-    {
-        acceso: "admin",
-        password: "admin123",
-        usuario: { id: "admin", nombre: "Luis (Admin)", acceso: "admin", rol: "admin" },
-    },
-    {
-        acceso: "almacen",
-        password: "123",
-        usuario: { id: "almacen", nombre: "Carlos", acceso: "almacen", rol: "almacen" },
-    },
-    {
-        acceso: "cliente",
-        password: "123",
-        usuario: { id: "cliente", nombre: "Juan (Cliente)", acceso: "cliente", rol: "cliente" },
-    },
-];
+// Cuentas demo desactivadas en código cliente para no exponer credenciales en producción.
+export const CUENTAS_FIJAS: CuentaDemo[] = [];
 
-// Cuentas demo visibles en la gestión de usuarios
-export const CUENTAS_BASE = [
-    { id: "admin", nombre: "Luis (Admin)", acceso: "admin", rol: "admin" as Rol, fecha: "15/01/2024", fija: true },
-    { id: "almacen", nombre: "Carlos", acceso: "almacen", rol: "almacen" as Rol, fecha: "10/02/2024", fija: true },
-    { id: "cliente", nombre: "Juan (Cliente)", acceso: "cliente", rol: "cliente" as Rol, fecha: "05/03/2024", fija: true },
-];
+// Listado referencial sin credenciales (las cuentas reales provienen del backend PostgreSQL).
+export const CUENTAS_BASE: Array<{ id: string; nombre: string; acceso: string; rol: Rol; fecha: string; fija: boolean }> = [];
 
 export function obtenerEstado(id: string): "activo" | "inactivo" {
     try {

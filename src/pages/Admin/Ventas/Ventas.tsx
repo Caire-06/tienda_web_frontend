@@ -138,7 +138,7 @@ function Ventas() {
             {/* Filtros */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
                 <input
-                    className="flex-1 min-w-[240px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full sm:flex-1 sm:min-w-[220px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Buscar por N° pedido, comprobante (B001/F001), cliente o RUC/DNI..."
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
@@ -291,7 +291,7 @@ function Ventas() {
                             <div className="text-[11px] font-bold uppercase text-slate-500 tracking-wider mb-2">
                                 Flujo del Pedido
                             </div>
-                            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                                 <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
                                     <div className="font-bold text-blue-700 dark:text-blue-300">1. Pedido</div>
                                     <div className="font-mono text-[11px] text-slate-600 dark:text-slate-400">{detalle.numero}</div>
@@ -421,7 +421,7 @@ function Ventas() {
                         </div>
 
                         {detalle.comprobante && (
-                            <div className="mb-4 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-xs text-slate-700 dark:text-slate-300 grid grid-cols-2 gap-2">
+                            <div className="mb-4 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-xs text-slate-700 dark:text-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <div>
                                     <span className="text-slate-400 block text-[10px] uppercase font-bold">Tipo y Documento:</span>
                                     <strong>{detalle.comprobante.tipo} {detalle.comprobante.documento}</strong>

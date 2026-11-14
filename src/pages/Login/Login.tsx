@@ -4,6 +4,8 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { Rol } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
+import PanelVerificacionCodigo from "../../components/PanelVerificacionCodigo/PanelVerificacionCodigo";
+import PanelRecuperarPassword from "../../components/PanelRecuperarPassword/PanelRecuperarPassword";
 
 // A dónde va cada rol después de ingresar
 const RUTA_POR_ROL: Record<Rol, string> = {
@@ -35,9 +37,17 @@ function Login() {
         return () => window.clearInterval(intervalo);
     }, [bloqueadoHasta]);
     const [cargando, setCargando] = useState(false);
+    const [vista, setVista] = useState<"login" | "otp" | "recuperar">("login");
+    const [desafioOtp, setDesafioOtp] = useState<{
+        token: string;
+        correoDestino: string;
+        modo: "2fa" | "correo";
+    } | null>(null);
+    const [errorOtp, setErrorOtp] = useState("");
+    const [avisoExito, setAvisoExito] = useState("");
 
     const navigate = useNavigate();
-    const { usuario, login } = useAuth();
+    const { usuario, login, verificar2fa, verificarCorreo, reenviarCodigo } = useAuth();
 
     // Si el usuario ya inició sesión, restringir el acceso al login y redirigir según su rol
     if (usuario) {
@@ -59,9 +69,32 @@ function Login() {
             return;
         }
 
+        setAvisoExito("");
         setCargando(true);
         const res = await login(acceso, password);
         setCargando(false);
+
+        if (res.requiere2fa && res.desafioToken) {
+            setErrorOtp("");
+            setDesafioOtp({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || "",
+                modo: "2fa",
+            });
+            setVista("otp");
+            return;
+        }
+
+        if (res.requiereVerificacionCorreo && res.desafioToken) {
+            setErrorOtp("");
+            setDesafioOtp({
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || "",
+                modo: "correo",
+            });
+            setVista("otp");
+            return;
+        }
 
         if (!res.ok || !res.usuario) {
             if (res.bloqueado && (res.segundosEspera ?? 0) > 0) {
@@ -77,10 +110,45 @@ function Login() {
         navigate(RUTA_POR_ROL[res.usuario.rol]);
     }
 
-    // Rellena el formulario con una cuenta demo
+    async function confirmarOtp(codigo: string) {
+        if (!desafioOtp) return;
+        setErrorOtp("");
+        setCargando(true);
+        const res =
+            desafioOtp.modo === "2fa"
+                ? await verificar2fa(desafioOtp.token, codigo)
+                : await verificarCorreo(desafioOtp.token, codigo);
+        setCargando(false);
+
+        if (!res.ok || !res.usuario) {
+            setErrorOtp(res.error || "El código ingresado no es válido.");
+            return;
+        }
+        navigate(RUTA_POR_ROL[res.usuario.rol]);
+    }
+
+    async function reenviarOtp() {
+        if (!desafioOtp) return { ok: false, error: "Sesión de verificación no disponible." };
+        const res = await reenviarCodigo(desafioOtp.token);
+        if (res.ok && res.desafioToken) {
+            setDesafioOtp({
+                ...desafioOtp,
+                token: res.desafioToken,
+                correoDestino: res.correoDestino || desafioOtp.correoDestino,
+            });
+        }
+        return res;
+    }
+
+    // Rellena el formulario solo en entorno de desarrollo local (Vite elimina este bloque en build)
     function usarDemo(usuario: string) {
+        if (!import.meta.env.DEV) return;
         setAcceso(usuario);
-        setPassword(usuario === "admin" ? "admin123" : "123");
+        const demoPass =
+            usuario === "admin"
+                ? (import.meta.env.VITE_DEMO_ADMIN_PASS as string | undefined) || ""
+                : (import.meta.env.VITE_DEMO_USER_PASS as string | undefined) || "";
+        if (demoPass) setPassword(demoPass);
         setError("");
     }
 
@@ -147,6 +215,44 @@ function Login() {
 
                     {/* Tarjeta de Formulario */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm">
+                        {vista === "otp" && desafioOtp ? (
+                            <PanelVerificacionCodigo
+                                titulo={
+                                    desafioOtp.modo === "2fa"
+                                        ? "Verificación en dos pasos (2FA)"
+                                        : "Verifica tu correo electrónico"
+                                }
+                                subtitulo={
+                                    desafioOtp.modo === "2fa"
+                                        ? "Ingresa el código de seguridad enviado a:"
+                                        : "Tu cuenta aún requiere activar su correo. Ingresa el código enviado a:"
+                                }
+                                correoDestino={desafioOtp.correoDestino}
+                                textoBoton="Confirmar e ingresar"
+                                errorExterno={errorOtp}
+                                cargando={cargando}
+                                onVerificar={confirmarOtp}
+                                onReenviar={reenviarOtp}
+                                onCancelar={() => {
+                                    setVista("login");
+                                    setDesafioOtp(null);
+                                    setErrorOtp("");
+                                }}
+                                textoCancelar="Cambiar usuario"
+                            />
+                        ) : vista === "recuperar" ? (
+                            <PanelRecuperarPassword
+                                correoInicial={acceso}
+                                onVolver={() => setVista("login")}
+                                onExito={(msg) => {
+                                    setVista("login");
+                                    setPassword("");
+                                    setError("");
+                                    setAvisoExito(msg);
+                                }}
+                            />
+                        ) : (
+                        <>
                         <form className="space-y-4" onSubmit={iniciarSesion}>
                             {/* Usuario o correo */}
                             <div className="space-y-1.5">
@@ -159,15 +265,28 @@ function Login() {
                                     value={acceso}
                                     disabled={bloqueado || cargando}
                                     onChange={(e) => setAcceso(e.target.value)}
-                                    placeholder="admin, almacen o tu correo"
+                                    placeholder="Ingresa tu usuario o correo"
                                 />
                             </div>
 
                             {/* Contraseña */}
                             <div className="space-y-1.5">
-                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                    Contraseña
-                                </label>
+                                <div className="flex items-center justify-between gap-2">
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                        Contraseña
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setError("");
+                                            setAvisoExito("");
+                                            setVista("recuperar");
+                                        }}
+                                        className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+                                    >
+                                        ¿Olvidaste tu contraseña?
+                                    </button>
+                                </div>
                                 <input
                                     className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                     type="password"
@@ -177,6 +296,12 @@ function Login() {
                                     placeholder="••••••••"
                                 />
                             </div>
+
+                            {avisoExito && (
+                                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-700 dark:text-emerald-400">
+                                    {avisoExito}
+                                </div>
+                            )}
 
                             {/* Error Banner */}
                             {error && (
@@ -200,35 +325,37 @@ function Login() {
                             </button>
                         </form>
 
-                        {/* Cuentas Demo Rápidas */}
-                        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
-                                Cuentas de prueba (clic para usar)
-                            </p>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("admin")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Admin / admin123
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("almacen")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Almacén / 123
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => usarDemo("cliente")}
-                                    className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
-                                >
-                                    Cliente / 123
-                                </button>
+                        {/* Cuentas Demo Rápidas (solo visibles en modo desarrollo local, nunca en producción Render) */}
+                        {import.meta.env.DEV && (
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
+                                    Cuentas de prueba local (clic para usar)
+                                </p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("admin")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Admin
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("almacen")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Almacén
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => usarDemo("cliente")}
+                                        className="py-1.5 px-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-blue-500 text-slate-700 dark:text-slate-300 transition-all cursor-pointer text-center"
+                                    >
+                                        Cliente
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Link a Registro */}
                         <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -240,6 +367,8 @@ function Login() {
                                 Registrarse
                             </button>
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </div>

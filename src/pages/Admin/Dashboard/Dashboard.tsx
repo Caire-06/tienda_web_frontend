@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { obtenerDashboardKpis, type DashboardKpis } from "../../../services/dashboardApi";
 import { formatearFechaHora } from "../../../data/pedidos";
+import { IconoFlechaDerecha, IconoPaquete } from "../../../components/Iconos/Iconos";
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -88,8 +89,8 @@ function Dashboard() {
             {pendientesDespacho > 0 && (
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg font-bold shrink-0">
-                            📦
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <IconoPaquete size={20} />
                         </div>
                         <div>
                             <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200">
@@ -102,9 +103,9 @@ function Dashboard() {
                     </div>
                     <button
                         onClick={() => navigate("/admin/despachos")}
-                        className="self-start sm:self-auto px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
+                        className="self-start sm:self-auto inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-all cursor-pointer shrink-0"
                     >
-                        Supervisar Despachos →
+                        Supervisar despachos <IconoFlechaDerecha size={13} />
                     </button>
                 </div>
             )}

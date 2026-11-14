@@ -17,6 +17,7 @@ import {
     limpiarCodigoAlfanumerico,
     limpiarSoloLetras,
 } from "../../utils/validaciones";
+import { IconoMoto, IconoPaquete, IconoTienda } from "../../components/Iconos/Iconos";
 
 // Envío gratis desde este monto para Delivery Propio en zona; si no, tarifa zonal fija
 const UMBRAL_ENVIO_GRATIS = 499;
@@ -742,8 +743,8 @@ function Carrito() {
                                                     if (!distritoEnvio) setDistritoEnvio("San Juan de Lurigancho");
                                                 }}
                                             >
-                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    🛵 Delivery Propio
+                                                <strong className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                                                    <IconoMoto size={14} /> Delivery Propio
                                                 </strong>
                                                 <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                                     Zona SJL · {envioGratis ? "Gratis" : `S/ ${COSTO_DELIVERY_PROPIO}`}
@@ -759,8 +760,8 @@ function Carrito() {
                                                 }`}
                                                 onClick={() => setTipoEntrega("agencia_destino")}
                                             >
-                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    📦 Agencia Courier
+                                                <strong className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                                                    <IconoPaquete size={14} /> Agencia Courier
                                                 </strong>
                                                 <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                                                     Olva / Shalom (Pago destino)
@@ -776,8 +777,8 @@ function Carrito() {
                                                 }`}
                                                 onClick={() => setTipoEntrega("recojo")}
                                             >
-                                                <strong className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    🏪 Recojo en Tienda
+                                                <strong className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                                                    <IconoTienda size={14} /> Recojo en Tienda
                                                 </strong>
                                                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
                                                     SJL · Gratis

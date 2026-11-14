@@ -60,8 +60,11 @@ export function reenviarCodigoApi(desafioToken: string) {
     return postAuthJson<ReenviarCodigoRespuesta>("/api/auth/reenviar-codigo", { desafioToken });
 }
 
-export function solicitarRecuperacionApi(correo: string) {
-    return postAuthJson<MensajeApiRespuesta>("/api/auth/recuperar-password", { correo });
+export function solicitarRecuperacionApi(correo: string, captchaToken?: string) {
+    return postAuthJson<MensajeApiRespuesta>("/api/auth/recuperar-password", {
+        correo,
+        ...(captchaToken ? { captchaToken } : {}),
+    });
 }
 
 export function restablecerPasswordApi(correo: string, codigo: string, nuevaContrasena: string) {

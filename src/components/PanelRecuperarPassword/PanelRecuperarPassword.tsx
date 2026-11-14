@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import IndicadorSeguridadPassword from "../IndicadorSeguridadPassword/IndicadorSeguridadPassword";
 import { restablecerPasswordApi, solicitarRecuperacionApi } from "../../services/authApi";
 import { esCorreoValido } from "../../utils/validaciones";
@@ -21,6 +22,8 @@ function PanelRecuperarPassword({ correoInicial = "", onVolver, onExito }: Panel
     const [error, setError] = useState("");
     const [info, setInfo] = useState("");
     const [cooldownReenvio, setCooldownReenvio] = useState(0);
+    const [captchaToken, setCaptchaToken] = useState("");
+    const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
     useEffect(() => {
         if (cooldownReenvio <= 0) return;
@@ -37,9 +40,13 @@ function PanelRecuperarPassword({ correoInicial = "", onVolver, onExito }: Panel
             setError("Ingresa un correo electrónico válido.");
             return false;
         }
+        if (turnstileSiteKey && !captchaToken) {
+            setError("Por favor, completa la verificación de seguridad (CAPTCHA).");
+            return false;
+        }
         setCargando(true);
         try {
-            const { ok, data } = await solicitarRecuperacionApi(correo.trim().toLowerCase());
+            const { ok, data } = await solicitarRecuperacionApi(correo.trim().toLowerCase(), captchaToken || undefined);
             if (!ok) {
                 setError(data.error || "No se pudo procesar la solicitud.");
                 return false;
@@ -127,6 +134,21 @@ function PanelRecuperarPassword({ correoInicial = "", onVolver, onExito }: Panel
                 {error && (
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-600 dark:text-red-400">
                         {error}
+                    </div>
+                )}
+
+                {turnstileSiteKey && (
+                    <div className="flex justify-center pt-1 pb-1">
+                        <Turnstile
+                            siteKey={turnstileSiteKey}
+                            onSuccess={(token) => {
+                                setCaptchaToken(token);
+                                setError("");
+                            }}
+                            onExpire={() => setCaptchaToken("")}
+                            onError={() => setCaptchaToken("")}
+                            options={{ theme: "auto" }}
+                        />
                     </div>
                 )}
 

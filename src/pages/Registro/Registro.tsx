@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../../components/ThemeToggle/ThemeToggle";
 import IndicadorSeguridadPassword from "../../components/IndicadorSeguridadPassword/IndicadorSeguridadPassword";
@@ -22,6 +23,8 @@ function Registro() {
     const [desafio, setDesafio] = useState<{ token: string; correoDestino: string } | null>(null);
     const [verificandoOtp, setVerificandoOtp] = useState(false);
     const [errorOtp, setErrorOtp] = useState("");
+    const [captchaToken, setCaptchaToken] = useState("");
+    const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
     const navigate = useNavigate();
     const { usuario, registro, verificarCorreo, reenviarCodigo } = useAuth();
@@ -61,6 +64,11 @@ function Registro() {
             return;
         }
 
+        if (turnstileSiteKey && !captchaToken) {
+            setError("Por favor, completa la verificación de seguridad (CAPTCHA).");
+            return;
+        }
+
         setCargando(true);
         try {
             const res = await registro({
@@ -69,6 +77,7 @@ function Registro() {
                 correo: correo.trim(),
                 direccion: direccion.trim(),
                 password,
+                ...(captchaToken ? { captchaToken } : {}),
             });
 
             if (res.requiereVerificacionCorreo && res.desafioToken) {
@@ -362,6 +371,21 @@ function Registro() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                         <span>{error}</span>
+                                    </div>
+                                )}
+
+                                {turnstileSiteKey && (
+                                    <div className="flex justify-center pt-1 pb-1">
+                                        <Turnstile
+                                            siteKey={turnstileSiteKey}
+                                            onSuccess={(token) => {
+                                                setCaptchaToken(token);
+                                                setError("");
+                                            }}
+                                            onExpire={() => setCaptchaToken("")}
+                                            onError={() => setCaptchaToken("")}
+                                            options={{ theme: "auto" }}
+                                        />
                                     </div>
                                 )}
 

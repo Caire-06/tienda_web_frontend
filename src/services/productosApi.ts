@@ -45,7 +45,11 @@ export async function listarProductos(token?: string | null): Promise<ProductoIn
 
     const data = (await resp.json()) as ProductoBackend[];
 
-    return Array.isArray(data) ? data.map(aProductoInv) : [];
+    const convertidos = Array.isArray(data) ? data.map(aProductoInv) : [];
+    // Deduplicación por ID: garantiza que cada producto se muestre una sola vez.
+    const unicos = new Map<number, ProductoInv>();
+    convertidos.forEach((p) => unicos.set(p.id, p));
+    return Array.from(unicos.values());
 }
 
 /** GET /api/productos/{id} — obtener detalle de un producto. */

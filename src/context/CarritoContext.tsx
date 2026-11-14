@@ -1,12 +1,13 @@
+
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useInventario } from "./InventarioContext";
 import type { ProductoInv } from "./InventarioContext";
 import { useCatalogo } from "../hooks/useCatalogo";
+import { useAuth } from "./AuthContext";
 
 // Un item del carrito solo guarda id + cantidad.
-// Los datos (precio, stock, imagen) se resuelven contra el catálogo del backend
-// y, como respaldo, contra el inventario local de demostración.
+// Los datos del producto se resuelven desde el catálogo o inventario local.
 export interface ItemCarrito {
     id: number;
     cantidad: number;
@@ -23,97 +24,245 @@ interface CarritoContexto {
     subtotal: number;
 }
 
-const CarritoContext = createContext<CarritoContexto | null>(null);
-const CLAVE_STORAGE = "techstore-carrito";
+interface EstadoCarrito {
+    clave: string;
+    items: ItemCarrito[];
+}
 
-// Lee el carrito guardado (solo valida la forma, el stock se verifica al usar)
-function leerInicial(): ItemCarrito[] {
+const CarritoContext = createContext<CarritoContexto | null>(null);
+
+const PREFIJO_STORAGE = "techstore-carrito";
+
+// Genera una clave diferente para cada usuario.
+function obtenerClaveStorage(usuarioId: string | number | null): string {
+    if (usuarioId === null) {
+        return `${PREFIJO_STORAGE}:invitado`;
+    }
+
+    return `${PREFIJO_STORAGE}:usuario:${encodeURIComponent(String(usuarioId))}`;
+}
+
+// Lee el carrito correspondiente a una cuenta.
+function leerCarrito(clave: string): ItemCarrito[] {
     try {
-        const raw = localStorage.getItem(CLAVE_STORAGE);
+        const raw = localStorage.getItem(clave);
+
         if (!raw) return [];
+
         const datos = JSON.parse(raw);
+
         if (!Array.isArray(datos)) return [];
+
         return datos.filter(
-            (i) =>
-                typeof i?.id === "number" &&
-                typeof i?.cantidad === "number" &&
-                i.cantidad > 0
+            (item) =>
+                typeof item?.id === "number" &&
+                Number.isInteger(item.id) &&
+                Number.isInteger(item.cantidad) &&
+                item.cantidad > 0
         );
     } catch {
         return [];
     }
 }
 
+// Guarda únicamente en la clave correspondiente al usuario.
+function guardarCarrito(clave: string, items: ItemCarrito[]): void {
+    try {
+        localStorage.setItem(clave, JSON.stringify(items));
+    } catch (error) {
+        console.error("No se pudo guardar el carrito:", error);
+    }
+}
+
 export function CarritoProvider({ children }: { children: ReactNode }) {
-    const [items, setItems] = useState<ItemCarrito[]>(leerInicial);
+    const { usuario } = useAuth();
+
+    const claveStorage = obtenerClaveStorage(
+        usuario ? usuario.id : null
+    );
+
+    // El estado también identifica a qué cuenta pertenece.
+    const [estadoCarrito, setEstadoCarrito] = useState<EstadoCarrito>(
+        () => ({
+            clave: claveStorage,
+            items: leerCarrito(claveStorage),
+        })
+    );
+
     const { productos: productosLocales } = useInventario();
     const { productos: productosBackend } = useCatalogo();
 
-    // El catálogo público (backend) tiene prioridad; el inventario local cubre los productos demo.
-    // Así cualquier producto visible en la tienda puede agregarse al carrito, con o sin sesión.
-    const productos = useMemo(() => {
-        const mapa = new Map<number, ProductoInv>();
-        productosLocales.forEach((p) => mapa.set(p.id, p));
-        productosBackend.forEach((p) => mapa.set(p.id, p));
-        return Array.from(mapa.values());
-    }, [productosLocales, productosBackend]);
-
-    // Guarda cada cambio en el navegador
+    // Cuando cambia la cuenta, carga su propio carrito.
     useEffect(() => {
-        localStorage.setItem(CLAVE_STORAGE, JSON.stringify(items));
-    }, [items]);
+        setEstadoCarrito({
+            clave: claveStorage,
+            items: leerCarrito(claveStorage),
+        });
+    }, [claveStorage]);
 
-    // Agrega un producto respetando su stock actual del inventario
-    const agregar = (id: number, cantidad = 1) => {
-        const prod = productos.find((p) => p.id === id);
-        if (!prod || !prod.activo || prod.stock === 0) return;
-        setItems((prev) => {
-            const existe = prev.find((i) => i.id === id);
-            if (existe) {
-                const nueva = Math.min(existe.cantidad + cantidad, prod.stock);
-                return prev.map((i) => (i.id === id ? { ...i, cantidad: nueva } : i));
-            }
-            return [...prev, { id, cantidad: Math.min(cantidad, prod.stock) }];
+    // Solo muestra los productos si el estado pertenece a la cuenta actual.
+    // Mientras se carga otro carrito, no muestra el anterior.
+    const items =
+        estadoCarrito.clave === claveStorage
+            ? estadoCarrito.items
+            : [];
+
+    // Permite modificar el carrito actual sin mezclar cuentas.
+    const actualizarItems = (
+        actualizar: (prev: ItemCarrito[]) => ItemCarrito[]
+    ) => {
+        setEstadoCarrito((prev) => {
+            const itemsActuales =
+                prev.clave === claveStorage
+                    ? prev.items
+                    : leerCarrito(claveStorage);
+
+            return {
+                clave: claveStorage,
+                items: actualizar(itemsActuales),
+            };
         });
     };
 
-    const quitar = (id: number) => {
-        setItems((prev) => prev.filter((i) => i.id !== id));
+    // El catálogo del backend es la fuente oficial.
+    // El inventario local se utiliza como respaldo.
+    const productos = useMemo(() => {
+        const fuente =
+            productosBackend.length > 0
+                ? productosBackend
+                : productosLocales;
+
+        const mapa = new Map<number, ProductoInv>();
+
+        fuente.forEach((producto) => {
+            mapa.set(producto.id, producto);
+        });
+
+        return Array.from(mapa.values());
+    }, [productosLocales, productosBackend]);
+
+    // Guarda únicamente cuando el estado pertenece a la cuenta actual.
+    useEffect(() => {
+        if (estadoCarrito.clave !== claveStorage) return;
+
+        guardarCarrito(claveStorage, estadoCarrito.items);
+    }, [estadoCarrito, claveStorage]);
+
+    // Agrega un producto respetando el stock disponible.
+    const agregar = (id: number, cantidad = 1) => {
+        const producto = productos.find((p) => p.id === id);
+
+        if (!producto || !producto.activo || producto.stock <= 0) {
+            return;
+        }
+
+        const cant =
+            Number.isInteger(cantidad) && cantidad > 0
+                ? cantidad
+                : 1;
+
+        actualizarItems((prev) => {
+            const existe = prev.find((item) => item.id === id);
+
+            if (existe) {
+                const nueva = Math.min(
+                    existe.cantidad + cant,
+                    producto.stock
+                );
+
+                return prev.map((item) =>
+                    item.id === id
+                        ? { ...item, cantidad: nueva }
+                        : item
+                );
+            }
+
+            return [
+                ...prev,
+                {
+                    id,
+                    cantidad: Math.min(cant, producto.stock),
+                },
+            ];
+        });
     };
 
-    // Cambia la cantidad (0 o menos = quitar), sin pasar el stock
+    // Elimina un producto del carrito.
+    const quitar = (id: number) => {
+        actualizarItems((prev) =>
+            prev.filter((item) => item.id !== id)
+        );
+    };
+
+    // Cambia la cantidad sin superar el stock.
     const cambiarCantidad = (id: number, cantidad: number) => {
-        const prod = productos.find((p) => p.id === id);
-        if (!prod) return;
-        if (cantidad <= 0) {
+        const producto = productos.find((p) => p.id === id);
+
+        if (!producto) return;
+
+        const valor = Number.isInteger(cantidad)
+            ? cantidad
+            : Math.floor(cantidad);
+
+        if (valor <= 0) {
             quitar(id);
             return;
         }
-        const limitada = Math.min(cantidad, prod.stock);
-        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, cantidad: limitada } : i)));
+
+        const limitada = Math.min(valor, producto.stock);
+
+        actualizarItems((prev) =>
+            prev.map((item) =>
+                item.id === id
+                    ? { ...item, cantidad: limitada }
+                    : item
+            )
+        );
     };
 
-    const vaciar = () => setItems([]);
+    // Vacía únicamente el carrito de la cuenta actual.
+    const vaciar = () => {
+        actualizarItems(() => []);
+    };
 
-    const totalItems = items.reduce((acc, i) => acc + i.cantidad, 0);
+    const totalItems = items.reduce(
+        (acc, item) => acc + item.cantidad,
+        0
+    );
 
-    const subtotal = items.reduce((acc, i) => {
-        const prod = productos.find((p) => p.id === i.id);
-        return acc + (prod ? prod.precio * i.cantidad : 0);
+    const subtotal = items.reduce((acc, item) => {
+        const producto = productos.find((p) => p.id === item.id);
+
+        return acc + (producto ? producto.precio * item.cantidad : 0);
     }, 0);
 
     return (
         <CarritoContext.Provider
-            value={{ items, catalogo: productos, agregar, quitar, cambiarCantidad, vaciar, totalItems, subtotal }}
+            value={{
+                items,
+                catalogo: productos,
+                agregar,
+                quitar,
+                cambiarCantidad,
+                vaciar,
+                totalItems,
+                subtotal,
+            }}
         >
             {children}
         </CarritoContext.Provider>
     );
 }
 
-// Hook para usar el carrito en cualquier página o componente
+// Hook para utilizar el carrito desde cualquier componente.
 export function useCarrito(): CarritoContexto {
     const ctx = useContext(CarritoContext);
-    if (!ctx) throw new Error("useCarrito debe usarse dentro de <CarritoProvider>");
+
+    if (!ctx) {
+        throw new Error(
+            "useCarrito debe usarse dentro de <CarritoProvider>"
+        );
+    }
+
     return ctx;
 }

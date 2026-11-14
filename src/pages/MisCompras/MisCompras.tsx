@@ -7,7 +7,6 @@ import {
     etiquetaMetodoPago,
     etiquetaTipoEntrega,
     formatearFechaHora,
-    leerPedidos,
     obtenerSerieComprobante,
 } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
@@ -60,9 +59,9 @@ function MisCompras() {
         );
     }
 
-    // Historial del backend + pedidos locales anteriores de esta misma cuenta (compatibilidad)
-    const locales = leerPedidos().filter((p) => p.usuarioId === usuario.id);
-    const pedidos = [...pedidosBackend, ...locales.filter((loc) => !pedidosBackend.some((b) => b.numero === loc.numero))];
+    // Historial definitivo desde PostgreSQL (vía GET /api/pedidos/mis-compras).
+    // No se mezclan pedidos locales: la fuente definitiva es el backend.
+    const pedidos = pedidosBackend;
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
@@ -83,7 +82,7 @@ function MisCompras() {
                 )}
                 {errorCarga && (
                     <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3.5 text-xs text-amber-900 dark:text-amber-200">
-                        {errorCarga} Se muestran solo tus pedidos guardados localmente.
+                        {errorCarga}
                     </div>
                 )}
 

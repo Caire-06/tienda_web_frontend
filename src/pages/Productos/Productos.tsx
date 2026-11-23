@@ -41,7 +41,6 @@ function Productos() {
     const [orden, setOrden] = useState<Orden>("relevancia");
     const [busqueda, setBusqueda] = useState("");
     const [novedades, setNovedades] = useState<Novedades>("todos");
-    const [marca, setMarca] = useState(FILTRO_TODOS);
     const [precioMinTexto, setPrecioMinTexto] = useState("");
     const [precioMaxTexto, setPrecioMaxTexto] = useState("");
     const [pagina, setPagina] = useState(1);
@@ -60,19 +59,12 @@ function Productos() {
 
     const nombresCategorias = [FILTRO_TODOS, ...CATEGORIAS.map((c) => c.nombre)];
 
-    const nombresMarcas = useMemo(() => {
-        const unicas = new Set(
-            productos.map((p) => (p.marca || "Genérico").trim()).filter(Boolean)
-        );
-        return [FILTRO_TODOS, ...Array.from(unicas).sort((a, b) => a.localeCompare(b))];
-    }, [productos]);
 
     const precioMin = parsearNumeroSeguro(precioMinTexto);
     const precioMax = parsearNumeroSeguro(precioMaxTexto);
     const hayFiltros =
         busqueda.trim() !== "" ||
         categoria !== FILTRO_TODOS ||
-        marca !== FILTRO_TODOS ||
         novedades !== "todos" ||
         precioMinTexto !== "" ||
         precioMaxTexto !== "" ||
@@ -83,10 +75,6 @@ function Productos() {
 
         if (categoria !== FILTRO_TODOS) {
             lista = lista.filter((p) => p.categoria === categoria);
-        }
-
-        if (marca !== FILTRO_TODOS) {
-            lista = lista.filter((p) => (p.marca || "Genérico").trim() === marca);
         }
 
         if (novedades === "hoy") {
@@ -128,21 +116,20 @@ function Productos() {
             default:
                 return lista;
         }
-    }, [productos, categoria, orden, busqueda, novedades, marca, precioMinTexto, precioMaxTexto, precioMin, precioMax]);
+    }, [productos, categoria, orden, busqueda, novedades, precioMinTexto, precioMaxTexto, precioMin, precioMax]);
 
     const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
     const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     useEffect(() => {
         setPagina(1);
-    }, [categoria, busqueda, orden, novedades, marca, precioMinTexto, precioMaxTexto]);
+    }, [categoria, busqueda, orden, novedades, precioMinTexto, precioMaxTexto]);
 
     const limpiarFiltros = () => {
         setBusqueda("");
         setCategoria(FILTRO_TODOS);
         setOrden("relevancia");
         setNovedades("todos");
-        setMarca(FILTRO_TODOS);
         setPrecioMinTexto("");
         setPrecioMaxTexto("");
     };
@@ -192,21 +179,8 @@ function Productos() {
                             className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
                         >
                             <option value="todos">Todos los productos</option>
-                            <option value="recientes">Últimos 5 añadidos</option>
+                            <option value="recientes">Ultimos Añadidos</option>
                             <option value="hoy">Registrados hoy</option>
-                        </select>
-                    </label>
-
-                    <label className="flex flex-col gap-1 w-full sm:w-auto">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Marca</span>
-                        <select
-                            value={marca}
-                            onChange={(e) => setMarca(e.target.value)}
-                            className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
-                        >
-                            {nombresMarcas.map((nombre) => (
-                                <option key={nombre} value={nombre}>{nombre}</option>
-                            ))}
                         </select>
                     </label>
 

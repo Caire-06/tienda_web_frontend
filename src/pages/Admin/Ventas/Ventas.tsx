@@ -264,8 +264,8 @@ function Ventas() {
             <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtradas.length} onCambiar={setPagina} />
 
             {detalle && (
-                <div className="modal-fondo" onClick={() => setDetalle(null)}>
-                    <div className="modal max-w-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal max-w-2xl">
                         <div className="modal-head">
                             <div>
                                 <h2>Detalle de Pedido: {detalle.numero}</h2>

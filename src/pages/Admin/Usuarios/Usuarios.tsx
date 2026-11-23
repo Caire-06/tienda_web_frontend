@@ -364,8 +364,8 @@ function Usuarios() {
 
             {/* Modal Detalle Usuario */}
             {detalle && (
-                <div className="modal-fondo" onClick={() => setDetalle(null)}>
-                    <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal-chico">
                         <div className="modal-head">
                             <h2>Detalle de Usuario</h2>
                             <button className="modal-cerrar" onClick={() => setDetalle(null)}>
@@ -431,8 +431,8 @@ function Usuarios() {
 
             {/* Modal Crear Usuario */}
             {modalCrear && (
-                <div className="modal-fondo" onClick={cerrarModalCrear}>
-                    <div className="modal-mediano" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal-mediano">
                         <div className="modal-head">
                             <h2>{credencialesCreadas ? "Credenciales generadas" : "+ Nuevo Usuario (Personal)"}</h2>
                             <button className="modal-cerrar" onClick={cerrarModalCrear}>

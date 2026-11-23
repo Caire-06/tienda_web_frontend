@@ -384,8 +384,8 @@ function AdminDespachos() {
 
             {/* Modal Auditoría de Lote */}
             {loteDetalle && (
-                <div className="modal-fondo" onClick={() => setLoteDetalle(null)}>
-                    <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal-chico">
                         <div className="modal-head">
                             <h2 className="inline-flex items-center gap-2">
                                 <IconoEtiqueta size={18} /> Auditoría: {loteDetalle.codigoLote}

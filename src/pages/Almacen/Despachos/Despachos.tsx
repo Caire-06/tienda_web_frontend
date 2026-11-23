@@ -784,14 +784,8 @@ function Despachos() {
 
             {/* Modal para Consolidar y Enviar Lote */}
             {modalLoteAbierto && (
-                <div
-                    className="modal-fondo"
-                    onClick={() => setModalLoteAbierto(false)}
-                >
-                    <div
-                        className="modal-mediano max-w-lg"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                <div className="modal-fondo">
+                    <div className="modal-mediano max-w-lg">
                         <div className="modal-head">
                             <h2 className="inline-flex items-center gap-2">
                                 <IconoPaquete size={18} /> Generar Lote de Despacho
@@ -934,14 +928,8 @@ function Despachos() {
 
             {/* Modal Lista de Empaque y Registro de Fechas */}
             {pedidoPicking && (
-                <div
-                    className="modal-fondo"
-                    onClick={() => setPedidoPicking(null)}
-                >
-                    <div
-                        className="modal-chico"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                <div className="modal-fondo">
+                    <div className="modal-chico">
                         <div className="modal-head">
                             <h2 className="inline-flex items-center gap-2">
                                 <IconoLista size={18} /> Lista de Empaque: {pedidoPicking.numero}
@@ -1059,14 +1047,8 @@ function Despachos() {
 
             {/* Modal Detalle de Manifiesto */}
             {loteDetalle && (
-                <div
-                    className="modal-fondo"
-                    onClick={() => setLoteDetalle(null)}
-                >
-                    <div
-                        className="modal-chico"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                <div className="modal-fondo">
+                    <div className="modal-chico">
                         <div className="modal-head">
                             <h2 className="inline-flex items-center gap-2">
                                 <IconoEtiqueta size={18} /> Manifiesto {loteDetalle.codigoLote}

@@ -495,11 +495,8 @@ function MisCompras() {
 
                 {/* Modal con el detalle de la compra */}
                 {detalle && (
-                    <div
-                        className="modal-fondo"
-                        onClick={() => setDetalleNumero(null)}
-                    >
-                        <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-fondo">
+                        <div className="modal">
                             <div className="modal-head">
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">

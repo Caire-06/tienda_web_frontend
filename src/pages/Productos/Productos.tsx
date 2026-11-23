@@ -7,10 +7,30 @@ import { useAuth } from "../../context/AuthContext";
 import { listarProductos } from "../../services/productosApi";
 import type { ProductoInv } from "../../context/InventarioContext";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../components/Paginacion/Paginacion";
+import { limpiarDecimal, parsearNumeroSeguro } from "../../utils/validaciones";
 
 type Orden = "relevancia" | "precio-asc" | "precio-desc" | "popular" | "stock";
+type Novedades = "todos" | "recientes" | "hoy";
 
 const FILTRO_TODOS = "Todos";
+
+function esRegistradoHoy(fecha?: string): boolean {
+    if (!fecha) return false;
+    const d = new Date(fecha);
+    if (Number.isNaN(d.getTime())) return false;
+    const hoy = new Date();
+    return (
+        d.getFullYear() === hoy.getFullYear() &&
+        d.getMonth() === hoy.getMonth() &&
+        d.getDate() === hoy.getDate()
+    );
+}
+
+function tiempoDe(fecha?: string): number {
+    if (!fecha) return 0;
+    const t = new Date(fecha).getTime();
+    return Number.isNaN(t) ? 0 : t;
+}
 
 function Productos() {
     const { token } = useAuth();
@@ -20,6 +40,10 @@ function Productos() {
     const [categoria, setCategoria] = useState(FILTRO_TODOS);
     const [orden, setOrden] = useState<Orden>("relevancia");
     const [busqueda, setBusqueda] = useState("");
+    const [novedades, setNovedades] = useState<Novedades>("todos");
+    const [marca, setMarca] = useState(FILTRO_TODOS);
+    const [precioMinTexto, setPrecioMinTexto] = useState("");
+    const [precioMaxTexto, setPrecioMaxTexto] = useState("");
     const [pagina, setPagina] = useState(1);
 
     useEffect(() => {
@@ -36,11 +60,49 @@ function Productos() {
 
     const nombresCategorias = [FILTRO_TODOS, ...CATEGORIAS.map((c) => c.nombre)];
 
+    const nombresMarcas = useMemo(() => {
+        const unicas = new Set(
+            productos.map((p) => (p.marca || "Genérico").trim()).filter(Boolean)
+        );
+        return [FILTRO_TODOS, ...Array.from(unicas).sort((a, b) => a.localeCompare(b))];
+    }, [productos]);
+
+    const precioMin = parsearNumeroSeguro(precioMinTexto);
+    const precioMax = parsearNumeroSeguro(precioMaxTexto);
+    const hayFiltros =
+        busqueda.trim() !== "" ||
+        categoria !== FILTRO_TODOS ||
+        marca !== FILTRO_TODOS ||
+        novedades !== "todos" ||
+        precioMinTexto !== "" ||
+        precioMaxTexto !== "" ||
+        orden !== "relevancia";
+
     const filtrados = useMemo(() => {
         let lista = productos.filter((p) => p.activo && p.stock > 0);
 
         if (categoria !== FILTRO_TODOS) {
             lista = lista.filter((p) => p.categoria === categoria);
+        }
+
+        if (marca !== FILTRO_TODOS) {
+            lista = lista.filter((p) => (p.marca || "Genérico").trim() === marca);
+        }
+
+        if (novedades === "hoy") {
+            lista = lista.filter((p) => esRegistradoHoy(p.fechaCreacion));
+        } else if (novedades === "recientes") {
+            // Los 5 productos registrados más recientemente (auditoría fecha_creacion).
+            lista = [...lista]
+                .sort((a, b) => tiempoDe(b.fechaCreacion) - tiempoDe(a.fechaCreacion))
+                .slice(0, 5);
+        }
+
+        if (precioMinTexto.trim() !== "") {
+            lista = lista.filter((p) => p.precio >= precioMin);
+        }
+        if (precioMaxTexto.trim() !== "") {
+            lista = lista.filter((p) => p.precio <= precioMax);
         }
 
         const texto = busqueda.trim().toLowerCase();
@@ -49,6 +111,7 @@ function Productos() {
                 (p) =>
                     p.nombre.toLowerCase().includes(texto) ||
                     p.categoria.toLowerCase().includes(texto) ||
+                    (p.marca || "").toLowerCase().includes(texto) ||
                     p.descripcion.toLowerCase().includes(texto)
             );
         }
@@ -65,19 +128,23 @@ function Productos() {
             default:
                 return lista;
         }
-    }, [productos, categoria, orden, busqueda]);
+    }, [productos, categoria, orden, busqueda, novedades, marca, precioMinTexto, precioMaxTexto, precioMin, precioMax]);
 
     const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
     const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     useEffect(() => {
         setPagina(1);
-    }, [categoria, busqueda, orden]);
+    }, [categoria, busqueda, orden, novedades, marca, precioMinTexto, precioMaxTexto]);
 
     const limpiarFiltros = () => {
         setBusqueda("");
         setCategoria(FILTRO_TODOS);
         setOrden("relevancia");
+        setNovedades("todos");
+        setMarca(FILTRO_TODOS);
+        setPrecioMinTexto("");
+        setPrecioMaxTexto("");
     };
 
     return (
@@ -93,9 +160,9 @@ function Productos() {
                     </p>
                 </div>
 
-                {/* Toolbar */}
-                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                    <div className="relative w-full sm:max-w-md">
+                {/* Toolbar: búsqueda + filtros */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 flex flex-wrap gap-3 items-end shadow-xs">
+                    <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
                         <svg
                             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"
                             viewBox="0 0 24 24"
@@ -113,21 +180,85 @@ function Productos() {
                             placeholder="Buscar laptops, monitores, audio..."
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 text-xs rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-xs"
+                            className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                     </div>
 
-                    <select
-                        value={orden}
-                        onChange={(e) => setOrden(e.target.value as Orden)}
-                        className="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
-                    >
-                        <option value="relevancia">Todos</option>
-                        <option value="precio-asc">Precio: Menor a mayor</option>
-                        <option value="precio-desc">Precio: Mayor a menor</option>
-                        <option value="popular">Más vendidos</option>
-                        <option value="stock">Mayor stock disponible</option>
-                    </select>
+                    <label className="flex flex-col gap-1 w-full sm:w-auto">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Novedades</span>
+                        <select
+                            value={novedades}
+                            onChange={(e) => setNovedades(e.target.value as Novedades)}
+                            className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
+                        >
+                            <option value="todos">Todos los productos</option>
+                            <option value="recientes">Últimos 5 añadidos</option>
+                            <option value="hoy">Registrados hoy</option>
+                        </select>
+                    </label>
+
+                    <label className="flex flex-col gap-1 w-full sm:w-auto">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Marca</span>
+                        <select
+                            value={marca}
+                            onChange={(e) => setMarca(e.target.value)}
+                            className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
+                        >
+                            {nombresMarcas.map((nombre) => (
+                                <option key={nombre} value={nombre}>{nombre}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <div className="w-full sm:w-auto">
+                        <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+                            Rango de precios (S/)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Mínimo"
+                                value={precioMinTexto}
+                                onChange={(e) => setPrecioMinTexto(limpiarDecimal(e.target.value))}
+                                className="w-20 sm:w-24 px-2.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <span className="text-slate-400">–</span>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Máximo"
+                                value={precioMaxTexto}
+                                onChange={(e) => setPrecioMaxTexto(limpiarDecimal(e.target.value))}
+                                className="w-20 sm:w-24 px-2.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <label className="flex flex-col gap-1 w-full sm:w-auto">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Ordenar</span>
+                        <select
+                            value={orden}
+                            onChange={(e) => setOrden(e.target.value as Orden)}
+                            className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
+                        >
+                            <option value="relevancia">Relevancia</option>
+                            <option value="precio-asc">Precio: Menor a mayor</option>
+                            <option value="precio-desc">Precio: Mayor a menor</option>
+                            <option value="popular">Más vendidos</option>
+                            <option value="stock">Mayor stock disponible</option>
+                        </select>
+                    </label>
+
+                    {hayFiltros && (
+                        <button
+                            type="button"
+                            onClick={limpiarFiltros}
+                            className="px-3 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-blue-500 cursor-pointer"
+                        >
+                            Limpiar filtros
+                        </button>
+                    )}
                 </div>
 
                 {/* Categorías Pills */}

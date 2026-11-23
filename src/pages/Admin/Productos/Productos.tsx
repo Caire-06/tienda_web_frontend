@@ -6,7 +6,7 @@ import {
     actualizarProducto,
     darDeBajaLogicaProducto,
 } from "../../../services/productosApi";
-import type { ProductoInv } from "../../../context/InventarioContext";
+import type { EspecificacionInv, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
@@ -53,7 +53,10 @@ interface FormProductoState {
     stock: number;
     imagen: string;
     descripcion: string;
+    especificaciones: EspecificacionInv[];
 }
+
+const filaEspecificacionVacia = (): EspecificacionInv => ({ caracteristica: "", valor: "" });
 
 function Productos() {
     const { token } = useAuth();
@@ -84,6 +87,7 @@ function Productos() {
         stock: 0,
         imagen: "",
         descripcion: "",
+        especificaciones: [],
     });
 
     const cargar = async () => {
@@ -115,6 +119,7 @@ function Productos() {
             stock: 0,
             imagen: "",
             descripcion: "",
+            especificaciones: [],
         });
         setPrecioTexto("");
         setStockTexto("0");
@@ -128,12 +133,13 @@ function Productos() {
             id: p.id,
             nombre: p.nombre,
             categoria: p.categoria || CATALOGO_CATEGORIAS[0].nombre,
-            marca: CATALOGO_MARCAS[0].nombre,
+            marca: p.marca || CATALOGO_MARCAS[0].nombre,
             unidadMedida: CATALOGO_UNIDADES[0].codigo,
             precio: p.precio,
             stock: p.stock,
             imagen: p.imagen || "",
             descripcion: p.descripcion || "",
+            especificaciones: (p.especificaciones ?? []).map((e) => ({ ...e })),
         });
         setPrecioTexto(String(p.precio));
         setStockTexto(String(p.stock));
@@ -177,6 +183,8 @@ function Productos() {
                     stock: Math.trunc(stockNum),
                     imagen: imagenLimpia,
                     descripcion: form.descripcion.trim(),
+                    marca: form.marca,
+                    especificaciones: form.especificaciones,
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
                 alert("Producto actualizado exitosamente.");
@@ -188,6 +196,8 @@ function Productos() {
                     stock: Math.trunc(stockNum),
                     imagen: imagenLimpia,
                     descripcion: form.descripcion.trim(),
+                    marca: form.marca,
+                    especificaciones: form.especificaciones,
                 });
                 setProductos((prev) => [creado, ...prev]);
                 alert("Producto registrado exitosamente.");
@@ -231,6 +241,26 @@ function Productos() {
 
     const selectClass =
         "px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer";
+
+    const agregarEspecificacion = () =>
+        setForm((f) => ({
+            ...f,
+            especificaciones: [...f.especificaciones, filaEspecificacionVacia()],
+        }));
+
+    const actualizarEspecificacion = (indice: number, campo: keyof EspecificacionInv, valor: string) =>
+        setForm((f) => ({
+            ...f,
+            especificaciones: f.especificaciones.map((e, i) =>
+                i === indice ? { ...e, [campo]: valor } : e
+            ),
+        }));
+
+    const eliminarEspecificacion = (indice: number) =>
+        setForm((f) => ({
+            ...f,
+            especificaciones: f.especificaciones.filter((_, i) => i !== indice),
+        }));
 
     return (
         <div className="space-y-6">
@@ -501,15 +531,70 @@ function Productos() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Descripción Técnica
+                                    Descripción
                                 </label>
                                 <textarea
                                     rows={2}
                                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                                    placeholder="Especificaciones del producto..."
+                                    placeholder="Descripción general del producto..."
                                     value={form.descripcion}
                                     onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                                 />
+                            </div>
+
+                            {/* Ficha técnica dinámica (tabla 1:N en 3FN) */}
+                            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                            Especificaciones técnicas
+                                        </h3>
+                                        <p className="text-[11px] text-slate-500">
+                                            La magnitud se escribe dentro del valor (ej. Memoria RAM | 8 GB).
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={agregarEspecificacion}
+                                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors"
+                                    >
+                                        + Agregar característica
+                                    </button>
+                                </div>
+
+                                {form.especificaciones.map((e, i) => (
+                                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-start">
+                                        <input
+                                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            placeholder="Característica (ej. Memoria RAM)"
+                                            value={e.caracteristica}
+                                            maxLength={100}
+                                            onChange={(ev) => actualizarEspecificacion(i, "caracteristica", ev.target.value)}
+                                        />
+                                        <input
+                                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            placeholder="Valor (ej. 8 GB)"
+                                            value={e.valor}
+                                            maxLength={150}
+                                            onChange={(ev) => actualizarEspecificacion(i, "valor", ev.target.value)}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => eliminarEspecificacion(i)}
+                                            className="h-[34px] w-[34px] flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 cursor-pointer transition-colors"
+                                            title="Eliminar característica"
+                                            aria-label="Eliminar característica"
+                                        >
+                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {form.especificaciones.length === 0 && (
+                                    <p className="text-[11px] text-slate-400 text-center py-2">
+                                        Aún no hay características. Agrega la primera con el botón de arriba.
+                                    </p>
+                                )}
                             </div>
 
                             {errorModal && (

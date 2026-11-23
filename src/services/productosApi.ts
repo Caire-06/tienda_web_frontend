@@ -1,4 +1,4 @@
-import type { ProductoInv } from "../context/InventarioContext";
+import type { EspecificacionInv, ProductoInv } from "../context/InventarioContext";
 import { apiUrl } from "../config/api";
 
 // Contrato que devuelve el backend (ProductoDTO).
@@ -12,6 +12,9 @@ interface ProductoBackend {
     imagen: string;
     descripcion: string;
     activo: boolean;
+    marca?: string;
+    fechaCreacion?: string;
+    especificaciones?: EspecificacionInv[];
 }
 
 // Convierte el producto del backend al formato utilizado por el frontend.
@@ -26,7 +29,23 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
         imagen: p.imagen || "",
         descripcion: p.descripcion,
         activo: p.activo,
+        marca: p.marca || "Genérico",
+        fechaCreacion: p.fechaCreacion,
+        especificaciones: Array.isArray(p.especificaciones) ? p.especificaciones : [],
     };
+}
+
+/** Normaliza las filas de la ficha técnica antes de enviarlas al backend. */
+function normalizarEspecificaciones(
+    especificaciones?: EspecificacionInv[]
+): EspecificacionInv[] {
+    if (!Array.isArray(especificaciones)) return [];
+    return especificaciones
+        .filter((e) => e && e.caracteristica?.trim() && e.valor?.trim())
+        .map((e) => ({
+            caracteristica: e.caracteristica.trim(),
+            valor: e.valor.trim(),
+        }));
 }
 
 // Cabeceras para endpoints públicos: envía el token solo si existe una sesión.
@@ -81,6 +100,8 @@ export async function crearProducto(
         stock: number;
         imagen?: string;
         descripcion: string;
+        marca?: string;
+        especificaciones?: EspecificacionInv[];
     }
 ): Promise<ProductoInv> {
     const resp = await fetch(apiUrl("/api/productos"), {
@@ -97,6 +118,8 @@ export async function crearProducto(
             imagen: datos.imagen,
             descripcion: datos.descripcion,
             activo: true,
+            marca: datos.marca || "Genérico",
+            especificaciones: normalizarEspecificaciones(datos.especificaciones),
         }),
     });
 
@@ -195,15 +218,21 @@ export async function actualizarProducto(
         imagen?: string;
         descripcion?: string;
         activo?: boolean;
+        marca?: string;
+        especificaciones?: EspecificacionInv[];
     }
 ): Promise<ProductoInv> {
+    const body: Record<string, unknown> = { ...datos };
+    if (Array.isArray(datos.especificaciones)) {
+        body.especificaciones = normalizarEspecificaciones(datos.especificaciones);
+    }
     const resp = await fetch(apiUrl(`/api/productos/${id}`), {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(datos),
+        body: JSON.stringify(body),
     });
 
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;

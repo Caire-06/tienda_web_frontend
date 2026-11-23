@@ -4,6 +4,8 @@ import { listarProductos } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 import { listarEntradas, registrarEntradaBackend } from "../../../services/entradasApi";
 import type { Entrada } from "../../../services/entradasApi";
+import { listarProveedores } from "../../../services/proveedoresApi";
+import type { Proveedor } from "../../../services/proveedoresApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     limpiarDecimal,
@@ -18,6 +20,8 @@ function Entradas() {
     const [cargando, setCargando] = useState(true);
 
     const [productoId, setProductoId] = useState(0);
+    const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+    const [proveedorId, setProveedorId] = useState(0);
     const [cantidadTexto, setCantidadTexto] = useState("20");
     const [costoTexto, setCostoTexto] = useState("");
     const [motivo, setMotivo] = useState("Ingreso de mercadería");
@@ -28,9 +32,10 @@ function Entradas() {
     const refrescar = async () => {
         if (!token) return;
         try {
-            const [listaProductos, listaEntradas] = await Promise.all([listarProductos(token), listarEntradas(token)]);
+            const [listaProductos, listaEntradas, listaProveedores] = await Promise.all([listarProductos(token), listarEntradas(token), listarProveedores(token)]);
             setProductos(listaProductos);
             setEntradas(listaEntradas);
+            setProveedores(listaProveedores);
         } catch {
             // se mantiene el estado actual si falla
         }
@@ -43,11 +48,12 @@ function Entradas() {
             return;
         }
         setCargando(true);
-        Promise.all([listarProductos(token), listarEntradas(token)])
-            .then(([listaProductos, listaEntradas]) => {
+        Promise.all([listarProductos(token), listarEntradas(token), listarProveedores(token)])
+            .then(([listaProductos, listaEntradas, listaProveedores]) => {
                 if (!activo) return;
                 setProductos(listaProductos);
                 setEntradas(listaEntradas);
+                setProveedores(listaProveedores);
                 const primerActivo = listaProductos.find((p) => p.activo);
                 if (primerActivo) {
                     setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));
@@ -84,6 +90,10 @@ function Entradas() {
             setErrorForm("Selecciona un producto válido para registrar la entrada.");
             return;
         }
+        if (proveedorId <= 0) {
+            setErrorForm("Selecciona un proveedor válido para registrar la entrada.");
+            return;
+        }
         if (cantidad <= 0) {
             setErrorForm("La cantidad a ingresar debe ser mayor a 0.");
             return;
@@ -93,8 +103,8 @@ function Entradas() {
             return;
         }
         try {
-            await registrarEntradaBackend(token, [{ idProducto: prod.id, cantidad, costoUnitario: costo }]);
-            setOk(`✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)})`);
+            await registrarEntradaBackend(token, [{ idProducto: prod.id, idProveedor: proveedorId, cantidad, costoUnitario: costo }]);
+            setOk(`✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)}) del proveedor ${proveedores.find((p) => p.id === proveedorId)?.nombre ?? proveedorId}`);
             setCantidadTexto("20");
             setCostoTexto("");
             setMotivo("Ingreso de mercadería");
@@ -135,6 +145,29 @@ function Entradas() {
                             </option>
                         ))}
                     </select>
+                </div>
+
+                <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        Proveedor
+                    </label>
+                    <select
+                        className={inputClass + " cursor-pointer"}
+                        value={proveedorId}
+                        onChange={(e) => setProveedorId(Number(e.target.value) || 0)}
+                        disabled={cargando}
+                        required
+                    >
+                        <option value={0}>Selecciona el proveedor</option>
+                        {proveedores.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {p.nombre}
+                            </option>
+                        ))}
+                    </select>
+                    {!cargando && proveedores.length === 0 && (
+                        <p className="text-[11px] text-amber-600">Sin proveedores registrados. Contacta al administrador para crear uno.</p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -222,6 +255,7 @@ function Entradas() {
                             setCantidadTexto("20");
                             setCostoTexto("");
                             setMotivo("Ingreso de mercadería");
+                            setProveedorId(0);
                             setErrorForm("");
                             setOk("");
                         }}
@@ -230,7 +264,7 @@ function Entradas() {
                     </button>
                     <button
                         type="submit"
-                        disabled={cargando || !prod}
+                        disabled={cargando || !prod || proveedorId === 0}
                         className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
                     >
                         Registrar entrada
@@ -257,6 +291,7 @@ function Entradas() {
                                     {e.items.map((it, idx) => (
                                         <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
                                             <span>Producto ID {it.idProducto}</span>
+                                            <span>Proveedor: {proveedores.find((p) => p.id === it.idProveedor)?.nombre ?? `Proveedor #${it.idProveedor}`}</span>
                                             <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">+{it.cantidad} u.</span>
                                         </div>
                                     ))}

@@ -2,6 +2,7 @@ import { apiUrl } from "../config/api";
 
 export interface ItemEntrada {
     idProducto: number;
+    idProveedor: number;
     cantidad: number;
     costoUnitario: number;
 }

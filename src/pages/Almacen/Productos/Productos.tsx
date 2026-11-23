@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarProductos, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
 import { CATEGORIAS } from "../../../data/productos";
-import type { DatosProducto, EspecificacionInv, ProductoInv } from "../../../context/InventarioContext";
+import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
+import { EditorEspecificaciones } from "../../../components/EditorEspecificaciones/EditorEspecificaciones";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -30,8 +31,6 @@ const VACIO: DatosProducto = {
     marca: "Genérico",
     especificaciones: [],
 };
-
-const filaEspecificacionVacia = (): EspecificacionInv => ({ caracteristica: "", valor: "" });
 
 function Productos() {
     const { token } = useAuth();
@@ -205,26 +204,6 @@ function Productos() {
         "px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer";
     const inputClass =
         "w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500";
-
-    const agregarEspecificacion = () =>
-        setForm((f) => ({
-            ...f,
-            especificaciones: [...(f.especificaciones ?? []), filaEspecificacionVacia()],
-        }));
-
-    const actualizarEspecificacion = (indice: number, campo: keyof EspecificacionInv, valor: string) =>
-        setForm((f) => ({
-            ...f,
-            especificaciones: (f.especificaciones ?? []).map((e, i) =>
-                i === indice ? { ...e, [campo]: valor } : e
-            ),
-        }));
-
-    const eliminarEspecificacion = (indice: number) =>
-        setForm((f) => ({
-            ...f,
-            especificaciones: (f.especificaciones ?? []).filter((_, i) => i !== indice),
-        }));
 
     return (
         <div className="space-y-6">
@@ -416,60 +395,12 @@ function Productos() {
                                 <textarea className={inputClass} rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
                             </div>
 
-                            {/* Ficha técnica dinámica (1:N, sin columnas de especificación en productos) */}
-                            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                                            Especificaciones técnicas
-                                        </h3>
-                                        <p className="text-[11px] text-slate-500">
-                                            Escribe la magnitud dentro del valor (ej. Memoria RAM | 8 GB).
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={agregarEspecificacion}
-                                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer transition-colors"
-                                    >
-                                        + Agregar característica
-                                    </button>
-                                </div>
-
-                                {(form.especificaciones ?? []).map((e, i) => (
-                                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-start">
-                                        <input
-                                            className={inputClass}
-                                            placeholder="Característica (ej. Memoria RAM)"
-                                            value={e.caracteristica}
-                                            onChange={(ev) => actualizarEspecificacion(i, "caracteristica", ev.target.value)}
-                                            maxLength={100}
-                                        />
-                                        <input
-                                            className={inputClass}
-                                            placeholder="Valor (ej. 8 GB)"
-                                            value={e.valor}
-                                            onChange={(ev) => actualizarEspecificacion(i, "valor", ev.target.value)}
-                                            maxLength={150}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => eliminarEspecificacion(i)}
-                                            className="h-[34px] w-[34px] flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 cursor-pointer transition-colors"
-                                            title="Eliminar característica"
-                                            aria-label="Eliminar característica"
-                                        >
-                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                        </button>
-                                    </div>
-                                ))}
-
-                                {(form.especificaciones ?? []).length === 0 && (
-                                    <p className="text-[11px] text-slate-400 text-center py-2">
-                                        Aún no hay características. Agrega la primera con el botón de arriba.
-                                    </p>
-                                )}
-                            </div>
+                            {/* Ficha técnica estandarizada (Opción A: 3FN con plantillas canónicas) */}
+                            <EditorEspecificaciones
+                                categoria={form.categoria}
+                                especificaciones={form.especificaciones ?? []}
+                                onChange={(nuevas) => setForm({ ...form, especificaciones: nuevas })}
+                            />
 
                             {errorModal && (
                                 <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">

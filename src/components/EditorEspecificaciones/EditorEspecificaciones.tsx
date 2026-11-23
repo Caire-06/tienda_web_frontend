@@ -17,8 +17,14 @@ interface Props {
 
 export function EditorEspecificaciones({ categoria, especificaciones, onChange }: Props) {
     const camposPlantilla = useMemo(() => obtenerCamposPlantilla(categoria), [categoria]);
-
     const nombresPlantilla = useMemo(() => camposPlantilla.map((c) => c.caracteristica), [camposPlantilla]);
+
+    // Calcula cuáles características de la plantilla aún no están asignadas
+    const disponibles = useMemo(() => {
+        return camposPlantilla.filter(
+            (cp) => !especificaciones.some((e) => e.caracteristica.trim().toLowerCase() === cp.caracteristica.trim().toLowerCase())
+        );
+    }, [camposPlantilla, especificaciones]);
 
     const cargarPlantilla = () => {
         const porDefecto = generarEspecificacionesPorDefecto(categoria);
@@ -26,29 +32,34 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
     };
 
     const agregarFila = () => {
-        // Busca la primera característica de la plantilla que aún no esté agregada
-        const disponibles = camposPlantilla.filter(
-            (cp) => !especificaciones.some((e) => e.caracteristica === cp.caracteristica)
-        );
-        const inicial = disponibles[0] ?? camposPlantilla[0];
-        const nuevaCaract = inicial?.caracteristica ?? "Característica personalizada";
-        const nuevoValor = inicial?.sugeridoPorDefecto ?? (inicial?.opciones ? inicial.opciones[0] : "");
+        if (disponibles.length > 0) {
+            const inicial = disponibles[0];
+            const nuevoValor = inicial.sugeridoPorDefecto ?? (inicial.opciones ? inicial.opciones[0] : "");
+            onChange([...especificaciones, { caracteristica: inicial.caracteristica, valor: nuevoValor }]);
+            return;
+        }
 
-        onChange([...especificaciones, { caracteristica: nuevaCaract, valor: nuevoValor }]);
+        // Si todas las de la plantilla ya están presentes, añadir una personalizada única
+        let base = "Característica adicional";
+        let sufijo = 1;
+        while (especificaciones.some((e) => e.caracteristica === base)) {
+            sufijo++;
+            base = `Característica adicional ${sufijo}`;
+        }
+        onChange([...especificaciones, { caracteristica: base, valor: "" }]);
     };
 
-    const actualizarFila = (index: number, campo: keyof ItemEspecificacion, valor: string) => {
+    const actualizarFila = (index: number, campo: keyof ItemEspecificacion, nuevoValor: string) => {
         const clon = especificaciones.map((item, i) => {
             if (i !== index) return item;
 
             if (campo === "caracteristica") {
-                // Si cambia la característica a una de la plantilla, sugerir su valor por defecto
-                const def = camposPlantilla.find((c) => c.caracteristica === valor);
-                const nuevoValor = def?.sugeridoPorDefecto ?? (def?.opciones ? def.opciones[0] : "");
-                return { caracteristica: valor, valor: nuevoValor || item.valor };
+                const def = camposPlantilla.find((c) => c.caracteristica === nuevoValor);
+                const valorSugerido = def?.sugeridoPorDefecto ?? (def?.opciones ? def.opciones[0] : "");
+                return { caracteristica: nuevoValor, valor: valorSugerido || item.valor };
             }
 
-            return { ...item, [campo]: valor };
+            return { ...item, [campo]: nuevoValor };
         });
 
         onChange(clon);
@@ -62,11 +73,11 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
         <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        <span>⚙️</span> Ficha Técnica y Especificaciones (3FN)
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Ficha Técnica y Especificaciones (3FN)
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                        Valores canónicos estandarizados para búsqueda y filtros en tienda.
+                        Atributos canónicos normalizados para filtrado y búsqueda en el catálogo.
                     </p>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -74,16 +85,16 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
                         type="button"
                         onClick={cargarPlantilla}
                         className="px-2.5 py-1 rounded-xl text-[11px] font-semibold border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 cursor-pointer transition-colors"
-                        title="Auto-completar características sugeridas para esta categoría"
+                        title={`Cargar atributos predeterminados para ${categoria}`}
                     >
-                        ⚡ Cargar plantilla ({categoria})
+                        Cargar plantilla ({categoria})
                     </button>
                     <button
                         type="button"
                         onClick={agregarFila}
                         className="px-2.5 py-1 rounded-xl text-[11px] font-semibold border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer transition-colors"
                     >
-                        + Agregar
+                        + Agregar característica
                     </button>
                 </div>
             </div>
@@ -108,9 +119,9 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
                         return (
                             <div
                                 key={index}
-                                className="grid grid-cols-1 sm:grid-cols-[1.2fr_1.5fr_auto] gap-2 items-center bg-slate-50/70 dark:bg-slate-800/40 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60"
+                                className="grid grid-cols-1 sm:grid-cols-[1.3fr_1.5fr_auto] gap-2 items-center bg-slate-50/70 dark:bg-slate-800/40 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60"
                             >
-                                {/* Selector o input de la característica */}
+                                {/* Selector o input de la característica (sin permitir duplicados) */}
                                 <div>
                                     <select
                                         className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer focus:ring-1 focus:ring-blue-500"
@@ -124,13 +135,19 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
                                         }}
                                     >
                                         <optgroup label={`Plantilla: ${categoria}`}>
-                                            {nombresPlantilla.map((nombre) => (
-                                                <option key={nombre} value={nombre}>
-                                                    {nombre}
-                                                </option>
-                                            ))}
+                                            {nombresPlantilla.map((nombre) => {
+                                                // Deshabilita la opción si ya está asignada en otra fila para evitar duplicados
+                                                const yaAsignada = especificaciones.some(
+                                                    (e, i) => i !== index && e.caracteristica === nombre
+                                                );
+                                                return (
+                                                    <option key={nombre} value={nombre} disabled={yaAsignada}>
+                                                        {nombre} {yaAsignada ? "(ya asignada)" : ""}
+                                                    </option>
+                                                );
+                                            })}
                                         </optgroup>
-                                        <option value="__OTRA__">✏️ Otra (Manual / Personalizada)</option>
+                                        <option value="__OTRA__">Otra (Personalizada)</option>
                                     </select>
 
                                     {esPersonalizada && (
@@ -189,7 +206,7 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
                                     )}
                                 </div>
 
-                                {/* Botón eliminar fila */}
+                                {/* Botón eliminar fila limpio (SVG sin emoji) */}
                                 <button
                                     type="button"
                                     onClick={() => eliminarFila(index)}
@@ -197,7 +214,10 @@ export function EditorEspecificaciones({ categoria, especificaciones, onChange }
                                     title="Eliminar fila"
                                     aria-label="Eliminar fila"
                                 >
-                                    ✕
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
                                 </button>
                             </div>
                         );

@@ -113,15 +113,15 @@ export const PLANTILLAS_ESPECIFICACIONES: Record<string, CampoPlantilla[]> = {
         {
             caracteristica: "Resistencia al Agua",
             tipo: "select",
-            opciones: ["IPX4 (Salpicaduras/Sudor)", "IP54 (Polvo y Salpicaduras)", "IPX7 (Sumergible)", "No Certificada"],
-            sugeridoPorDefecto: "IPX4 (Salpicaduras/Sudor)",
+            opciones: ["IPX4 (Salpicaduras y Sudor)", "IP54 (Polvo y Salpicaduras)", "IPX7 (Sumergible)", "No Certificada"],
+            sugeridoPorDefecto: "IPX4 (Salpicaduras y Sudor)",
         },
     ],
-    Computadoras: [
+    Laptops: [
         {
-            caracteristica: "Tipo de Computadora",
+            caracteristica: "Tipo de Laptop",
             tipo: "select",
-            opciones: ["Laptop Gamer", "Laptop Ultrabook", "PC de Escritorio / Torre", "All-in-One"],
+            opciones: ["Laptop Ultrabook", "Laptop Gamer", "Laptop para Trabajo / Oficina", "Laptop 2 en 1 Convertible"],
             sugeridoPorDefecto: "Laptop Ultrabook",
         },
         {
@@ -133,7 +133,7 @@ export const PLANTILLAS_ESPECIFICACIONES: Record<string, CampoPlantilla[]> = {
         {
             caracteristica: "Almacenamiento SSD",
             tipo: "select",
-            opciones: ["512 GB SSD NVMe", "1 TB SSD NVMe M.2", "2 TB SSD NVMe", "256 GB SSD + 1 TB HDD"],
+            opciones: ["512 GB SSD NVMe", "1 TB SSD NVMe M.2", "2 TB SSD NVMe", "256 GB SSD"],
             sugeridoPorDefecto: "512 GB SSD NVMe",
         },
         {
@@ -172,6 +172,19 @@ export const PLANTILLAS_ESPECIFICACIONES: Record<string, CampoPlantilla[]> = {
                 "16.0\" QHD IPS 165Hz",
             ],
             sugeridoPorDefecto: "15.6\" FHD IPS 144Hz",
+        },
+        {
+            caracteristica: "Sistema Operativo",
+            tipo: "select",
+            opciones: ["Windows 11 Home", "Windows 11 Pro", "macOS", "Sin Sistema Operativo (FreeDOS)"],
+            sugeridoPorDefecto: "Windows 11 Home",
+        },
+        {
+            caracteristica: "Autonomía de Batería",
+            tipo: "number",
+            sufijo: "horas",
+            placeholder: "ej. 10",
+            sugeridoPorDefecto: "10 horas",
         },
     ],
     Periféricos: [
@@ -247,10 +260,16 @@ export const PLANTILLAS_ESPECIFICACIONES: Record<string, CampoPlantilla[]> = {
     ],
 };
 
+// Aliases para compatibilidad con nombres históricos de categoría
+PLANTILLAS_ESPECIFICACIONES["Computadoras"] = PLANTILLAS_ESPECIFICACIONES["Laptops"];
+
 /**
  * Obtiene la plantilla para una categoría dada o una lista por defecto si no existe.
  */
 export function obtenerCamposPlantilla(categoria: string): CampoPlantilla[] {
+    if (categoria === "Computadoras" || categoria === "Laptops") {
+        return PLANTILLAS_ESPECIFICACIONES["Laptops"];
+    }
     return PLANTILLAS_ESPECIFICACIONES[categoria] ?? PLANTILLAS_ESPECIFICACIONES["Accesorios"];
 }
 

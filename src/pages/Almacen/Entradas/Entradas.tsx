@@ -4,6 +4,7 @@ import { listarProductos } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 import { listarEntradas, registrarEntradaBackend } from "../../../services/entradasApi";
 import type { Entrada } from "../../../services/entradasApi";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -22,6 +23,7 @@ function Entradas() {
     const [motivo, setMotivo] = useState("Ingreso de mercadería");
     const [ok, setOk] = useState("");
     const [errorForm, setErrorForm] = useState("");
+    const [pagina, setPagina] = useState(1);
 
     const refrescar = async () => {
         if (!token) return;
@@ -69,6 +71,9 @@ function Entradas() {
     const prod = productos.find((p) => p.id === productoId) ?? activos[0];
     const stockActual = prod?.stock ?? 0;
     const nuevoStock = stockActual + Math.max(0, cantidad);
+
+    const totalPaginas = Math.max(1, Math.ceil(entradas.length / REGISTROS_POR_PAGINA));
+    const visiblesEntradas = entradas.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -242,7 +247,7 @@ function Entradas() {
                     ) : entradas.length === 0 ? (
                         <p className="text-sm text-slate-500">No hay entradas registradas todavía.</p>
                     ) : (
-                        entradas.map((e) => (
+                        visiblesEntradas.map((e) => (
                             <div key={e.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <strong className="text-xs text-slate-800 dark:text-slate-200">Entrada #{e.id}</strong>
@@ -260,6 +265,9 @@ function Entradas() {
                         ))
                     )}
                 </div>
+
+                {/* Paginación */}
+                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={entradas.length} onCambiar={setPagina} />
             </div>
         </div>
     );

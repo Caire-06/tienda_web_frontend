@@ -6,6 +6,7 @@ import { CATEGORIAS } from "../../data/productos";
 import { useAuth } from "../../context/AuthContext";
 import { listarProductos } from "../../services/productosApi";
 import type { ProductoInv } from "../../context/InventarioContext";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../components/Paginacion/Paginacion";
 
 type Orden = "relevancia" | "precio-asc" | "precio-desc" | "popular" | "stock";
 
@@ -19,6 +20,7 @@ function Productos() {
     const [categoria, setCategoria] = useState(FILTRO_TODOS);
     const [orden, setOrden] = useState<Orden>("relevancia");
     const [busqueda, setBusqueda] = useState("");
+    const [pagina, setPagina] = useState(1);
 
     useEffect(() => {
         let activo = true;
@@ -64,6 +66,13 @@ function Productos() {
                 return lista;
         }
     }, [productos, categoria, orden, busqueda]);
+
+    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
+    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [categoria, busqueda, orden]);
 
     const limpiarFiltros = () => {
         setBusqueda("");
@@ -144,11 +153,18 @@ function Productos() {
                         Cargando productos...
                     </div>
                 ) : filtrados.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
-                        {filtrados.map((p) => (
-                            <ProductCard key={p.id} producto={p} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
+                            {visibles.map((p) => (
+                                <ProductCard key={p.id} producto={p} />
+                            ))}
+                        </div>
+
+                        {/* Paginación */}
+                        <div className="mt-8">
+                            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
+                        </div>
+                    </>
                 ) : (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center space-y-4 shadow-sm my-8">
                         <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">

@@ -8,6 +8,7 @@ import {
 } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -71,6 +72,8 @@ function Productos() {
     const [precioTexto, setPrecioTexto] = useState("");
     const [stockTexto, setStockTexto] = useState("0");
     const [errorModal, setErrorModal] = useState<string | null>(null);
+
+    const [pagina, setPagina] = useState(1);
 
     const [form, setForm] = useState<FormProductoState>({
         nombre: "",
@@ -219,6 +222,13 @@ function Productos() {
         return true;
     });
 
+    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
+    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [busqueda, filtroCategoria, filtroEstado]);
+
     const selectClass =
         "px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer";
 
@@ -306,7 +316,7 @@ function Productos() {
                                 </td>
                             </tr>
                         ) : (
-                            filtrados.map((p) => {
+                            visibles.map((p) => {
                                 const est = estadoDe(p.stock, p.activo);
                                 const badgeClass =
                                     est === "Disponible" ? "ok" : est === "Stock bajo" ? "pend" : "off";
@@ -372,6 +382,9 @@ function Productos() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
 
             {/* Modal CRUD: Crear o Editar Producto */}
             {modalAbierto && (

@@ -8,6 +8,7 @@ import {
     darDeBajaLogicaUsuario,
 } from "../../../services/usuariosApi";
 import type { UsuarioDTO, CrearUsuarioDatos, UsuarioCreadoAdmin } from "../../../services/usuariosApi";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     esCorreoValido,
     esTelefonoValido,
@@ -81,6 +82,7 @@ function Usuarios() {
     const [errorForm, setErrorForm] = useState("");
     const [credencialesCreadas, setCredencialesCreadas] = useState<UsuarioCreadoAdmin | null>(null);
     const [campoCopiado, setCampoCopiado] = useState<"usuario" | "password" | null>(null);
+    const [pagina, setPagina] = useState(1);
 
     const [nuevoForm, setNuevoForm] = useState<CrearUsuarioDatos>(FORM_INICIAL);
 
@@ -89,6 +91,9 @@ function Usuarios() {
         nuevoForm.apellidos,
         nuevoForm.dni
     );
+
+    const totalPaginas = Math.max(1, Math.ceil(lista.length / REGISTROS_POR_PAGINA));
+    const visibles = lista.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     const cargar = async () => {
         if (!token) return;
@@ -276,7 +281,7 @@ function Usuarios() {
                                 </td>
                             </tr>
                         ) : (
-                            lista.map((u) => {
+                            visibles.map((u) => {
                                 const activo = u.estado ? u.estado.toLowerCase() === "activo" : !u.bloqueado;
                                 return (
                                     <tr key={u.id}>
@@ -353,6 +358,9 @@ function Usuarios() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={lista.length} onCambiar={setPagina} />
 
             {/* Modal Detalle Usuario */}
             {detalle && (

@@ -4,6 +4,7 @@ import { listarProductos, crearProducto, actualizarProducto, subirImagen } from 
 import { CATEGORIAS } from "../../../data/productos";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -46,6 +47,7 @@ function Productos() {
     const [subiendo, setSubiendo] = useState(false);
     const [preview, setPreview] = useState("");
     const [errorModal, setErrorModal] = useState<string | null>(null);
+    const [pagina, setPagina] = useState(1);
 
     const refrescar = async () => {
         if (!token) return;
@@ -82,6 +84,13 @@ function Productos() {
         if (q && !p.nombre.toLowerCase().includes(q)) return false;
         return true;
     });
+
+    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
+    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [busqueda, categoria, estado]);
 
     const abrirNuevo = () => {
         setFormId(null);
@@ -236,7 +245,7 @@ function Productos() {
                         </tr>
                     </thead>
                     <tbody>
-                        {filtrados.map((p) => (
+                        {visibles.map((p) => (
                             <tr key={p.id} className={p.activo ? "" : "opacity-60 bg-slate-50/50 dark:bg-slate-900/50"}>
                                 <td>
                                     <div className="flex items-center gap-3">
@@ -283,6 +292,9 @@ function Productos() {
                     </div>
                 )}
             </div>
+
+            {/* Paginación */}
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
 
             {/* Modal nuevo / editar */}
             {formId !== undefined && (

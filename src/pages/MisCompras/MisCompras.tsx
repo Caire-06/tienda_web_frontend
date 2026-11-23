@@ -13,6 +13,7 @@ import {
 import type { Pedido } from "../../data/pedidos";
 import { listarMisCompras } from "../../services/pedidosApi";
 import { descargarComprobantePdf } from "../../services/comprobantePdf";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../components/Paginacion/Paginacion";
 import {
     IconoActualizar,
     IconoAlerta,
@@ -92,6 +93,7 @@ function MisCompras() {
     const [actualizando, setActualizando] = useState(false);
     const [errorCarga, setErrorCarga] = useState<string | null>(null);
     const [filtroEstado, setFiltroEstado] = useState("Todos");
+    const [pagina, setPagina] = useState(1);
 
     // Evita que se ejecuten varias consultas simultáneamente.
     const solicitudEnCurso = useRef(false);
@@ -201,6 +203,13 @@ function MisCompras() {
         if (filtroEstado === "Todos") return true;
         return (p.estado || "Pendiente") === filtroEstado;
     });
+
+    const totalPaginas = Math.max(1, Math.ceil(pedidos.length / REGISTROS_POR_PAGINA));
+    const visiblesPedidos = pedidos.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [filtroEstado]);
 
     const contar = (estado: string) =>
         pedidosBackend.filter((p) => (p.estado || "Pendiente") === estado).length;
@@ -363,7 +372,7 @@ function MisCompras() {
                     </div>
                 ) : (
                     <div className="grid gap-3">
-                        {pedidos.map((p) => {
+                        {visiblesPedidos.map((p) => {
                             const estado = p.estado || "Pendiente";
                             const totalUnidades = (p.items || []).reduce(
                                 (acc, it) => acc + it.cantidad,
@@ -480,6 +489,9 @@ function MisCompras() {
                         })}
                     </div>
                 )}
+
+                {/* Paginación */}
+                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={pedidos.length} onCambiar={setPagina} />
 
                 {/* Modal con el detalle de la compra */}
                 {detalle && (

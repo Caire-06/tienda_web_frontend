@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { confirmarPagoTransferencia, listarPedidosAdmin } from "../../../services/pedidosApi";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     etiquetaTipoEntrega,
     formatearFechaHora,
@@ -34,6 +35,7 @@ function Ventas() {
     const [soloPorVerificar, setSoloPorVerificar] = useState(false);
     const [procesandoPago, setProcesandoPago] = useState(false);
     const [detalle, setDetalle] = useState<Pedido | null>(null);
+    const [pagina, setPagina] = useState(1);
 
     const cargar = async () => {
         if (!token) return;
@@ -90,6 +92,13 @@ function Ventas() {
         }
         return true;
     });
+
+    const totalPaginas = Math.max(1, Math.ceil(filtradas.length / REGISTROS_POR_PAGINA));
+    const visibles = filtradas.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [busqueda, desde, hasta, soloPorVerificar]);
 
     return (
         <div className="space-y-6">
@@ -190,7 +199,7 @@ function Ventas() {
                                 </td>
                             </tr>
                         ) : (
-                            filtradas.map((v) => {
+                            visibles.map((v) => {
                                 const doc = obtenerSerieComprobante(v);
                                 const esFactura = doc.tipo === "FACTURA";
                                 const estado = v.estado || "Pendiente";
@@ -250,6 +259,9 @@ function Ventas() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtradas.length} onCambiar={setPagina} />
 
             {detalle && (
                 <div className="modal-fondo" onClick={() => setDetalle(null)}>

@@ -52,3 +52,19 @@ export async function crearProveedor(
     if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo registrar el proveedor"));
     return data as unknown as Proveedor;
 }
+
+/** PUT /api/proveedores/{id} -> actualizar proveedor existente. */
+export async function actualizarProveedor(
+    token: string,
+    id: number,
+    datos: { nombre: string; ruc?: string; contacto?: string; telefono?: string; email?: string; direccion?: string; activo?: boolean }
+): Promise<Proveedor> {
+    const resp = await fetch(apiUrl(`/api/proveedores/${id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(datos),
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok) throw new Error(String((data as { error?: string }).error || "No se pudo actualizar el proveedor"));
+    return data as unknown as Proveedor;
+}

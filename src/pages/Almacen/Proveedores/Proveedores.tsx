@@ -1,15 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarProveedoresPaginado, crearProveedor } from "../../../services/proveedoresApi";
+import {
+    listarProveedoresPaginado,
+    crearProveedor,
+    actualizarProveedor,
+} from "../../../services/proveedoresApi";
 import type { Proveedor } from "../../../services/proveedoresApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import { consultarRUC, type ResultadoRUC } from "../../../services/sunatApi";
-import { limpiarEnteroNoNegativo } from "../../../utils/validaciones";
+import { limpiarSoloDigitos } from "../../../utils/validaciones";
 
 function Proveedores() {
     const { token } = useAuth();
+    const formRef = useRef<HTMLFormElement>(null);
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [cargando, setCargando] = useState(true);
+
+    // Estado para edición: si tiene ID, actualiza; si es null, crea uno nuevo
+    const [idEditando, setIdEditando] = useState<number | null>(null);
 
     const [nombre, setNombre] = useState("");
     const [ruc, setRuc] = useState("");
@@ -78,8 +86,9 @@ function Proveedores() {
         }
     };
 
+    // Permite exactamente hasta 11 dígitos sin truncar prematuramente
     const handleRucChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = limpiarEnteroNoNegativo(e.target.value).slice(0, 11);
+        const val = limpiarSoloDigitos(e.target.value, 11);
         setRuc(val);
         // Si completa los 11 dígitos, autodisparar la consulta fiscal
         if (val.length === 11) {
@@ -89,7 +98,40 @@ function Proveedores() {
         }
     };
 
-    const registrar = async (e: React.FormEvent) => {
+    // Iniciar edición de un proveedor existente
+    const iniciarEdicion = (p: Proveedor) => {
+        setIdEditando(p.id);
+        setNombre(p.nombre);
+        setRuc(p.ruc || "");
+        setContacto(p.contacto || "");
+        setTelefono(p.telefono || "");
+        setEmail(p.email || "");
+        setDireccion(p.direccion || "");
+        setActivo(p.activo);
+        setErrorForm("");
+        setOk("");
+        setInfoSunat(null);
+        if (formRef.current) {
+            formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    };
+
+    // Cancelar modo edición y limpiar formulario
+    const cancelarEdicion = () => {
+        setIdEditando(null);
+        setNombre("");
+        setRuc("");
+        setContacto("");
+        setTelefono("");
+        setEmail("");
+        setDireccion("");
+        setActivo(true);
+        setErrorForm("");
+        setOk("");
+        setInfoSunat(null);
+    };
+
+    const guardarProveedor = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorForm("");
         setOk("");
@@ -105,7 +147,7 @@ function Proveedores() {
 
         setGuardando(true);
         try {
-            await crearProveedor(token, {
+            const payload = {
                 nombre: nombre.trim(),
                 ruc: ruc.trim() || undefined,
                 contacto: contacto.trim() || undefined,
@@ -113,20 +155,21 @@ function Proveedores() {
                 email: email.trim() || undefined,
                 direccion: direccion.trim() || undefined,
                 activo,
-            });
-            setOk(`✓ Proveedor registrado con éxito: ${nombre.trim()}`);
-            setNombre("");
-            setRuc("");
-            setContacto("");
-            setTelefono("");
-            setEmail("");
-            setDireccion("");
-            setActivo(true);
-            setInfoSunat(null);
+            };
+
+            if (idEditando !== null) {
+                await actualizarProveedor(token, idEditando, payload);
+                setOk(`✓ Proveedor actualizado con éxito: ${nombre.trim()}`);
+            } else {
+                await crearProveedor(token, payload);
+                setOk(`✓ Proveedor registrado con éxito: ${nombre.trim()}`);
+            }
+
+            cancelarEdicion();
             await refrescar();
         } catch (err) {
-            console.error("Error al registrar proveedor", err);
-            setErrorForm(err instanceof Error ? err.message : "No se pudo registrar el proveedor.");
+            console.error("Error al guardar proveedor", err);
+            setErrorForm(err instanceof Error ? err.message : "No se pudo guardar el proveedor.");
         } finally {
             setGuardando(false);
         }
@@ -143,14 +186,30 @@ function Proveedores() {
             <div>
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white">Proveedores</h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Directorio y catálogo de proveedores con validación y consulta automática ante SUNAT.
+                    Directorio, edición y catálogo de proveedores con validación y consulta automática ante SUNAT.
                 </p>
             </div>
 
             <form
+                ref={formRef}
                 className="max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-4"
-                onSubmit={registrar}
+                onSubmit={guardarProveedor}
             >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                        {idEditando !== null ? `Editar Proveedor #${idEditando}` : "Registrar Nuevo Proveedor"}
+                    </h2>
+                    {idEditando !== null && (
+                        <button
+                            type="button"
+                            onClick={cancelarEdicion}
+                            className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                        >
+                            Cancelar edición
+                        </button>
+                    )}
+                </div>
+
                 {/* RUC con consulta SUNAT y Nombre/Razón Social */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                     <div className="space-y-1.5">
@@ -297,12 +356,25 @@ function Proveedores() {
                 )}
 
                 <div className="flex gap-2.5 pt-2">
+                    {idEditando !== null && (
+                        <button
+                            type="button"
+                            onClick={cancelarEdicion}
+                            className="py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-all cursor-pointer"
+                        >
+                            Cancelar
+                        </button>
+                    )}
                     <button
                         type="submit"
                         disabled={guardando}
                         className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
                     >
-                        {guardando ? "Registrando..." : "Registrar Proveedor"}
+                        {guardando
+                            ? "Guardando..."
+                            : idEditando !== null
+                            ? "Guardar Cambios"
+                            : "Registrar Proveedor"}
                     </button>
                 </div>
             </form>
@@ -321,14 +393,25 @@ function Proveedores() {
                         visiblesProveedores.map((p) => (
                             <div
                                 key={p.id}
-                                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40"
+                                className={`p-4 rounded-xl border transition-colors ${
+                                    idEditando === p.id
+                                        ? "border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20"
+                                        : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40"
+                                }`}
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                        <strong className="text-sm text-slate-800 dark:text-slate-200 block">
-                                            {p.nombre}
-                                        </strong>
-                                        <span className="text-xs text-slate-500">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <strong className="text-sm text-slate-800 dark:text-slate-200 block truncate">
+                                                {p.nombre}
+                                            </strong>
+                                            {idEditando === p.id && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                                    Editando
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-xs text-slate-500 block mt-0.5">
                                             {p.ruc ? `RUC: ${p.ruc}` : "Sin RUC registrado"}
                                             {p.contacto ? ` · Contacto: ${p.contacto}` : ""}
                                             {p.telefono ? ` · Tel: ${p.telefono}` : ""}
@@ -340,15 +423,24 @@ function Proveedores() {
                                             </span>
                                         )}
                                     </div>
-                                    <span
-                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                            p.activo
-                                                ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400"
-                                                : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                                        }`}
-                                    >
-                                        {p.activo ? "Activo" : "Inactivo"}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => iniciarEdicion(p)}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer transition-colors"
+                                        >
+                                            Editar
+                                        </button>
+                                        <span
+                                            className={`px-2 py-1 rounded-full text-[10px] font-bold ${
+                                                p.activo
+                                                    ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400"
+                                                    : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                            }`}
+                                        >
+                                            {p.activo ? "Activo" : "Inactivo"}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         ))

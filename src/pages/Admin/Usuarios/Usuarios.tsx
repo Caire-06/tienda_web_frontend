@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import {
-    listarUsuarios,
+    listarUsuariosPaginado,
     cambiarRolUsuario,
     cambiarEstadoUsuario,
     crearUsuario,
@@ -83,6 +83,8 @@ function Usuarios() {
     const [credencialesCreadas, setCredencialesCreadas] = useState<UsuarioCreadoAdmin | null>(null);
     const [campoCopiado, setCampoCopiado] = useState<"usuario" | "password" | null>(null);
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
     const [nuevoForm, setNuevoForm] = useState<CrearUsuarioDatos>(FORM_INICIAL);
 
@@ -92,16 +94,17 @@ function Usuarios() {
         nuevoForm.dni
     );
 
-    const totalPaginas = Math.max(1, Math.ceil(lista.length / REGISTROS_POR_PAGINA));
-    const visibles = lista.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visibles = lista;
 
-    const cargar = async () => {
+    const cargar = async (p: number = pagina) => {
         if (!token) return;
         setCargando(true);
         setError(null);
         try {
-            const data = await listarUsuarios(token);
-            setLista(data);
+            const data = await listarUsuariosPaginado(token, p, REGISTROS_POR_PAGINA);
+            setLista(data.contenido);
+            setTotalPaginas(data.totalPaginas);
+            setTotalRegistros(data.totalElementos);
         } catch (err: any) {
             setError(err.message || "Error al conectar con la base de datos");
         } finally {
@@ -110,8 +113,8 @@ function Usuarios() {
     };
 
     useEffect(() => {
-        cargar();
-    }, [token]);
+        cargar(pagina);
+    }, [token, pagina]);
 
     const handleToggleEstado = async (u: UsuarioDTO) => {
         if (!token) return;
@@ -229,12 +232,12 @@ function Usuarios() {
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Gestión de Usuarios</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        {lista.length} cuentas registradas en el sistema.
+                        {totalRegistros} cuentas registradas en el sistema.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={cargar}
+                        onClick={() => cargar()}
                         className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                     >
                         ↻ Actualizar
@@ -360,12 +363,12 @@ function Usuarios() {
             </div>
 
             {/* Paginación */}
-            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={lista.length} onCambiar={setPagina} />
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
             {/* Modal Detalle Usuario */}
             {detalle && (
-                <div className="modal-fondo" onClick={() => setDetalle(null)}>
-                    <div className="modal-chico" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal-chico">
                         <div className="modal-head">
                             <h2>Detalle de Usuario</h2>
                             <button className="modal-cerrar" onClick={() => setDetalle(null)}>
@@ -431,8 +434,8 @@ function Usuarios() {
 
             {/* Modal Crear Usuario */}
             {modalCrear && (
-                <div className="modal-fondo" onClick={cerrarModalCrear}>
-                    <div className="modal-mediano" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal-mediano">
                         <div className="modal-head">
                             <h2>{credencialesCreadas ? "Credenciales generadas" : "+ Nuevo Usuario (Personal)"}</h2>
                             <button className="modal-cerrar" onClick={cerrarModalCrear}>

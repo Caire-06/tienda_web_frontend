@@ -1,5 +1,6 @@
 import type { Pedido } from "../data/pedidos";
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 export interface DespachoLoteDTO {
     id: number;
@@ -38,6 +39,27 @@ export async function listarLotesDespacho(token: string): Promise<DespachoLoteDT
     return [];
 }
 
+/** GET /api/despachos con paginación server-side. */
+export async function listarLotesDespachoPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<DespachoLoteDTO>> {
+    const page0 = Math.max(0, pagina - 1);
+    try {
+        const res = await fetch(apiUrl(`/api/despachos?page=${page0}&size=${limite}`), {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return normalizarRespuestaPaginada(data, (item: DespachoLoteDTO) => item, pagina, limite);
+        }
+    } catch {
+        // Fallback
+    }
+    return normalizarRespuestaPaginada([], (item: DespachoLoteDTO) => item, pagina, limite);
+}
+
 export async function listarPedidosPendientesDespacho(token: string): Promise<Pedido[]> {
     try {
         const res = await fetch(apiUrl("/api/despachos/pendientes"), {
@@ -62,6 +84,27 @@ export async function listarPedidosPendientesDespacho(token: string): Promise<Pe
         // Fallback vacío
     }
     return [];
+}
+
+/** GET /api/despachos/pendientes con paginación server-side. */
+export async function listarPedidosPendientesDespachoPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Pedido>> {
+    const page0 = Math.max(0, pagina - 1);
+    try {
+        const res = await fetch(apiUrl(`/api/despachos/pendientes?page=${page0}&size=${limite}`), {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return normalizarRespuestaPaginada(data, (item: Pedido) => item, pagina, limite);
+        }
+    } catch {
+        // Fallback
+    }
+    return normalizarRespuestaPaginada([], (item: Pedido) => item, pagina, limite);
 }
 
 export async function crearLoteDespacho(token: string, datos: CrearDespachoLoteDatos): Promise<DespachoLoteDTO> {

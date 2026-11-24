@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { confirmarPagoTransferencia, listarPedidosAdmin } from "../../../services/pedidosApi";
+import { confirmarPagoTransferencia, listarPedidosAdminPaginado } from "../../../services/pedidosApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     etiquetaTipoEntrega,
@@ -36,14 +36,18 @@ function Ventas() {
     const [procesandoPago, setProcesandoPago] = useState(false);
     const [detalle, setDetalle] = useState<Pedido | null>(null);
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
-    const cargar = async () => {
+    const cargar = async (p: number = pagina) => {
         if (!token) return;
         setCargando(true);
         setError(null);
         try {
-            const data = await listarPedidosAdmin(token);
-            setVentas(data);
+            const data = await listarPedidosAdminPaginado(token, p, REGISTROS_POR_PAGINA);
+            setVentas(data.contenido);
+            setTotalPaginas(data.totalPaginas);
+            setTotalRegistros(data.totalElementos);
         } catch (err: any) {
             setError(err.message || "Error al cargar ventas");
         } finally {
@@ -52,8 +56,8 @@ function Ventas() {
     };
 
     useEffect(() => {
-        cargar();
-    }, [token]);
+        cargar(pagina);
+    }, [token, pagina]);
 
     const pendientesVerificar = ventas.filter(
         (v) => v.estadoPago === "Por verificar" || v.estado === "Pendiente de pago"
@@ -93,8 +97,7 @@ function Ventas() {
         return true;
     });
 
-    const totalPaginas = Math.max(1, Math.ceil(filtradas.length / REGISTROS_POR_PAGINA));
-    const visibles = filtradas.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visibles = filtradas;
 
     useEffect(() => {
         setPagina(1);
@@ -112,7 +115,7 @@ function Ventas() {
                     </p>
                 </div>
                 <button
-                    onClick={cargar}
+                    onClick={() => cargar()}
                     className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                 >
                     ↻ Actualizar
@@ -261,11 +264,11 @@ function Ventas() {
             </div>
 
             {/* Paginación */}
-            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtradas.length} onCambiar={setPagina} />
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
             {detalle && (
-                <div className="modal-fondo" onClick={() => setDetalle(null)}>
-                    <div className="modal max-w-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-fondo">
+                    <div className="modal max-w-2xl">
                         <div className="modal-head">
                             <div>
                                 <h2>Detalle de Pedido: {detalle.numero}</h2>

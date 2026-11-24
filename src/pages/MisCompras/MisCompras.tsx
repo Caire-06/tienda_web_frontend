@@ -11,7 +11,7 @@ import {
     obtenerSerieComprobante,
 } from "../../data/pedidos";
 import type { Pedido } from "../../data/pedidos";
-import { listarMisCompras } from "../../services/pedidosApi";
+import { listarMisComprasPaginado } from "../../services/pedidosApi";
 import { descargarComprobantePdf } from "../../services/comprobantePdf";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../components/Paginacion/Paginacion";
 import {
@@ -94,13 +94,15 @@ function MisCompras() {
     const [errorCarga, setErrorCarga] = useState<string | null>(null);
     const [filtroEstado, setFiltroEstado] = useState("Todos");
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
     // Evita que se ejecuten varias consultas simultáneamente.
     const solicitudEnCurso = useRef(false);
 
     // Consulta los pedidos del cliente desde el backend.
     const cargarPedidos = useCallback(
-        async (silencioso = false) => {
+        async (silencioso = false, p: number = pagina) => {
             if (!usuario || !token || solicitudEnCurso.current) return;
 
             solicitudEnCurso.current = true;
@@ -112,8 +114,10 @@ function MisCompras() {
             }
 
             try {
-                const lista = await listarMisCompras(token);
-                setPedidosBackend(lista);
+                const res = await listarMisComprasPaginado(token, p, REGISTROS_POR_PAGINA);
+                setPedidosBackend(res.contenido);
+                setTotalPaginas(res.totalPaginas);
+                setTotalRegistros(res.totalElementos);
                 setErrorCarga(null);
             } catch {
                 setErrorCarga(
@@ -125,7 +129,7 @@ function MisCompras() {
                 setActualizando(false);
             }
         },
-        [usuario, token]
+        [usuario, token, pagina]
     );
 
     // Carga inicial y actualización automática cada 15 segundos.
@@ -204,8 +208,7 @@ function MisCompras() {
         return (p.estado || "Pendiente") === filtroEstado;
     });
 
-    const totalPaginas = Math.max(1, Math.ceil(pedidos.length / REGISTROS_POR_PAGINA));
-    const visiblesPedidos = pedidos.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visiblesPedidos = pedidos;
 
     useEffect(() => {
         setPagina(1);
@@ -491,15 +494,12 @@ function MisCompras() {
                 )}
 
                 {/* Paginación */}
-                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={pedidos.length} onCambiar={setPagina} />
+                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
                 {/* Modal con el detalle de la compra */}
                 {detalle && (
-                    <div
-                        className="modal-fondo"
-                        onClick={() => setDetalleNumero(null)}
-                    >
-                        <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-fondo">
+                        <div className="modal">
                             <div className="modal-head">
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">

@@ -36,6 +36,42 @@ function tiempoDe(fecha?: string): number {
     return Number.isNaN(t) ? 0 : t;
 }
 
+/** Formatea y normaliza los títulos de características canónicas */
+function formatearTituloCaracteristica(texto: string): string {
+    if (!texto) return "";
+    const canonical: Record<string, string> = {
+        "memoria ram": "Memoria RAM",
+        "almacenamiento interno": "Almacenamiento Interno",
+        "almacenamiento": "Almacenamiento",
+        "capacidad de bateria": "Capacidad de Batería",
+        "capacidad de batería": "Capacidad de Batería",
+        "bateria": "Batería",
+        "tipo y tasa de pantalla": "Tipo y Tasa de Pantalla",
+        "pantalla": "Pantalla",
+        "conectividad movil": "Conectividad Móvil",
+        "conectividad móvil": "Conectividad Móvil",
+        "potencia de carga rapida": "Potencia de Carga Rápida",
+        "potencia de carga rápida": "Potencia de Carga Rápida",
+        "camara": "Cámara",
+        "cámara": "Cámara",
+        "camara principal": "Cámara Principal",
+        "camara frontal": "Cámara Frontal",
+        "tipo de diseno": "Tipo de Diseño",
+        "tipo de diseño": "Tipo de Diseño",
+        "autonomia de bateria": "Autonomía de Batería",
+        "autonomía de batería": "Autonomía de Batería",
+        "cancelacion activa de ruido": "Cancelación Activa de Ruido",
+        "cancelación activa de ruido": "Cancelación Activa de Ruido",
+    };
+    const key = texto.trim().toLowerCase();
+    if (canonical[key]) return canonical[key];
+    return texto
+        .trim()
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+}
+
 function Productos() {
     const { token } = useAuth();
     const [backendProductos, setBackendProductos] = useState<ProductoInv[]>([]);
@@ -51,10 +87,22 @@ function Productos() {
     const [totalPaginas, setTotalPaginas] = useState(1);
     const [totalRegistros, setTotalRegistros] = useState(0);
 
-    // Filtros dinámicos de especificaciones por categoría: { "Memoria RAM": ["8 GB"], ... }
+    // Filtros dinámicos de especificaciones por característica: { "memoria ram": ["8 GB"], ... }
     const [filtrosSpecs, setFiltrosSpecs] = useState<Record<string, string[]>>({});
     // Control de drawer móvil para pantallas pequeñas
     const [filtrosMovilAbierto, setFiltrosMovilAbierto] = useState(false);
+
+    // Estado para minimizar/colapsar cada sección y cada especificación independientemente
+    const [colapsadas, setColapsadas] = useState<Record<string, boolean>>({
+        novedades: true,
+    });
+
+    const toggleColapso = (id: string) => {
+        setColapsadas((prev) => ({
+            ...prev,
+            [id]: !prev[id],
+        }));
+    };
 
     useEffect(() => {
         let activo = true;
@@ -89,19 +137,20 @@ function Productos() {
     };
 
     // Toggle de valor en filtro de especificación
-    const toggleSpecFiltro = (caracteristica: string, valor: string) => {
+    const toggleSpecFiltro = (caracteristicaKey: string, valor: string) => {
+        const keyLower = caracteristicaKey.toLowerCase();
         setFiltrosSpecs((prev) => {
-            const actuales = prev[caracteristica] || [];
-            const existe = actuales.includes(valor);
+            const actuales = prev[keyLower] || [];
+            const existe = actuales.some((v) => v.toLowerCase() === valor.toLowerCase());
             const actualizados = existe
-                ? actuales.filter((v) => v !== valor)
+                ? actuales.filter((v) => v.toLowerCase() !== valor.toLowerCase())
                 : [...actuales, valor];
 
             const copia = { ...prev };
             if (actualizados.length === 0) {
-                delete copia[caracteristica];
+                delete copia[keyLower];
             } else {
-                copia[caracteristica] = actualizados;
+                copia[keyLower] = actualizados;
             }
             return copia;
         });
@@ -116,53 +165,77 @@ function Productos() {
         const personalizadas = obtenerCaracteristicasPersonalizadas(categoria);
         const productosCat = productos.filter((p) => p.categoria === categoria);
 
-        // Agrupar nombres únicos de características
-        const nombresUnicos = new Set<string>();
-        camposPlantilla.forEach((c) => nombresUnicos.add(c.caracteristica));
-        personalizadas.forEach((p) => nombresUnicos.add(p));
+        // Agrupar nombres únicos de características deduplicando sin importar mayúsculas
+        const nombresMap = new Map<string, string>(); // lowerKey -> displayName
+        const registrarNombre = (nom: string) => {
+            const limpio = nom.trim();
+            if (!limpio) return;
+            const lower = limpio.toLowerCase();
+            if (!nombresMap.has(lower)) {
+                nombresMap.set(lower, formatearTituloCaracteristica(limpio));
+            }
+        };
+
+        camposPlantilla.forEach((c) => registrarNombre(c.caracteristica));
+        personalizadas.forEach((p) => registrarNombre(p));
         productosCat.forEach((p) => {
             p.especificaciones?.forEach((e) => {
-                if (e.caracteristica?.trim()) nombresUnicos.add(e.caracteristica.trim());
+                if (e.caracteristica?.trim()) registrarNombre(e.caracteristica.trim());
             });
         });
 
         const resultado: {
+            claveLower: string;
             caracteristica: string;
             opciones: { valor: string; conteo: number }[];
         }[] = [];
 
-        nombresUnicos.forEach((nombre) => {
-            const valoresMap = new Map<string, number>();
+        nombresMap.forEach((nombreDisplay, claveLower) => {
+            const valoresMap = new Map<string, { display: string; conteo: number }>();
 
             // 1. Opciones estándar de la plantilla
             const defCampo = camposPlantilla.find(
-                (c) => c.caracteristica.toLowerCase() === nombre.toLowerCase()
+                (c) => c.caracteristica.toLowerCase() === claveLower
             );
             if (defCampo?.opciones) {
-                defCampo.opciones.forEach((op) => valoresMap.set(op, 0));
+                defCampo.opciones.forEach((op) => {
+                    const opLower = op.trim().toLowerCase();
+                    valoresMap.set(opLower, { display: op.trim(), conteo: 0 });
+                });
             } else if (defCampo?.sugeridoPorDefecto) {
-                valoresMap.set(defCampo.sugeridoPorDefecto, 0);
+                const op = defCampo.sugeridoPorDefecto.trim();
+                valoresMap.set(op.toLowerCase(), { display: op, conteo: 0 });
             }
 
             // 2. Conteo real de productos con esta característica y valor
             productosCat.forEach((p) => {
                 const esp = p.especificaciones?.find(
-                    (e) => e.caracteristica?.trim().toLowerCase() === nombre.toLowerCase()
+                    (e) => e.caracteristica?.trim().toLowerCase() === claveLower
                 );
                 if (esp && esp.valor?.trim()) {
-                    const val = esp.valor.trim();
-                    valoresMap.set(val, (valoresMap.get(val) || 0) + 1);
+                    const valTrim = esp.valor.trim();
+                    const valLower = valTrim.toLowerCase();
+                    const actual = valoresMap.get(valLower);
+                    if (actual) {
+                        actual.conteo += 1;
+                    } else {
+                        valoresMap.set(valLower, { display: valTrim, conteo: 1 });
+                    }
                 }
             });
 
             // Convertir y ordenar opciones (las que tienen productos primero, luego alfabético)
-            const opciones = Array.from(valoresMap.entries())
-                .map(([valor, conteo]) => ({ valor, conteo }))
-                .filter((op) => op.conteo > 0 || (defCampo?.opciones && defCampo.opciones.includes(op.valor)))
+            const opciones = Array.from(valoresMap.values())
+                .filter((item) => item.conteo > 0 || (defCampo?.opciones && defCampo.opciones.some((o) => o.toLowerCase() === item.display.toLowerCase())))
+                .map((item) => ({ valor: item.display, conteo: item.conteo }))
                 .sort((a, b) => b.conteo - a.conteo || a.valor.localeCompare(b.valor));
 
             if (opciones.length > 0) {
-                resultado.push({ caracteristica: nombre, opciones });
+                resultado.push({
+                    claveLower,
+                    caracteristica: nombreDisplay,
+                    opciones,
+                });
             }
         });
 
@@ -228,11 +301,11 @@ function Productos() {
         // Filtro canónico por especificaciones técnicas
         if (totalFiltrosSpecs > 0) {
             lista = lista.filter((p) => {
-                return Object.entries(filtrosSpecs).every(([caract, valores]) => {
+                return Object.entries(filtrosSpecs).every(([caractKey, valores]) => {
                     if (!valores || valores.length === 0) return true;
                     return p.especificaciones?.some(
                         (e) =>
-                            e.caracteristica?.trim().toLowerCase() === caract.trim().toLowerCase() &&
+                            e.caracteristica?.trim().toLowerCase() === caractKey.toLowerCase() &&
                             valores.some((v) => e.valor?.trim().toLowerCase() === v.trim().toLowerCase())
                     );
                 });
@@ -278,9 +351,20 @@ function Productos() {
         setPagina(1);
     };
 
+    // Alternar todas las especificaciones entre expandidas o colapsadas
+    const colapsarTodasLasSpecs = (colapsar: boolean) => {
+        setColapsadas((prev) => {
+            const copia = { ...prev };
+            especificacionesDisponibles.forEach((g) => {
+                copia[`spec_${g.claveLower}`] = colapsar;
+            });
+            return copia;
+        });
+    };
+
     // Componente interno para renderizar los bloques de filtros en la barra izquierda
     const ContenidoFiltros = (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Header de Filtros: botón Limpiar fijo a un costado para evitar saltos bruscos */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
@@ -305,7 +389,7 @@ function Productos() {
                     )}
                 </div>
 
-                {/* El botón se reserva en el DOM con visibilidad/opacidad para no desplazar elementos */}
+                {/* El botón se reserva en el DOM con opacidad para no desplazar elementos */}
                 <button
                     type="button"
                     onClick={limpiarFiltros}
@@ -316,90 +400,170 @@ function Productos() {
                             : "opacity-0 pointer-events-none select-none"
                     }`}
                 >
-                    Limpiar filtros
+                    Limpiar todo
                 </button>
             </div>
 
-            {/* Categorías */}
-            <div className="space-y-2">
-                <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                    Categorías
-                </h3>
-                <div className="space-y-1">
-                    {nombresCategorias.map((nombre) => {
-                        const seleccionada = categoria === nombre;
-                        return (
-                            <button
-                                key={nombre}
-                                type="button"
-                                onClick={() => seleccionarCategoria(nombre)}
-                                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors flex items-center justify-between cursor-pointer ${
-                                    seleccionada
-                                        ? "bg-blue-600 text-white font-bold shadow-xs"
-                                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60"
-                                }`}
-                            >
-                                <span>{nombre}</span>
-                                {seleccionada && (
-                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                        <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+            {/* Bloque 1: Categorías (Minimizable) */}
+            <div className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-900/40">
+                <button
+                    type="button"
+                    onClick={() => toggleColapso("categorias")}
+                    className="w-full flex items-center justify-between text-left cursor-pointer select-none group"
+                >
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            Categorías
+                        </span>
+                        {categoria !== FILTRO_TODOS && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        )}
+                    </div>
+                    <svg
+                        className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform duration-200 ${
+                            !colapsadas["categorias"] ? "rotate-180" : ""
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+
+                {!colapsadas["categorias"] && (
+                    <div className="space-y-1 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        {nombresCategorias.map((nombre) => {
+                            const seleccionada = categoria === nombre;
+                            return (
+                                <button
+                                    key={nombre}
+                                    type="button"
+                                    onClick={() => seleccionarCategoria(nombre)}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-between cursor-pointer ${
+                                        seleccionada
+                                            ? "bg-blue-600 text-white font-bold shadow-xs"
+                                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+                                    }`}
+                                >
+                                    <span>{nombre}</span>
+                                    {seleccionada && (
+                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                            <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
-            {/* Especificaciones Técnicas Canónicas (Carga automática según la categoría, ej: Smartphones) */}
+            {/* Bloque 2: Especificaciones Técnicas (Cada característica es individualmente minimizable) */}
             {categoria !== FILTRO_TODOS && especificacionesDisponibles.length > 0 && (
-                <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <div>
-                        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                            Especificaciones
-                        </h3>
-                        <p className="text-[11px] text-slate-500">
-                            Filtros para {categoria}
-                        </p>
+                <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between px-1">
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                                Especificaciones
+                            </h3>
+                            <p className="text-[10px] text-slate-500">
+                                {categoria} ({especificacionesDisponibles.length})
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                            <button
+                                type="button"
+                                onClick={() => colapsarTodasLasSpecs(false)}
+                                className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            >
+                                Abrir
+                            </button>
+                            <span className="text-slate-300 dark:text-slate-700">|</span>
+                            <button
+                                type="button"
+                                onClick={() => colapsarTodasLasSpecs(true)}
+                                className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:underline cursor-pointer"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
-                        {especificacionesDisponibles.map((grupo) => {
-                            const valoresSeleccionados = filtrosSpecs[grupo.caracteristica] || [];
+                    <div className="space-y-2">
+                        {especificacionesDisponibles.map((grupo, index) => {
+                            const specId = `spec_${grupo.claveLower}`;
+                            const valoresSeleccionados = filtrosSpecs[grupo.claveLower] || [];
+                            const tieneSeleccion = valoresSeleccionados.length > 0;
+                            // Las primeras 2 características abiertas por defecto si no han sido colapsadas manualmente, o si tienen selección
+                            const abierta = tieneSeleccion || !(colapsadas[specId] ?? (index >= 2));
 
                             return (
-                                <div key={grupo.caracteristica} className="space-y-2">
-                                    <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                                        {grupo.caracteristica}
-                                    </span>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                                        {grupo.opciones.map((op) => {
-                                            const checked = valoresSeleccionados.includes(op.valor);
-                                            return (
-                                                <label
-                                                    key={op.valor}
-                                                    className="flex items-center justify-between px-2 py-1 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800/50 cursor-pointer select-none"
-                                                >
-                                                    <div className="flex items-center gap-2 min-w-0">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={checked}
-                                                            onChange={() => toggleSpecFiltro(grupo.caracteristica, op.valor)}
-                                                            className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                        />
-                                                        <span className={`truncate text-xs ${checked ? "font-bold text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"}`}>
-                                                            {op.valor}
-                                                        </span>
-                                                    </div>
-                                                    {op.conteo > 0 && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold">
-                                                            {op.conteo}
-                                                        </span>
-                                                    )}
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
+                                <div
+                                    key={grupo.claveLower}
+                                    className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-2.5 bg-slate-50/50 dark:bg-slate-900/40"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleColapso(specId)}
+                                        className="w-full flex items-center justify-between text-left cursor-pointer select-none group"
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                {grupo.caracteristica}
+                                            </span>
+                                            {tieneSeleccion && (
+                                                <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                                                    {valoresSeleccionados.length}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <svg
+                                            className={`w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform duration-200 ${
+                                                abierta ? "rotate-180" : ""
+                                            }`}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.5"
+                                        >
+                                            <polyline points="6 9 12 15 18 9" />
+                                        </svg>
+                                    </button>
+
+                                    {abierta && (
+                                        <div className="space-y-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 max-h-44 overflow-y-auto pr-1">
+                                            {grupo.opciones.map((op) => {
+                                                const checked = valoresSeleccionados.some(
+                                                    (v) => v.toLowerCase() === op.valor.toLowerCase()
+                                                );
+                                                return (
+                                                    <label
+                                                        key={op.valor}
+                                                        className="flex items-center justify-between px-2 py-1 rounded-lg text-xs hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer select-none"
+                                                    >
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => toggleSpecFiltro(grupo.claveLower, op.valor)}
+                                                                className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                            />
+                                                            <span className={`truncate text-xs ${checked ? "font-bold text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"}`}>
+                                                                {op.valor}
+                                                            </span>
+                                                        </div>
+                                                        {op.conteo > 0 && (
+                                                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 font-semibold">
+                                                                {op.conteo}
+                                                            </span>
+                                                        )}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -407,58 +571,110 @@ function Productos() {
                 </div>
             )}
 
-            {/* Rango de Precios */}
-            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                    Rango de Precios (S/)
-                </h3>
-                <div className="grid grid-cols-2 gap-2 items-center">
-                    <div>
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="Mínimo"
-                            value={precioMinTexto}
-                            onChange={(e) => {
-                                setPrecioMinTexto(limpiarDecimal(e.target.value));
-                                setPagina(1);
-                            }}
-                            className="w-full px-2.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
+            {/* Bloque 3: Rango de Precios (Minimizable) */}
+            <div className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-900/40">
+                <button
+                    type="button"
+                    onClick={() => toggleColapso("precio")}
+                    className="w-full flex items-center justify-between text-left cursor-pointer select-none group"
+                >
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            Rango de Precios (S/)
+                        </span>
+                        {(precioMinTexto !== "" || precioMaxTexto !== "") && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        )}
                     </div>
-                    <div>
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="Máximo"
-                            value={precioMaxTexto}
-                            onChange={(e) => {
-                                setPrecioMaxTexto(limpiarDecimal(e.target.value));
-                                setPagina(1);
-                            }}
-                            className="w-full px-2.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
+                    <svg
+                        className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform duration-200 ${
+                            !colapsadas["precio"] ? "rotate-180" : ""
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+
+                {!colapsadas["precio"] && (
+                    <div className="grid grid-cols-2 gap-2 items-center mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        <div>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Mínimo"
+                                value={precioMinTexto}
+                                onChange={(e) => {
+                                    setPrecioMinTexto(limpiarDecimal(e.target.value));
+                                    setPagina(1);
+                                }}
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Máximo"
+                                value={precioMaxTexto}
+                                onChange={(e) => {
+                                    setPrecioMaxTexto(limpiarDecimal(e.target.value));
+                                    setPagina(1);
+                                }}
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Novedades */}
-            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                    Novedades
-                </h3>
-                <select
-                    value={novedades}
-                    onChange={(e) => {
-                        setNovedades(e.target.value as Novedades);
-                        setPagina(1);
-                    }}
-                    className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
+            {/* Bloque 4: Novedades / Auditoría (Minimizable) */}
+            <div className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-900/40">
+                <button
+                    type="button"
+                    onClick={() => toggleColapso("novedades")}
+                    className="w-full flex items-center justify-between text-left cursor-pointer select-none group"
                 >
-                    <option value="todos">Todos los productos</option>
-                    <option value="recientes">Últimos añadidos</option>
-                    <option value="hoy">Registrados hoy</option>
-                </select>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            Novedades
+                        </span>
+                        {novedades !== "todos" && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        )}
+                    </div>
+                    <svg
+                        className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform duration-200 ${
+                            !colapsadas["novedades"] ? "rotate-180" : ""
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+
+                {!colapsadas["novedades"] && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        <select
+                            value={novedades}
+                            onChange={(e) => {
+                                setNovedades(e.target.value as Novedades);
+                                setPagina(1);
+                            }}
+                            className="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 cursor-pointer"
+                        >
+                            <option value="todos">Todos los productos</option>
+                            <option value="recientes">Últimos añadidos</option>
+                            <option value="hoy">Registrados hoy</option>
+                        </select>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -605,23 +821,26 @@ function Productos() {
                             </span>
                         )}
 
-                        {Object.entries(filtrosSpecs).map(([caract, vals]) =>
-                            vals.map((v) => (
+                        {Object.entries(filtrosSpecs).map(([caractKey, vals]) => {
+                            const grupo = especificacionesDisponibles.find((g) => g.claveLower === caractKey);
+                            const nombreVisual = grupo?.caracteristica || formatearTituloCaracteristica(caractKey);
+
+                            return vals.map((v) => (
                                 <span
-                                    key={`${caract}-${v}`}
+                                    key={`${caractKey}-${v}`}
                                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
                                 >
-                                    {caract}: {v}
+                                    {nombreVisual}: {v}
                                     <button
                                         type="button"
-                                        onClick={() => toggleSpecFiltro(caract, v)}
+                                        onClick={() => toggleSpecFiltro(caractKey, v)}
                                         className="hover:text-indigo-900 dark:hover:text-white cursor-pointer"
                                     >
                                         ✕
                                     </button>
                                 </span>
-                            ))
-                        )}
+                            ));
+                        })}
 
                         <button
                             type="button"
@@ -636,7 +855,7 @@ function Productos() {
                 {/* Estructura Principal en 2 Columnas: Barra Izquierda de Filtros + Grid de Productos */}
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
                     {/* Barra Izquierda (Sidebar) fija en Desktop */}
-                    <aside className="hidden lg:block w-72 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs sticky top-24">
+                    <aside className="hidden lg:block w-72 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
                         {ContenidoFiltros}
                     </aside>
 

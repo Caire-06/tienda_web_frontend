@@ -1,4 +1,5 @@
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 export interface UsuarioDTO {
     id: number;
@@ -64,6 +65,21 @@ export async function listarUsuarios(token: string): Promise<UsuarioDTO[]> {
     if (!res.ok) throw new Error("Error al listar usuarios");
     const data = (await res.json()) as UsuarioBackendRaw[];
     return Array.isArray(data) ? data.map(normalizarUsuarioDTO) : [];
+}
+
+/** GET /api/usuarios con paginación server-side. */
+export async function listarUsuariosPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<UsuarioDTO>> {
+    const page0 = Math.max(0, pagina - 1);
+    const res = await fetch(apiUrl(`/api/usuarios?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error("Error al listar usuarios");
+    const data = await res.json();
+    return normalizarRespuestaPaginada(data, normalizarUsuarioDTO, pagina, limite);
 }
 
 export async function crearUsuario(token: string, datos: CrearUsuarioDatos): Promise<UsuarioCreadoAdmin> {

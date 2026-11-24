@@ -39,6 +39,13 @@ const ICONOS_CATEGORIA: Record<string, ReactNode> = {
             <line x1="12" y1="17" x2="12" y2="21" />
         </svg>
     ),
+    laptops: (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+    ),
     accesorios: (
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0V8z" />

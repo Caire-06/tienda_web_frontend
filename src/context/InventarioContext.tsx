@@ -2,6 +2,12 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { PRODUCTOS as BASE } from "../data/productos";
 
+// Especificación técnica (valor con magnitud integrada, sin unidad separada).
+export interface EspecificacionInv {
+    caracteristica: string;
+    valor: string;
+}
+
 // Producto del inventario (igual al de tienda + si está activo o no)
 export interface ProductoInv {
     id: number;
@@ -13,6 +19,9 @@ export interface ProductoInv {
     imagen: string;
     descripcion: string;
     activo: boolean;
+    marca?: string;
+    fechaCreacion?: string;
+    especificaciones?: EspecificacionInv[];
 }
 
 // Un movimiento del Kardex
@@ -90,6 +99,8 @@ export interface DatosProducto {
     stock: number;
     imagen: string;
     descripcion: string;
+    marca?: string;
+    especificaciones?: EspecificacionInv[];
 }
 
 interface InventarioContexto {
@@ -176,6 +187,7 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
                 id: Date.now(),
                 vendidos: 0,
                 activo: true,
+                fechaCreacion: new Date().toISOString(),
             };
             setProductos((prev) => [...prev, nuevo]);
             setMovimientos((prev) => [

@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarProductos } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
-import { listarEntradas, registrarEntradaBackend } from "../../../services/entradasApi";
+import { listarEntradasPaginado, registrarEntradaBackend } from "../../../services/entradasApi";
 import type { Entrada } from "../../../services/entradasApi";
+import { listarProveedores } from "../../../services/proveedoresApi";
+import type { Proveedor } from "../../../services/proveedoresApi";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -16,19 +19,32 @@ function Entradas() {
     const [entradas, setEntradas] = useState<Entrada[]>([]);
     const [cargando, setCargando] = useState(true);
 
+    const [categoriaFiltro, setCategoriaFiltro] = useState("Todas");
     const [productoId, setProductoId] = useState(0);
+    const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+    const [proveedorId, setProveedorId] = useState(0);
     const [cantidadTexto, setCantidadTexto] = useState("20");
     const [costoTexto, setCostoTexto] = useState("");
     const [motivo, setMotivo] = useState("Ingreso de mercadería");
     const [ok, setOk] = useState("");
     const [errorForm, setErrorForm] = useState("");
+    const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
-    const refrescar = async () => {
+    const refrescar = async (p: number = pagina) => {
         if (!token) return;
         try {
-            const [listaProductos, listaEntradas] = await Promise.all([listarProductos(token), listarEntradas(token)]);
+            const [listaProductos, resEntradas, listaProveedores] = await Promise.all([
+                listarProductos(token),
+                listarEntradasPaginado(token, p, REGISTROS_POR_PAGINA),
+                listarProveedores(token),
+            ]);
             setProductos(listaProductos);
-            setEntradas(listaEntradas);
+            setEntradas(resEntradas.contenido);
+            setTotalPaginas(resEntradas.totalPaginas);
+            setTotalRegistros(resEntradas.totalElementos);
+            setProveedores(listaProveedores);
         } catch {
             // se mantiene el estado actual si falla
         }
@@ -41,14 +57,24 @@ function Entradas() {
             return;
         }
         setCargando(true);
-        Promise.all([listarProductos(token), listarEntradas(token)])
-            .then(([listaProductos, listaEntradas]) => {
+        Promise.all([
+            listarProductos(token),
+            listarEntradasPaginado(token, pagina, REGISTROS_POR_PAGINA),
+            listarProveedores(token),
+        ])
+            .then(([listaProductos, resEntradas, listaProveedores]) => {
                 if (!activo) return;
                 setProductos(listaProductos);
-                setEntradas(listaEntradas);
+                setEntradas(resEntradas.contenido);
+                setTotalPaginas(resEntradas.totalPaginas);
+                setTotalRegistros(resEntradas.totalElementos);
+                setProveedores(listaProveedores);
                 const primerActivo = listaProductos.find((p) => p.activo);
                 if (primerActivo) {
                     setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));
+                    if (!costoTexto) {
+                        setCostoTexto(primerActivo.precio.toFixed(2));
+                    }
                 }
             })
             .catch(() => {
@@ -60,15 +86,62 @@ function Entradas() {
         return () => {
             activo = false;
         };
-    }, [token]);
+    }, [token, pagina]);
 
-    const activos = productos.filter((p) => p.activo);
+    const activos = useMemo(() => productos.filter((p) => p.activo), [productos]);
 
+    // Categorías únicas disponibles en los productos activos
+    const categoriasDisponibles = useMemo(() => {
+        const setCat = new Set<string>();
+        activos.forEach((p) => {
+            if (p.categoria?.trim()) setCat.add(p.categoria.trim());
+        });
+        return ["Todas", ...Array.from(setCat).sort()];
+    }, [activos]);
+
+    // Productos activos filtrados por la categoría seleccionada
+    const productosFiltrados = useMemo(() => {
+        if (categoriaFiltro === "Todas") return activos;
+        return activos.filter((p) => p.categoria === categoriaFiltro);
+    }, [activos, categoriaFiltro]);
+
+    // Agrupación por categoría para el <optgroup>
+    const productosPorCategoria = useMemo(() => {
+        const grupos: Record<string, ProductoInv[]> = {};
+        productosFiltrados.forEach((p) => {
+            const cat = p.categoria || "Otras categorías";
+            if (!grupos[cat]) grupos[cat] = [];
+            grupos[cat].push(p);
+        });
+        return grupos;
+    }, [productosFiltrados]);
+
+    // Producto seleccionado
+    const prod = productos.find((p) => p.id === productoId) ?? productosFiltrados[0];
+    const stockActual = prod?.stock ?? 0;
     const cantidad = parsearNumeroSeguro(cantidadTexto);
     const costo = parsearNumeroSeguro(costoTexto);
-    const prod = productos.find((p) => p.id === productoId) ?? activos[0];
-    const stockActual = prod?.stock ?? 0;
     const nuevoStock = stockActual + Math.max(0, cantidad);
+
+    // Al cambiar la categoría, asegurar que el producto seleccionado pertenezca al filtro
+    const cambiarCategoriaFiltro = (nuevaCat: string) => {
+        setCategoriaFiltro(nuevaCat);
+        const disponibles = nuevaCat === "Todas" ? activos : activos.filter((p) => p.categoria === nuevaCat);
+        if (disponibles.length > 0 && !disponibles.some((p) => p.id === productoId)) {
+            const primero = disponibles[0];
+            setProductoId(primero.id);
+            setCostoTexto(primero.precio.toFixed(2));
+        }
+    };
+
+    // Al seleccionar un producto en el dropdown, precargar su costo sugerido
+    const seleccionarProducto = (nuevoId: number) => {
+        setProductoId(nuevoId);
+        const seleccionado = productos.find((p) => p.id === nuevoId);
+        if (seleccionado) {
+            setCostoTexto(seleccionado.precio.toFixed(2));
+        }
+    };
 
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -77,6 +150,10 @@ function Entradas() {
         if (!token) return;
         if (!prod) {
             setErrorForm("Selecciona un producto válido para registrar la entrada.");
+            return;
+        }
+        if (proveedorId <= 0) {
+            setErrorForm("Selecciona un proveedor válido para registrar la entrada.");
             return;
         }
         if (cantidad <= 0) {
@@ -88,10 +165,16 @@ function Entradas() {
             return;
         }
         try {
-            await registrarEntradaBackend(token, [{ idProducto: prod.id, cantidad, costoUnitario: costo }]);
-            setOk(`✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)})`);
+            await registrarEntradaBackend(token, [
+                { idProducto: prod.id, idProveedor: proveedorId, cantidad, costoUnitario: costo },
+            ]);
+            setOk(
+                `✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)}) del proveedor ${
+                    proveedores.find((p) => p.id === proveedorId)?.nombre ?? proveedorId
+                }`
+            );
             setCantidadTexto("20");
-            setCostoTexto("");
+            setCostoTexto(prod.precio.toFixed(2));
             setMotivo("Ingreso de mercadería");
             await refrescar();
         } catch (err) {
@@ -108,30 +191,99 @@ function Entradas() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white">Registrar Entrada de Mercadería</h1>
-                <p className="text-sm text-slate-500 mt-1">Ingreso de suministros con cálculo automático de nuevo stock y asiento en Kardex.</p>
+                <p className="text-sm text-slate-500 mt-1">
+                    Ingreso de suministros con cálculo automático de nuevo stock y asiento en Kardex.
+                </p>
             </div>
 
-            <form className="max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-4" onSubmit={registrar}>
+            <form
+                className="max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-4"
+                onSubmit={registrar}
+            >
+                {/* Filtro previo de categoría para facilitar la selección */}
                 <div className="space-y-1.5">
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                        Producto a Ingresar
+                        Filtrar por Categoría
                     </label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {categoriasDisponibles.map((cat) => (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() => cambiarCategoriaFiltro(cat)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                                    categoriaFiltro === cat
+                                        ? "bg-emerald-600 text-white shadow-xs"
+                                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Selector de Producto agrupado por Categoría */}
+                <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                            Producto a Ingresar ({productosFiltrados.length})
+                        </label>
+                        {prod && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                                PVP venta: <strong className="text-slate-700 dark:text-slate-300">S/ {prod.precio.toFixed(2)}</strong>
+                            </span>
+                        )}
+                    </div>
                     <select
                         className={inputClass + " cursor-pointer"}
                         value={prod?.id ?? 0}
-                        onChange={(e) => setProductoId(Number(e.target.value) || 0)}
+                        onChange={(e) => seleccionarProducto(Number(e.target.value) || 0)}
                         disabled={cargando}
                     >
                         {cargando && <option value={0}>Cargando productos...</option>}
-                        {!cargando && activos.length === 0 && <option value={0}>Sin productos activos</option>}
-                        {activos.map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.nombre} (Stock actual: {p.stock})
-                            </option>
+                        {!cargando && productosFiltrados.length === 0 && (
+                            <option value={0}>Sin productos en esta categoría</option>
+                        )}
+                        {Object.entries(productosPorCategoria).map(([categoria, listaProds]) => (
+                            <optgroup key={categoria} label={categoria}>
+                                {listaProds.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.nombre} (Stock: {p.stock} | S/ {p.precio.toFixed(2)})
+                                    </option>
+                                ))}
+                            </optgroup>
                         ))}
                     </select>
                 </div>
 
+                {/* Proveedor */}
+                <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        Proveedor
+                    </label>
+                    <select
+                        className={inputClass + " cursor-pointer"}
+                        value={proveedorId}
+                        onChange={(e) => setProveedorId(Number(e.target.value) || 0)}
+                        disabled={cargando}
+                        required
+                    >
+                        <option value={0}>Selecciona el proveedor</option>
+                        {proveedores.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {p.nombre} {p.ruc ? `(RUC: ${p.ruc})` : ""}
+                            </option>
+                        ))}
+                    </select>
+                    {!cargando && proveedores.length === 0 && (
+                        <p className="text-[11px] text-amber-600">
+                            Sin proveedores registrados. Registra uno en el menú Proveedores.
+                        </p>
+                    )}
+                </div>
+
+                {/* Cantidad y Costo de Adquisición */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
@@ -148,9 +300,21 @@ function Entradas() {
                         />
                     </div>
                     <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                            Costo Unitario (S/)
-                        </label>
+                        <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                Costo Unitario Compra (S/)
+                            </label>
+                            {prod && (
+                                <button
+                                    type="button"
+                                    onClick={() => setCostoTexto(prod.precio.toFixed(2))}
+                                    className="text-[10px] text-emerald-600 hover:underline cursor-pointer"
+                                    title="Restaurar precio de catálogo como sugerencia"
+                                >
+                                    Usar PVP
+                                </button>
+                            )}
+                        </div>
                         <input
                             className={inputClass}
                             type="text"
@@ -158,7 +322,11 @@ function Entradas() {
                             value={costoTexto}
                             onChange={(e) => setCostoTexto(limpiarDecimal(e.target.value))}
                             placeholder="0.00"
+                            required
                         />
+                        <p className="text-[10px] text-slate-400">
+                            Costo de adquisición pactado con el proveedor en esta entrada.
+                        </p>
                     </div>
                 </div>
 
@@ -171,26 +339,34 @@ function Entradas() {
                         type="text"
                         value={motivo}
                         onChange={(e) => setMotivo(e.target.value)}
-                        placeholder="Guía de remisión / Compra / Reabastecimiento"
+                        placeholder="Guía de remisión / Factura / Reabastecimiento"
                     />
                 </div>
 
-                {/* Cálculo automático: solo se muestra cuando hay un producto seleccionado */}
+                {/* Cálculo automático de existencias */}
                 {prod && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
-                    <div>
-                        <span className="block text-[11px] font-semibold text-slate-400">Stock Actual</span>
-                        <strong className="block text-lg font-mono font-bold text-slate-700 dark:text-slate-300">{stockActual}</strong>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
+                        <div>
+                            <span className="block text-[11px] font-semibold text-slate-400">Stock Actual</span>
+                            <strong className="block text-lg font-mono font-bold text-slate-700 dark:text-slate-300">
+                                {stockActual}
+                            </strong>
+                        </div>
+                        <div>
+                            <span className="block text-[11px] font-semibold text-slate-400">Ingresando</span>
+                            <strong className="block text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                +{Math.max(0, cantidad)}
+                            </strong>
+                        </div>
+                        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-1 border border-emerald-200 dark:border-emerald-800/40">
+                            <span className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                                Nuevo Stock
+                            </span>
+                            <strong className="block text-lg font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                {nuevoStock}
+                            </strong>
+                        </div>
                     </div>
-                    <div>
-                        <span className="block text-[11px] font-semibold text-slate-400">Ingresando</span>
-                        <strong className="block text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">+{Math.max(0, cantidad)}</strong>
-                    </div>
-                    <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-1 border border-emerald-200 dark:border-emerald-800/40">
-                        <span className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-300">Nuevo Stock</span>
-                        <strong className="block text-lg font-mono font-black text-emerald-600 dark:text-emerald-400">{nuevoStock}</strong>
-                    </div>
-                </div>
                 )}
 
                 <p className="text-xs text-slate-400">
@@ -198,7 +374,10 @@ function Entradas() {
                 </p>
 
                 {errorForm && (
-                    <div role="alert" className="p-3 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-semibold text-xs border border-red-200 dark:border-red-800/60">
+                    <div
+                        role="alert"
+                        className="p-3 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-semibold text-xs border border-red-200 dark:border-red-800/60"
+                    >
                         {errorForm}
                     </div>
                 )}
@@ -215,27 +394,27 @@ function Entradas() {
                         className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-all cursor-pointer"
                         onClick={() => {
                             setCantidadTexto("20");
-                            setCostoTexto("");
+                            setCostoTexto(prod ? prod.precio.toFixed(2) : "");
                             setMotivo("Ingreso de mercadería");
                             setErrorForm("");
                             setOk("");
                         }}
                     >
-                        Limpiar formulario
+                        Restablecer
                     </button>
                     <button
                         type="submit"
-                        disabled={cargando || !prod}
+                        disabled={cargando || activos.length === 0}
                         className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
                     >
-                        Registrar entrada
+                        Confirmar Entrada
                     </button>
                 </div>
             </form>
 
-            {/* Historial de entradas registradas */}
+            {/* Historial de Entradas */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                <h2 className="text-base font-black text-slate-900 dark:text-white">Historial de entradas</h2>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">Últimas Entradas Registradas</h2>
                 <div className="mt-4 space-y-3">
                     {cargando ? (
                         <p className="text-sm text-slate-500">Cargando entradas...</p>
@@ -243,22 +422,57 @@ function Entradas() {
                         <p className="text-sm text-slate-500">No hay entradas registradas todavía.</p>
                     ) : (
                         entradas.map((e) => (
-                            <div key={e.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+                            <div
+                                key={e.id}
+                                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 space-y-2 text-xs"
+                            >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <strong className="text-xs text-slate-800 dark:text-slate-200">Entrada #{e.id}</strong>
-                                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">{e.fecha}</span>
+                                    <strong className="text-xs text-slate-800 dark:text-slate-200">
+                                        Entrada #{e.id}
+                                    </strong>
+                                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                        {e.fecha}
+                                    </span>
                                 </div>
-                                <div className="mt-2 space-y-1">
-                                    {e.items.map((it, idx) => (
-                                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                                            <span>Producto ID {it.idProducto}</span>
-                                            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">+{it.cantidad} u.</span>
-                                        </div>
-                                    ))}
+                                <div className="space-y-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+                                    {e.items && e.items.map((it, idx) => {
+                                        const prodItem = productos.find((p) => p.id === it.idProducto);
+                                        const provItem = proveedores.find((p) => p.id === it.idProveedor);
+                                        return (
+                                            <div
+                                                key={idx}
+                                                className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300"
+                                            >
+                                                <span>
+                                                    <strong className="text-slate-800 dark:text-slate-200">
+                                                        {prodItem?.nombre ?? `Producto #${it.idProducto}`}
+                                                    </strong>{" "}
+                                                    · Proveedor: {provItem?.nombre ?? `#${it.idProveedor}`}
+                                                </span>
+                                                <div className="text-right">
+                                                    <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold">
+                                                        +{it.cantidad} u.
+                                                    </span>
+                                                    <span className="font-mono text-slate-500 ml-2">
+                                                        Costo: S/ {Number(it.costoUnitario || 0).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))
                     )}
+                </div>
+
+                <div className="mt-6">
+                    <Paginacion
+                        paginaActual={pagina}
+                        totalPaginas={totalPaginas}
+                        totalRegistros={totalRegistros}
+                        onCambiar={setPagina}
+                    />
                 </div>
             </div>
         </div>

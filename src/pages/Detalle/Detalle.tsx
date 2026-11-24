@@ -153,6 +153,58 @@ function Detalle() {
                     </div>
                 </section>
 
+                {/* Ficha técnica (tabla 1:N en 3FN) */}
+                <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                                Ficha Técnica
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Características registradas para este dispositivo.
+                            </p>
+                        </div>
+                        {producto.marca && (
+                            <span className="badge bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1">
+                                Marca: <strong>{producto.marca}</strong>
+                            </span>
+                        )}
+                    </div>
+
+                    {(producto.especificaciones?.length ?? 0) > 0 ? (
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 dark:bg-slate-800/60 text-left">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 w-1/2">
+                                            Característica
+                                        </th>
+                                        <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">
+                                            Valor
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {producto.especificaciones!.map((e, i) => (
+                                        <tr key={`${e.caracteristica}-${i}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
+                                                {e.caracteristica}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                                                {e.valor}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-8 text-center text-sm text-slate-500">
+                            Este producto aún no tiene especificaciones técnicas registradas.
+                        </div>
+                    )}
+                </section>
+
                 {/* Relacionados */}
                 {relacionados.length > 0 && (
                     <section className="space-y-6">

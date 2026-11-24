@@ -22,6 +22,7 @@ import AlmacenLayout from "./pages/Almacen/AlmacenLayout";
 import AlmacenDashboard from "./pages/Almacen/Dashboard/Dashboard";
 import AlmacenProductos from "./pages/Almacen/Productos/Productos";
 import AlmacenEntradas from "./pages/Almacen/Entradas/Entradas";
+import AlmacenProveedores from "./pages/Almacen/Proveedores/Proveedores";
 import AlmacenKardex from "./pages/Almacen/Kardex/Kardex";
 import AlmacenDespachos from "./pages/Almacen/Despachos/Despachos";
 import MisCompras from "./pages/MisCompras/MisCompras";
@@ -86,6 +87,7 @@ function App() {
                   <Route path="dashboard" element={<AlmacenDashboard />} />
                   <Route path="productos" element={<AlmacenProductos />} />
                   <Route path="entradas" element={<AlmacenEntradas />} />
+                  <Route path="proveedores" element={<AlmacenProveedores />} />
                   <Route path="kardex" element={<AlmacenKardex />} />
                   <Route path="despachos" element={<AlmacenDespachos />} />
                 </Route>

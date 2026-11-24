@@ -17,7 +17,7 @@ export const CATEGORIAS = [
   { nombre: "Smartphones", icon: "smartphone" },
   { nombre: "Audio", icon: "audio" },
   { nombre: "Periféricos", icon: "perifericos" },
-  { nombre: "Computadoras", icon: "computadoras" },
+  { nombre: "Laptops", icon: "laptops" },
   { nombre: "Accesorios", icon: "accesorios" },
 ];
 

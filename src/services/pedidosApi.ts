@@ -1,5 +1,6 @@
 import type { ComprobanteInfo, ItemPedido, MetodoPago, Pedido, TipoComprobante } from "../data/pedidos";
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 // ===== Contratos que espera el backend (com.utp.tienda.vistas.dto) =====
 export interface ItemPedidoEntrada {
@@ -148,6 +149,21 @@ export async function listarMisCompras(token: string): Promise<Pedido[]> {
     return (Array.isArray(data) ? data : []).map(mapear);
 }
 
+/** Trae el historial de compras con paginación server-side. */
+export async function listarMisComprasPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Pedido>> {
+    const page0 = Math.max(0, pagina - 1);
+    const resp = await fetch(apiUrl(`/api/pedidos/mis-compras?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error("No se pudo consultar el historial");
+    const data = await resp.json();
+    return normalizarRespuestaPaginada(data, mapear, pagina, limite);
+}
+
 /** Trae todos los pedidos del sistema para el panel de administración (GET /api/pedidos). */
 export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
     const resp = await fetch(apiUrl("/api/pedidos"), {
@@ -156,6 +172,21 @@ export async function listarPedidosAdmin(token: string): Promise<Pedido[]> {
     if (!resp.ok) throw new Error("No se pudieron cargar las ventas de la base de datos");
     const data = (await resp.json()) as PedidoBackend[];
     return (Array.isArray(data) ? data : []).map(mapear);
+}
+
+/** Trae pedidos para el panel de administración con paginación server-side. */
+export async function listarPedidosAdminPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Pedido>> {
+    const page0 = Math.max(0, pagina - 1);
+    const resp = await fetch(apiUrl(`/api/pedidos?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error("No se pudieron cargar las ventas de la base de datos");
+    const data = await resp.json();
+    return normalizarRespuestaPaginada(data, mapear, pagina, limite);
 }
 
 /** Actualiza el estado de un pedido por Almacén (PUT /api/pedidos/{numero}/estado). */

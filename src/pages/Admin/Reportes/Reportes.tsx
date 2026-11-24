@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { obtenerReporteParametrizado } from "../../../services/reportesApi";
+import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 
 type TipoReporte = "ventas" | "inventario" | "usuarios";
 
@@ -10,6 +11,7 @@ function Reportes() {
     const [datos, setDatos] = useState<any>(null);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [pagina, setPagina] = useState(1);
 
     const cargarReporte = async (tipo: TipoReporte) => {
         if (!token) return;
@@ -28,6 +30,10 @@ function Reportes() {
     useEffect(() => {
         cargarReporte(tipoActivo);
     }, [token, tipoActivo]);
+
+    const filas = datos?.filas ?? [];
+    const totalPaginas = Math.max(1, Math.ceil(filas.length / REGISTROS_POR_PAGINA));
+    const visiblesFilas = filas.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     // Exportación a Excel (.csv UTF-8 compatible con Microsoft Excel)
     const exportarExcel = () => {
@@ -278,14 +284,14 @@ function Reportes() {
                                 )}
                             </thead>
                             <tbody>
-                                {datos.filas?.length === 0 ? (
+                                {filas.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="text-center py-6 text-xs text-slate-500">
                                             No hay registros disponibles.
                                         </td>
                                     </tr>
                                 ) : (
-                                    datos.filas.map((f: any, idx: number) => {
+                                    visiblesFilas.map((f: any, idx: number) => {
                                         if (tipoActivo === "ventas") {
                                             return (
                                                 <tr key={idx}>
@@ -347,6 +353,9 @@ function Reportes() {
                     </div>
                 </div>
             ) : null}
+
+            {/* Paginación */}
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filas.length} onCambiar={setPagina} />
         </div>
     );
 }

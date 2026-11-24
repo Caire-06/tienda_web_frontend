@@ -10,6 +10,28 @@ import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion
 import { consultarRUC, type ResultadoRUC } from "../../../services/sunatApi";
 import { limpiarSoloDigitos } from "../../../utils/validaciones";
 
+interface PaisPrefijo {
+    codigo: string;
+    nombre: string;
+    prefijo: string;
+    bandera: string;
+    maxDigitos: number;
+    placeholder: string;
+}
+
+const PREFIJOS_PAISES: PaisPrefijo[] = [
+    { codigo: "PE", nombre: "Perú", prefijo: "+51", bandera: "🇵🇪", maxDigitos: 9, placeholder: "999888777" },
+    { codigo: "US", nombre: "Estados Unidos", prefijo: "+1", bandera: "🇺🇸", maxDigitos: 10, placeholder: "2025550143" },
+    { codigo: "CN", nombre: "China", prefijo: "+86", bandera: "🇨🇳", maxDigitos: 11, placeholder: "13800138000" },
+    { codigo: "CL", nombre: "Chile", prefijo: "+56", bandera: "🇨🇱", maxDigitos: 9, placeholder: "912345678" },
+    { codigo: "CO", nombre: "Colombia", prefijo: "+57", bandera: "🇨🇴", maxDigitos: 10, placeholder: "3001234567" },
+    { codigo: "MX", nombre: "México", prefijo: "+52", bandera: "🇲🇽", maxDigitos: 10, placeholder: "5512345678" },
+    { codigo: "BR", nombre: "Brasil", prefijo: "+55", bandera: "🇧🇷", maxDigitos: 11, placeholder: "11987654321" },
+    { codigo: "ES", nombre: "España", prefijo: "+34", bandera: "🇪🇸", maxDigitos: 9, placeholder: "612345678" },
+    { codigo: "AR", nombre: "Argentina", prefijo: "+54", bandera: "🇦🇷", maxDigitos: 10, placeholder: "1112345678" },
+    { codigo: "OTRO", nombre: "Internacional", prefijo: "+", bandera: "🌐", maxDigitos: 15, placeholder: "Número internacional" },
+];
+
 function Proveedores() {
     const { token } = useAuth();
     const formRef = useRef<HTMLFormElement>(null);
@@ -22,7 +44,8 @@ function Proveedores() {
     const [nombre, setNombre] = useState("");
     const [ruc, setRuc] = useState("");
     const [contacto, setContacto] = useState("");
-    const [telefono, setTelefono] = useState("");
+    const [prefijoPais, setPrefijoPais] = useState("+51");
+    const [telefonoNumero, setTelefonoNumero] = useState("");
     const [email, setEmail] = useState("");
     const [direccion, setDireccion] = useState("");
     const [activo, setActivo] = useState(true);
@@ -86,7 +109,7 @@ function Proveedores() {
         }
     };
 
-    // Permite exactamente hasta 11 dígitos sin truncar prematuramente
+    // Permite exactamente hasta 11 dígitos numéricos sin truncar
     const handleRucChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = limpiarSoloDigitos(e.target.value, 11);
         setRuc(val);
@@ -98,13 +121,34 @@ function Proveedores() {
         }
     };
 
+    // Parsea el teléfono para extraer prefijo y número limpio
+    const cargarTelefono = (telRaw?: string) => {
+        if (!telRaw) {
+            setPrefijoPais("+51");
+            setTelefonoNumero("");
+            return;
+        }
+        const limpio = telRaw.trim();
+        const paisMatch = PREFIJOS_PAISES.find((p) => p.prefijo !== "+" && limpio.startsWith(p.prefijo));
+        if (paisMatch) {
+            setPrefijoPais(paisMatch.prefijo);
+            setTelefonoNumero(limpiarSoloDigitos(limpio.replace(paisMatch.prefijo, "")));
+        } else if (limpio.startsWith("+")) {
+            setPrefijoPais("+");
+            setTelefonoNumero(limpiarSoloDigitos(limpio));
+        } else {
+            setPrefijoPais("+51");
+            setTelefonoNumero(limpiarSoloDigitos(limpio));
+        }
+    };
+
     // Iniciar edición de un proveedor existente
     const iniciarEdicion = (p: Proveedor) => {
         setIdEditando(p.id);
         setNombre(p.nombre);
         setRuc(p.ruc || "");
         setContacto(p.contacto || "");
-        setTelefono(p.telefono || "");
+        cargarTelefono(p.telefono);
         setEmail(p.email || "");
         setDireccion(p.direccion || "");
         setActivo(p.activo);
@@ -122,7 +166,8 @@ function Proveedores() {
         setNombre("");
         setRuc("");
         setContacto("");
-        setTelefono("");
+        setPrefijoPais("+51");
+        setTelefonoNumero("");
         setEmail("");
         setDireccion("");
         setActivo(true);
@@ -145,13 +190,17 @@ function Proveedores() {
             return;
         }
 
+        const telefonoCompleto = telefonoNumero.trim()
+            ? `${prefijoPais} ${telefonoNumero.trim()}`
+            : undefined;
+
         setGuardando(true);
         try {
             const payload = {
                 nombre: nombre.trim(),
                 ruc: ruc.trim() || undefined,
                 contacto: contacto.trim() || undefined,
-                telefono: telefono.trim() || undefined,
+                telefono: telefonoCompleto,
                 email: email.trim() || undefined,
                 direccion: direccion.trim() || undefined,
                 activo,
@@ -186,7 +235,7 @@ function Proveedores() {
             <div>
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white">Proveedores</h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Directorio, edición y catálogo de proveedores con validación y consulta automática ante SUNAT.
+                    Directorio, edición y catálogo de proveedores con validación de teléfono, países de origen y consulta automática ante SUNAT.
                 </p>
             </div>
 
@@ -278,7 +327,7 @@ function Proveedores() {
                     </div>
                 )}
 
-                {/* Contacto y Teléfono */}
+                {/* Contacto y Teléfono con Prefijo de País con Bandera */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
@@ -291,16 +340,42 @@ function Proveedores() {
                             placeholder="Nombre del ejecutivo comercial"
                         />
                     </div>
+
                     <div className="space-y-1.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                            Teléfono Corporativo
+                            Teléfono Corporativo (Solo dígitos)
                         </label>
-                        <input
-                            className={inputClass}
-                            value={telefono}
-                            onChange={(e) => setTelefono(e.target.value)}
-                            placeholder="999888777 / (01) 456-7890"
-                        />
+                        <div className="flex gap-1.5 items-center">
+                            {/* Selector de prefijo con bandera */}
+                            <select
+                                value={prefijoPais}
+                                onChange={(e) => setPrefijoPais(e.target.value)}
+                                className="px-2 py-2.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            >
+                                {PREFIJOS_PAISES.map((p) => (
+                                    <option key={p.codigo} value={p.prefijo}>
+                                        {p.bandera} {p.prefijo} ({p.nombre})
+                                    </option>
+                                ))}
+                            </select>
+
+                            {/* Input sanitizado que SOLO permite dígitos numéricos */}
+                            <input
+                                className={inputClass + " font-mono flex-1"}
+                                type="text"
+                                inputMode="numeric"
+                                value={telefonoNumero}
+                                onChange={(e) => {
+                                    const pais = PREFIJOS_PAISES.find((p) => p.prefijo === prefijoPais);
+                                    const max = pais?.maxDigitos ?? 15;
+                                    setTelefonoNumero(limpiarSoloDigitos(e.target.value, max));
+                                }}
+                                placeholder={
+                                    PREFIJOS_PAISES.find((p) => p.prefijo === prefijoPais)?.placeholder ??
+                                    "999888777"
+                                }
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -350,7 +425,9 @@ function Proveedores() {
                     </div>
                 )}
                 {ok && (
-                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-200 dark:border-emerald-800/60">
+                    <div
+                        className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-200 dark:border-emerald-800/60"
+                    >
                         {ok}
                     </div>
                 )}

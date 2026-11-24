@@ -6,6 +6,7 @@ import type { DatosProducto, ProductoInv } from "../../../context/InventarioCont
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import { EditorEspecificaciones } from "../../../components/EditorEspecificaciones/EditorEspecificaciones";
+import { generarEspecificacionesPorDefecto } from "../../../data/plantillasEspecificaciones";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -97,7 +98,7 @@ function Productos() {
 
     const abrirNuevo = () => {
         setFormId(null);
-        setForm({ ...VACIO, especificaciones: [] });
+        setForm({ ...VACIO, especificaciones: generarEspecificacionesPorDefecto(VACIO.categoria) });
         setPrecioTexto("");
         setStockTexto("0");
         setArchivo(null);
@@ -328,7 +329,18 @@ function Productos() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Categoría</label>
-                                    <select className={selectClass + " w-full"} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
+                                    <select
+                                        className={selectClass + " w-full"}
+                                        value={form.categoria}
+                                        onChange={(e) => {
+                                            const nuevaCat = e.target.value;
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                categoria: nuevaCat,
+                                                especificaciones: formId === null ? generarEspecificacionesPorDefecto(nuevaCat) : prev.especificaciones,
+                                            }));
+                                        }}
+                                    >
                                         {CATEGORIAS.map((c) => (
                                             <option key={c.nombre}>{c.nombre}</option>
                                         ))}
@@ -395,7 +407,7 @@ function Productos() {
                                 <textarea className={inputClass} rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
                             </div>
 
-                            {/* Ficha técnica estandarizada (Opción A: 3FN con plantillas canónicas) */}
+                            {/* Ficha técnica estandarizada */}
                             <EditorEspecificaciones
                                 categoria={form.categoria}
                                 especificaciones={form.especificaciones ?? []}

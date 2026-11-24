@@ -87,7 +87,7 @@ function Proveedores() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white">Proveedores</h1>
-                <p className="text-sm text-slate-500 mt-1">Catálogo de proveedores (3FN: una tabla de proveedores, sin atributos repetidos).</p>
+                <p className="text-sm text-slate-500 mt-1">Directorio y catálogo de proveedores registrados.</p>
             </div>
 
             <form className="max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-4" onSubmit={registrar}>

@@ -263,6 +263,54 @@ export const PLANTILLAS_ESPECIFICACIONES: Record<string, CampoPlantilla[]> = {
 // Aliases para compatibilidad con nombres históricos de categoría
 PLANTILLAS_ESPECIFICACIONES["Computadoras"] = PLANTILLAS_ESPECIFICACIONES["Laptops"];
 
+const STORAGE_PREFIX = "techstore_custom_specs_";
+
+/**
+ * Retorna las características personalizadas registradas previamente por el usuario
+ * para una categoría específica (guardadas en localStorage).
+ */
+export function obtenerCaracteristicasPersonalizadas(categoria: string): string[] {
+    try {
+        const catKey = (categoria || "").trim().toLowerCase();
+        const raw = localStorage.getItem(`${STORAGE_PREFIX}${catKey}`);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Guarda una nueva característica personalizada para la categoría dada en localStorage.
+ * No duplica valores y formatea la primera letra en mayúscula.
+ */
+export function guardarCaracteristicaPersonalizada(categoria: string, nombre: string): string[] {
+    const limpio = (nombre || "").trim();
+    if (!limpio) return obtenerCaracteristicasPersonalizadas(categoria);
+
+    // Formatear: primera letra mayúscula si el usuario escribió todo en minúscula
+    const formateado = limpio.charAt(0).toUpperCase() + limpio.slice(1);
+
+    try {
+        const actuales = obtenerCaracteristicasPersonalizadas(categoria);
+        const yaExiste = actuales.some((item) => item.toLowerCase() === formateado.toLowerCase());
+        const camposBase = (PLANTILLAS_ESPECIFICACIONES[categoria] ?? []).some(
+            (c) => c.caracteristica.toLowerCase() === formateado.toLowerCase()
+        );
+
+        if (!yaExiste && !camposBase) {
+            const actualizados = [...actuales, formateado];
+            const catKey = (categoria || "").trim().toLowerCase();
+            localStorage.setItem(`${STORAGE_PREFIX}${catKey}`, JSON.stringify(actualizados));
+            return actualizados;
+        }
+        return actuales;
+    } catch {
+        return [];
+    }
+}
+
 /**
  * Obtiene la plantilla para una categoría dada o una lista por defecto si no existe.
  */

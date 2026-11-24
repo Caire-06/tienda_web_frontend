@@ -10,6 +10,7 @@ import type { EspecificacionInv, ProductoInv } from "../../../context/Inventario
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import { EditorEspecificaciones } from "../../../components/EditorEspecificaciones/EditorEspecificaciones";
+import { generarEspecificacionesPorDefecto } from "../../../data/plantillasEspecificaciones";
 import {
     limpiarDecimal,
     limpiarEnteroNoNegativo,
@@ -109,16 +110,17 @@ function Productos() {
 
     const abrirCrear = () => {
         setModoEdicion(false);
+        const catInicial = CATALOGO_CATEGORIAS[0].nombre;
         setForm({
             nombre: "",
-            categoria: CATALOGO_CATEGORIAS[0].nombre,
+            categoria: catInicial,
             marca: CATALOGO_MARCAS[0].nombre,
             unidadMedida: CATALOGO_UNIDADES[0].codigo,
             precio: 0,
             stock: 0,
             imagen: "",
             descripcion: "",
-            especificaciones: [],
+            especificaciones: generarEspecificacionesPorDefecto(catInicial),
         });
         setPrecioTexto("");
         setStockTexto("0");
@@ -427,7 +429,14 @@ function Productos() {
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
                                         value={form.categoria}
-                                        onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                                        onChange={(e) => {
+                                            const nuevaCat = e.target.value;
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                categoria: nuevaCat,
+                                                especificaciones: !modoEdicion ? generarEspecificacionesPorDefecto(nuevaCat) : prev.especificaciones,
+                                            }));
+                                        }}
                                     >
                                         {CATALOGO_CATEGORIAS.map((c) => (
                                             <option key={c.codigo} value={c.nombre}>{c.nombre}</option>
@@ -521,7 +530,7 @@ function Productos() {
                                 />
                             </div>
 
-                            {/* Ficha técnica estandarizada (Opción A: 3FN con plantillas canónicas) */}
+                            {/* Ficha técnica estandarizada */}
                             <EditorEspecificaciones
                                 categoria={form.categoria}
                                 especificaciones={form.especificaciones ?? []}

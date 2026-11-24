@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarMovimientos } from "../../../services/kardexApi";
+import { listarMovimientosPaginado } from "../../../services/kardexApi";
 import type { Movimiento } from "../../../context/InventarioContext";
 
 function fechaCorta(iso: string) {
@@ -24,6 +24,8 @@ function Kardex() {
     const [desde, setDesde] = useState("");
     const [hasta, setHasta] = useState("");
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
     const filtrados = movimientos.filter((m) => {
         if (producto !== "Todos" && m.producto !== producto) return false;
@@ -45,9 +47,8 @@ function Kardex() {
         setPagina(1);
     };
 
-    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / 8));
     const paginaActual = Math.min(pagina, totalPaginas);
-    const visibles = filtrados.slice((paginaActual - 1) * 8, paginaActual * 8);
+    const visibles = filtrados;
 
     const totalEntradas = filtrados.filter((m) => m.tipo === "Entrada").length;
     const totalSalidas = filtrados.filter((m) => m.tipo === "Salida").length;
@@ -62,12 +63,18 @@ function Kardex() {
             return;
         }
         setCargando(true);
-        listarMovimientos(token)
-            .then((lista) => { if (activo) setMovimientos(lista); })
+        listarMovimientosPaginado(token, pagina, 8)
+            .then((res) => {
+                if (activo) {
+                    setMovimientos(res.contenido);
+                    setTotalPaginas(res.totalPaginas);
+                    setTotalRegistros(res.totalElementos);
+                }
+            })
             .catch(() => { if (activo) setMovimientos([]); })
             .finally(() => { if (activo) setCargando(false); });
         return () => { activo = false; };
-    }, [token]);
+    }, [token, pagina]);
 
     return (
         <div className="space-y-6">
@@ -173,7 +180,7 @@ function Kardex() {
             {filtrados.length > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 pt-2">
                     <span>
-                        Página {paginaActual} de {totalPaginas} · {filtrados.length} registros
+                        Página {paginaActual} de {totalPaginas} · {totalRegistros} movimientos registrados
                     </span>
                     <div className="flex gap-1">
                         <button

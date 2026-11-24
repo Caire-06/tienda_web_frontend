@@ -1,5 +1,6 @@
 import type { EspecificacionInv, ProductoInv } from "../context/InventarioContext";
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 // Contrato que devuelve el backend (ProductoDTO).
 interface ProductoBackend {
@@ -70,6 +71,33 @@ export async function listarProductos(token?: string | null): Promise<ProductoIn
     const unicos = new Map<number, ProductoInv>();
     convertidos.forEach((p) => unicos.set(p.id, p));
     return Array.from(unicos.values());
+}
+
+/** GET /api/productos con paginación server-side y filtros canónicos. */
+export async function listarProductosPaginado(
+    token?: string | null,
+    pagina: number = 1,
+    limite: number = 10,
+    categoria?: string,
+    busqueda?: string
+): Promise<RespuestaPaginada<ProductoInv>> {
+    const page0 = Math.max(0, pagina - 1);
+    const params = new URLSearchParams();
+    params.set("page", String(page0));
+    params.set("size", String(limite));
+    if (categoria && categoria !== "Todas") params.set("categoria", categoria);
+    if (busqueda && busqueda.trim()) params.set("busqueda", busqueda.trim());
+
+    const resp = await fetch(apiUrl(`/api/productos?${params.toString()}`), {
+        headers: cabecerasOpcionales(token),
+    });
+
+    if (!resp.ok) {
+        throw new Error("No se pudieron cargar los productos. Inténtalo nuevamente.");
+    }
+
+    const data = await resp.json();
+    return normalizarRespuestaPaginada(data, aProductoInv, pagina, limite);
 }
 
 /** GET /api/productos/{id} — obtener detalle de un producto. */

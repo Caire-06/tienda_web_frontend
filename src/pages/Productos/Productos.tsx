@@ -4,7 +4,7 @@ import Footer from "../../components/Footer/Footer";
 import ProductCard from "../../components/ProductCard/ProductCard";
 import { CATEGORIAS } from "../../data/productos";
 import { useAuth } from "../../context/AuthContext";
-import { listarProductos } from "../../services/productosApi";
+import { listarProductosPaginado } from "../../services/productosApi";
 import type { ProductoInv } from "../../context/InventarioContext";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../components/Paginacion/Paginacion";
 import { limpiarDecimal, parsearNumeroSeguro } from "../../utils/validaciones";
@@ -44,16 +44,34 @@ function Productos() {
     const [precioMinTexto, setPrecioMinTexto] = useState("");
     const [precioMaxTexto, setPrecioMaxTexto] = useState("");
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
     useEffect(() => {
         let activo = true;
         setCargando(true);
-        listarProductos(token)
-            .then((lista) => { if (activo) setBackendProductos(lista); })
+        listarProductosPaginado(
+            token,
+            pagina,
+            REGISTROS_POR_PAGINA,
+            categoria !== FILTRO_TODOS ? categoria : undefined,
+            busqueda
+        )
+            .then((res) => {
+                if (activo) {
+                    setBackendProductos(res.contenido);
+                    setTotalPaginas(res.totalPaginas);
+                    setTotalRegistros(res.totalElementos);
+                }
+            })
             .catch(() => { if (activo) setBackendProductos([]); })
             .finally(() => { if (activo) setCargando(false); });
         return () => { activo = false; };
-    }, [token]);
+    }, [token, pagina, categoria, busqueda]);
+
+    useEffect(() => {
+        setPagina(1);
+    }, [categoria, busqueda, novedades, precioMinTexto, precioMaxTexto]);
 
     const productos: ProductoInv[] = backendProductos;
 
@@ -118,8 +136,7 @@ function Productos() {
         }
     }, [productos, categoria, orden, busqueda, novedades, precioMinTexto, precioMaxTexto, precioMin, precioMax]);
 
-    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
-    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visibles = filtrados;
 
     useEffect(() => {
         setPagina(1);
@@ -267,7 +284,7 @@ function Productos() {
 
                         {/* Paginación */}
                         <div className="mt-8">
-                            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
+                            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
                         </div>
                     </>
                 ) : (

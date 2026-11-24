@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarProductos, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
+import { listarProductosPaginado, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
 import { CATEGORIAS } from "../../../data/productos";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
@@ -52,12 +52,16 @@ function Productos() {
     const [preview, setPreview] = useState("");
     const [errorModal, setErrorModal] = useState<string | null>(null);
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
-    const refrescar = async () => {
+    const refrescar = async (p: number = pagina) => {
         if (!token) return;
         try {
-            const lista = await listarProductos(token);
-            setProductos(lista);
+            const res = await listarProductosPaginado(token, p, REGISTROS_POR_PAGINA, categoria, busqueda);
+            setProductos(res.contenido);
+            setTotalPaginas(res.totalPaginas);
+            setTotalRegistros(res.totalElementos);
         } catch {
             setProductos([]);
         }
@@ -71,26 +75,26 @@ function Productos() {
             return;
         }
         setCargando(true);
-        listarProductos(token)
-            .then((lista) => { if (activo) setProductos(lista); })
+        listarProductosPaginado(token, pagina, REGISTROS_POR_PAGINA, categoria, busqueda)
+            .then((res) => {
+                if (activo) {
+                    setProductos(res.contenido);
+                    setTotalPaginas(res.totalPaginas);
+                    setTotalRegistros(res.totalElementos);
+                }
+            })
             .catch(() => { if (activo) setProductos([]); })
             .finally(() => { if (activo) setCargando(false); });
         return () => { activo = false; };
-    }, [token]);
+    }, [token, pagina, categoria, busqueda]);
 
-    const filtrados = productos.filter((p) => {
-        if (categoria !== "Todas" && p.categoria !== categoria) return false;
+    const visibles = productos.filter((p) => {
         if (estado === "disponible" && !(p.activo && p.stock >= 10)) return false;
         if (estado === "bajo" && !(p.activo && p.stock > 0 && p.stock < 10)) return false;
         if (estado === "sin" && !(p.activo && p.stock === 0)) return false;
         if (estado === "inactivo" && p.activo) return false;
-        const q = busqueda.trim().toLowerCase();
-        if (q && !p.nombre.toLowerCase().includes(q)) return false;
         return true;
     });
-
-    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
-    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     useEffect(() => {
         setPagina(1);
@@ -296,7 +300,7 @@ function Productos() {
                         ))}
                     </tbody>
                 </table>
-                {filtrados.length === 0 && (
+                {visibles.length === 0 && (
                     <div className="text-center py-10 text-sm text-slate-500">
                         {cargando ? "Cargando productos…" : "Sin productos para los filtros seleccionados."}
                     </div>
@@ -304,7 +308,7 @@ function Productos() {
             </div>
 
             {/* Paginación */}
-            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
             {/* Modal nuevo / editar */}
             {formId !== undefined && (

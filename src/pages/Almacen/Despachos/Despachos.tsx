@@ -26,6 +26,7 @@ import {
     IconoTienda,
     IconoUbicacion,
 } from "../../../components/Iconos/Iconos";
+import { Paginacion } from "../../../components/Paginacion/Paginacion";
 
 const EMPRESAS_COURIER = [
     "Olva Courier",
@@ -57,6 +58,9 @@ function Despachos() {
     const [cargando, setCargando] = useState(true);
     const [actualizando, setActualizando] = useState(false);
     const [actualizandoNumero, setActualizandoNumero] = useState<string | null>(null);
+
+    const [paginaPendientes, setPaginaPendientes] = useState(1);
+    const [paginaLotes, setPaginaLotes] = useState(1);
 
     // Selección múltiple para armar lote courier.
     const [seleccionados, setSeleccionados] = useState<string[]>([]);
@@ -218,6 +222,12 @@ function Despachos() {
 
         return p.tipoEntrega === filtroModalidad;
     });
+
+    const totalPaginasPendientes = Math.max(1, Math.ceil(pedidosFiltrados.length / 10));
+    const visiblesPendientes = pedidosFiltrados.slice((paginaPendientes - 1) * 10, paginaPendientes * 10);
+
+    const totalPaginasLotes = Math.max(1, Math.ceil(lotes.length / 10));
+    const visiblesLotes = lotes.slice((paginaLotes - 1) * 10, paginaLotes * 10);
 
     const elegiblesLote = pedidosFiltrados.filter(
         (p) => !p.codigoLoteDespacho && p.tipoEntrega !== "recojo"
@@ -518,7 +528,7 @@ function Despachos() {
                                 </thead>
 
                                 <tbody>
-                                    {pedidosFiltrados.map((p) => {
+                                    {visiblesPendientes.map((p) => {
                                         const isSelected = seleccionados.includes(p.numero);
                                         const esRecojo = p.tipoEntrega === "recojo";
                                         const yaEnLote = Boolean(p.codigoLoteDespacho);
@@ -689,6 +699,9 @@ function Despachos() {
                                     })}
                                 </tbody>
                             </table>
+                            <div className="p-3">
+                                <Paginacion paginaActual={paginaPendientes} totalPaginas={totalPaginasPendientes} totalRegistros={pedidosFiltrados.length} onCambiar={setPaginaPendientes} />
+                            </div>
                         </div>
                     )}
                 </div>
@@ -721,7 +734,7 @@ function Despachos() {
                                     </td>
                                 </tr>
                             ) : (
-                                lotes.map((l) => (
+                                visiblesLotes.map((l) => (
                                     <tr key={l.id}>
                                         <td className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
                                             {l.codigoLote}
@@ -779,6 +792,9 @@ function Despachos() {
                             )}
                         </tbody>
                     </table>
+                    <div className="p-3">
+                        <Paginacion paginaActual={paginaLotes} totalPaginas={totalPaginasLotes} totalRegistros={lotes.length} onCambiar={setPaginaLotes} />
+                    </div>
                 </div>
             )}
 

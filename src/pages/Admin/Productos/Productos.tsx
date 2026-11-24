@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import {
-    listarProductos,
+    listarProductosPaginado,
     crearProducto,
     actualizarProducto,
     darDeBajaLogicaProducto,
@@ -77,6 +77,8 @@ function Productos() {
     const [errorModal, setErrorModal] = useState<string | null>(null);
 
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
     const [form, setForm] = useState<FormProductoState>({
         nombre: "",
@@ -90,13 +92,15 @@ function Productos() {
         especificaciones: [],
     });
 
-    const cargar = async () => {
+    const cargar = async (p: number = pagina) => {
         if (!token) return;
         setCargando(true);
         setError(null);
         try {
-            const data = await listarProductos(token);
-            setProductos(data);
+            const res = await listarProductosPaginado(token, p, REGISTROS_POR_PAGINA, filtroCategoria, busqueda);
+            setProductos(res.contenido);
+            setTotalPaginas(res.totalPaginas);
+            setTotalRegistros(res.totalElementos);
         } catch (err: any) {
             setError(err.message || "Error al cargar productos");
         } finally {
@@ -105,8 +109,8 @@ function Productos() {
     };
 
     useEffect(() => {
-        cargar();
-    }, [token]);
+        cargar(pagina);
+    }, [token, pagina, filtroCategoria, busqueda]);
 
     const abrirCrear = () => {
         setModoEdicion(false);
@@ -225,16 +229,10 @@ function Productos() {
     const estadoDe = (stock: number, activo: boolean) =>
         !activo ? "Inactivo" : stock === 0 ? "Sin stock" : stock < 10 ? "Stock bajo" : "Disponible";
 
-    const filtrados = productos.filter((p) => {
-        if (filtroCategoria !== "Todas" && p.categoria !== filtroCategoria) return false;
+    const visibles = productos.filter((p) => {
         if (filtroEstado !== "Todos" && estadoDe(p.stock, p.activo) !== filtroEstado) return false;
-        const q = busqueda.trim().toLowerCase();
-        if (q && !p.nombre.toLowerCase().includes(q)) return false;
         return true;
     });
-
-    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / REGISTROS_POR_PAGINA));
-    const visibles = filtrados.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
 
     useEffect(() => {
         setPagina(1);
@@ -256,7 +254,7 @@ function Productos() {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={cargar}
+                        onClick={() => cargar()}
                         className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                     >
                         ↻ Actualizar
@@ -320,7 +318,7 @@ function Productos() {
                                     Cargando catálogo...
                                 </td>
                             </tr>
-                        ) : filtrados.length === 0 ? (
+                        ) : visibles.length === 0 ? (
                             <tr>
                                 <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
                                     No se encontraron productos coincidentes.
@@ -395,7 +393,7 @@ function Productos() {
             </div>
 
             {/* Paginación */}
-            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filtrados.length} onCambiar={setPagina} />
+            <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
             {/* Modal CRUD: Crear o Editar Producto */}
             {modalAbierto && (

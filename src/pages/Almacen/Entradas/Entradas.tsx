@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarProductos } from "../../../services/productosApi";
 import type { ProductoInv } from "../../../context/InventarioContext";
-import { listarEntradas, registrarEntradaBackend } from "../../../services/entradasApi";
+import { listarEntradasPaginado, registrarEntradaBackend } from "../../../services/entradasApi";
 import type { Entrada } from "../../../services/entradasApi";
 import { listarProveedores } from "../../../services/proveedoresApi";
 import type { Proveedor } from "../../../services/proveedoresApi";
@@ -28,13 +28,21 @@ function Entradas() {
     const [ok, setOk] = useState("");
     const [errorForm, setErrorForm] = useState("");
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
-    const refrescar = async () => {
+    const refrescar = async (p: number = pagina) => {
         if (!token) return;
         try {
-            const [listaProductos, listaEntradas, listaProveedores] = await Promise.all([listarProductos(token), listarEntradas(token), listarProveedores(token)]);
+            const [listaProductos, resEntradas, listaProveedores] = await Promise.all([
+                listarProductos(token),
+                listarEntradasPaginado(token, p, REGISTROS_POR_PAGINA),
+                listarProveedores(token)
+            ]);
             setProductos(listaProductos);
-            setEntradas(listaEntradas);
+            setEntradas(resEntradas.contenido);
+            setTotalPaginas(resEntradas.totalPaginas);
+            setTotalRegistros(resEntradas.totalElementos);
             setProveedores(listaProveedores);
         } catch {
             // se mantiene el estado actual si falla
@@ -48,11 +56,17 @@ function Entradas() {
             return;
         }
         setCargando(true);
-        Promise.all([listarProductos(token), listarEntradas(token), listarProveedores(token)])
-            .then(([listaProductos, listaEntradas, listaProveedores]) => {
+        Promise.all([
+            listarProductos(token),
+            listarEntradasPaginado(token, pagina, REGISTROS_POR_PAGINA),
+            listarProveedores(token)
+        ])
+            .then(([listaProductos, resEntradas, listaProveedores]) => {
                 if (!activo) return;
                 setProductos(listaProductos);
-                setEntradas(listaEntradas);
+                setEntradas(resEntradas.contenido);
+                setTotalPaginas(resEntradas.totalPaginas);
+                setTotalRegistros(resEntradas.totalElementos);
                 setProveedores(listaProveedores);
                 const primerActivo = listaProductos.find((p) => p.activo);
                 if (primerActivo) {
@@ -68,7 +82,7 @@ function Entradas() {
         return () => {
             activo = false;
         };
-    }, [token]);
+    }, [token, pagina]);
 
     const activos = productos.filter((p) => p.activo);
 
@@ -78,8 +92,7 @@ function Entradas() {
     const stockActual = prod?.stock ?? 0;
     const nuevoStock = stockActual + Math.max(0, cantidad);
 
-    const totalPaginas = Math.max(1, Math.ceil(entradas.length / REGISTROS_POR_PAGINA));
-    const visiblesEntradas = entradas.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visiblesEntradas = entradas;
 
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -302,7 +315,7 @@ function Entradas() {
                 </div>
 
                 {/* Paginación */}
-                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={entradas.length} onCambiar={setPagina} />
+                <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
             </div>
         </div>
     );

@@ -1,5 +1,6 @@
 import type { Movimiento } from "../context/InventarioContext";
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 /** GET /api/kardex/movimientos -> movimientos de entrada/salida con saldos. */
 export async function listarMovimientos(token: string): Promise<Movimiento[]> {
@@ -19,6 +20,36 @@ export async function listarMovimientos(token: string): Promise<Movimiento[]> {
         motivo: m.motivo,
         usuario: m.usuario,
     }));
+}
+
+function normalizarMovimientoRaw(m: any): Movimiento {
+    return {
+        id: String(m.id || ""),
+        fecha: String(m.fecha || ""),
+        productoId: Number(m.productoId || 0),
+        producto: String(m.producto || ""),
+        tipo: (m.tipo === "Entrada" ? "Entrada" : "Salida") as "Entrada" | "Salida",
+        cantidad: Number(m.cantidad || 0),
+        stockAnterior: Number(m.stockAnterior ?? 0),
+        stockNuevo: Number(m.stockNuevo ?? 0),
+        motivo: String(m.motivo || ""),
+        usuario: String(m.usuario || "SISTEMA"),
+    };
+}
+
+/** GET /api/kardex/movimientos con paginación server-side. */
+export async function listarMovimientosPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Movimiento>> {
+    const page0 = Math.max(0, pagina - 1);
+    const resp = await fetch(apiUrl(`/api/kardex/movimientos?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await resp.json().catch(() => []);
+    if (!resp.ok) throw new Error("No se pudo listar los movimientos del Kardex");
+    return normalizarRespuestaPaginada(data, normalizarMovimientoRaw, pagina, limite);
 }
 
 export interface KardexResumen {

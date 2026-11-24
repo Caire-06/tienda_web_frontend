@@ -1,4 +1,5 @@
 import { apiUrl } from "../config/api";
+import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPaginacion";
 
 export interface Proveedor {
     id: number;
@@ -20,6 +21,21 @@ export async function listarProveedores(token: string): Promise<Proveedor[]> {
     if (!resp.ok) throw new Error("No se pudo listar los proveedores");
     const lista = Array.isArray(data) ? data : [];
     return lista;
+}
+
+/** GET /api/proveedores con paginación server-side. */
+export async function listarProveedoresPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Proveedor>> {
+    const page0 = Math.max(0, pagina - 1);
+    const resp = await fetch(apiUrl(`/api/proveedores?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await resp.json().catch(() => []);
+    if (!resp.ok) throw new Error("No se pudo listar los proveedores");
+    return normalizarRespuestaPaginada(data, (item: Proveedor) => item, pagina, limite);
 }
 
 /** POST /api/proveedores -> registrar un nuevo proveedor. */

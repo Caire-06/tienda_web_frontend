@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import {
-    listarLotesDespacho,
-    listarPedidosPendientesDespacho,
+    listarLotesDespachoPaginado,
+    listarPedidosPendientesDespachoPaginado,
     completarLoteDespacho,
     type DespachoLoteDTO,
 } from "../../../services/despachosApi";
+import { Paginacion } from "../../../components/Paginacion/Paginacion";
 import { etiquetaTipoEntrega, formatearFechaHora, type Pedido } from "../../../data/pedidos";
 import {
     IconoActualizar,
@@ -51,6 +52,14 @@ function AdminDespachos() {
     const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null);
     const [loteDetalle, setLoteDetalle] = useState<DespachoLoteDTO | null>(null);
 
+    const [paginaLotes, setPaginaLotes] = useState(1);
+    const [totalPaginasLotes, setTotalPaginasLotes] = useState(1);
+    const [totalRegistrosLotes, setTotalRegistrosLotes] = useState(0);
+
+    const [paginaPendientes, setPaginaPendientes] = useState(1);
+    const [totalPaginasPendientes, setTotalPaginasPendientes] = useState(1);
+    const [totalRegistrosPendientes, setTotalRegistrosPendientes] = useState(0);
+
     const solicitudEnCurso = useRef(false);
 
     const cargar = useCallback(
@@ -60,12 +69,18 @@ function AdminDespachos() {
             if (silencioso) setActualizando(true);
             else setCargando(true);
             try {
-                const [lData, pData] = await Promise.all([
-                    listarLotesDespacho(token),
-                    listarPedidosPendientesDespacho(token),
+                const [lRes, pRes] = await Promise.all([
+                    listarLotesDespachoPaginado(token, paginaLotes, 10),
+                    listarPedidosPendientesDespachoPaginado(token, paginaPendientes, 10),
                 ]);
-                setLotes(lData);
-                setPendientes(pData);
+                setLotes(lRes.contenido);
+                setTotalPaginasLotes(lRes.totalPaginas);
+                setTotalRegistrosLotes(lRes.totalElementos);
+
+                setPendientes(pRes.contenido);
+                setTotalPaginasPendientes(pRes.totalPaginas);
+                setTotalRegistrosPendientes(pRes.totalElementos);
+
                 setUltimaActualizacion(new Date());
             } finally {
                 solicitudEnCurso.current = false;
@@ -73,7 +88,7 @@ function AdminDespachos() {
                 setActualizando(false);
             }
         },
-        [token]
+        [token, paginaLotes, paginaPendientes]
     );
 
     useEffect(() => {
@@ -229,7 +244,7 @@ function AdminDespachos() {
                     <IconoEtiqueta size={13} />
                     <span>Manifiestos Enviados por Almacén</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                        {lotes.length}
+                        {totalRegistrosLotes}
                     </span>
                 </button>
                 <button
@@ -243,7 +258,7 @@ function AdminDespachos() {
                     <IconoLista size={13} />
                     <span>Cola Pendiente de Preparación</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
-                        {pendientes.length}
+                        {totalRegistrosPendientes}
                     </span>
                 </button>
             </div>
@@ -327,6 +342,9 @@ function AdminDespachos() {
                             )}
                         </tbody>
                     </table>
+                    <div className="p-3">
+                        <Paginacion paginaActual={paginaLotes} totalPaginas={totalPaginasLotes} totalRegistros={totalRegistrosLotes} onCambiar={setPaginaLotes} />
+                    </div>
                 </div>
             ) : (
                 <div className="tabla-wrap">
@@ -379,6 +397,9 @@ function AdminDespachos() {
                             )}
                         </tbody>
                     </table>
+                    <div className="p-3">
+                        <Paginacion paginaActual={paginaPendientes} totalPaginas={totalPaginasPendientes} totalRegistros={totalRegistrosPendientes} onCambiar={setPaginaPendientes} />
+                    </div>
                 </div>
             )}
 

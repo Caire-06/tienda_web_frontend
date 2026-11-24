@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarProveedores, crearProveedor } from "../../../services/proveedoresApi";
+import { listarProveedoresPaginado, crearProveedor } from "../../../services/proveedoresApi";
 import type { Proveedor } from "../../../services/proveedoresApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 
@@ -20,12 +20,16 @@ function Proveedores() {
     const [errorForm, setErrorForm] = useState("");
     const [ok, setOk] = useState("");
     const [pagina, setPagina] = useState(1);
+    const [totalPaginas, setTotalPaginas] = useState(1);
+    const [totalRegistros, setTotalRegistros] = useState(0);
 
-    const refrescar = async () => {
+    const refrescar = async (p: number = pagina) => {
         if (!token) return;
         try {
-            const lista = await listarProveedores(token);
-            setProveedores(lista);
+            const res = await listarProveedoresPaginado(token, p, REGISTROS_POR_PAGINA);
+            setProveedores(res.contenido);
+            setTotalPaginas(res.totalPaginas);
+            setTotalRegistros(res.totalElementos);
         } catch (err) {
             console.error("Error al listar proveedores", err);
             setProveedores([]);
@@ -35,9 +39,9 @@ function Proveedores() {
     };
 
     useEffect(() => {
-        refrescar();
+        refrescar(pagina);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token]);
+    }, [token, pagina]);
 
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -77,8 +81,7 @@ function Proveedores() {
         setTimeout(() => setOk(""), 6000);
     };
 
-    const totalPaginas = Math.max(1, Math.ceil(proveedores.length / REGISTROS_POR_PAGINA));
-    const visiblesProveedores = proveedores.slice((pagina - 1) * REGISTROS_POR_PAGINA, pagina * REGISTROS_POR_PAGINA);
+    const visiblesProveedores = proveedores;
 
     const inputClass =
         "w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500";
@@ -187,7 +190,7 @@ function Proveedores() {
                     )}
                 </div>
                 <div className="mt-4">
-                    <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={proveedores.length} onCambiar={setPagina} />
+                    <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
                 </div>
             </div>
         </div>

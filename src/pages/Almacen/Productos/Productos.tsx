@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { listarProductosPaginado, crearProducto, actualizarProducto, subirImagen } from "../../../services/productosApi";
-import { CATEGORIAS } from "../../../data/productos";
+import {
+    listarProductosPaginado,
+    crearProducto,
+    actualizarProducto,
+    subirImagen,
+} from "../../../services/productosApi";
 import type { DatosProducto, ProductoInv } from "../../../context/InventarioContext";
 import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
@@ -22,9 +26,66 @@ function estadoDe(p: ProductoInv): string {
     return "Disponible";
 }
 
+const CATEGORIAS_BASE = [
+    "Laptops",
+    "Smartphones",
+    "Audio",
+    "Periféricos",
+    "Accesorios",
+    "Monitores",
+];
+
+const MARCAS_BASE = [
+    "Apple",
+    "Samsung",
+    "Sony",
+    "Logitech",
+    "Xiaomi",
+    "Lenovo",
+    "Redragon",
+    "JBL",
+    "HP",
+    "ASUS",
+    "Motorola",
+    "HONOR",
+    "Kingston",
+    "UGREEN",
+];
+
+const STORAGE_CAT_KEY = "techstore_custom_categorias";
+const STORAGE_MARCA_KEY = "techstore_custom_marcas";
+
+function obtenerGuardadas(key: string): string[] {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch {
+        return [];
+    }
+}
+
+function guardarPersonalizada(key: string, valor: string): string[] {
+    const limpio = valor.trim();
+    if (!limpio) return obtenerGuardadas(key);
+    const formateado = limpio.charAt(0).toUpperCase() + limpio.slice(1);
+    try {
+        const actuales = obtenerGuardadas(key);
+        if (!actuales.some((a) => a.toLowerCase() === formateado.toLowerCase())) {
+            const nuevas = [...actuales, formateado];
+            localStorage.setItem(key, JSON.stringify(nuevas));
+            return nuevas;
+        }
+        return actuales;
+    } catch {
+        return [];
+    }
+}
+
 const VACIO: DatosProducto = {
     nombre: "",
-    categoria: CATEGORIAS[0].nombre,
+    categoria: CATEGORIAS_BASE[0],
     precio: 0,
     stock: 0,
     imagen: "",
@@ -42,6 +103,15 @@ function Productos() {
     const [categoria, setCategoria] = useState("Todas");
     const [estado, setEstado] = useState<FiltroEstado>("todos");
 
+    // Categorías y Marcas dinámicas
+    const [customCategorias, setCustomCategorias] = useState<string[]>(() => obtenerGuardadas(STORAGE_CAT_KEY));
+    const [customMarcas, setCustomMarcas] = useState<string[]>(() => obtenerGuardadas(STORAGE_MARCA_KEY));
+
+    const [esCategoriaNueva, setEsCategoriaNueva] = useState(false);
+    const [nombreCategoriaNueva, setNombreCategoriaNueva] = useState("");
+    const [esMarcaNueva, setEsMarcaNueva] = useState(false);
+    const [nombreMarcaNueva, setNombreMarcaNueva] = useState("");
+
     const [formId, setFormId] = useState<number | null | undefined>(undefined);
     const [form, setForm] = useState<DatosProducto>(VACIO);
     const [precioTexto, setPrecioTexto] = useState("");
@@ -54,6 +124,22 @@ function Productos() {
     const [pagina, setPagina] = useState(1);
     const [totalPaginas, setTotalPaginas] = useState(1);
     const [totalRegistros, setTotalRegistros] = useState(0);
+
+    // Pop up de Confirmación de Registro Exitoso
+    const [popupExito, setPopupExito] = useState<{
+        visible: boolean;
+        titulo: string;
+        mensaje: string;
+        imagen?: string;
+    } | null>(null);
+
+    const listaCategoriasDisponibles = useMemo(() => {
+        return [...CATEGORIAS_BASE, ...customCategorias.filter((c) => !CATEGORIAS_BASE.includes(c))];
+    }, [customCategorias]);
+
+    const listaMarcasDisponibles = useMemo(() => {
+        return [...MARCAS_BASE, ...customMarcas.filter((m) => !MARCAS_BASE.includes(m))];
+    }, [customMarcas]);
 
     const refrescar = async (p: number = pagina) => {
         if (!token) return;
@@ -102,7 +188,16 @@ function Productos() {
 
     const abrirNuevo = () => {
         setFormId(null);
-        setForm({ ...VACIO, especificaciones: generarEspecificacionesPorDefecto(VACIO.categoria) });
+        setForm({
+            ...VACIO,
+            categoria: CATEGORIAS_BASE[0],
+            marca: MARCAS_BASE[0],
+            especificaciones: generarEspecificacionesPorDefecto(CATEGORIAS_BASE[0]),
+        });
+        setEsCategoriaNueva(false);
+        setNombreCategoriaNueva("");
+        setEsMarcaNueva(false);
+        setNombreMarcaNueva("");
         setPrecioTexto("");
         setStockTexto("0");
         setArchivo(null);
@@ -112,6 +207,14 @@ function Productos() {
 
     const abrirEditar = (p: ProductoInv) => {
         setFormId(p.id);
+        const catExiste = listaCategoriasDisponibles.includes(p.categoria);
+        const marcaExiste = listaMarcasDisponibles.includes(p.marca || "");
+
+        setEsCategoriaNueva(!catExiste);
+        setNombreCategoriaNueva(!catExiste ? p.categoria : "");
+        setEsMarcaNueva(!marcaExiste && !!p.marca);
+        setNombreMarcaNueva(!marcaExiste && p.marca ? p.marca : "");
+
         setForm({
             nombre: p.nombre,
             categoria: p.categoria,
@@ -125,7 +228,7 @@ function Productos() {
         setPrecioTexto(String(p.precio));
         setStockTexto(String(p.stock));
         setArchivo(null);
-        setPreview("");
+        setPreview(p.imagen || "");
         setErrorModal(null);
     };
 
@@ -133,12 +236,19 @@ function Productos() {
         e.preventDefault();
         if (!token) return;
         setErrorModal(null);
+
         const nombreLimpio = form.nombre.trim();
+        const categoriaFinal = (esCategoriaNueva ? nombreCategoriaNueva : form.categoria).trim();
+        const marcaFinal = (esMarcaNueva ? nombreMarcaNueva : form.marca || "Genérico").trim();
         const precioNum = parsearNumeroSeguro(precioTexto);
         const stockNum = parsearNumeroSeguro(stockTexto);
 
         if (nombreLimpio.length < 2) {
             setErrorModal("Ingresa un nombre válido para el producto (mínimo 2 caracteres).");
+            return;
+        }
+        if (!categoriaFinal) {
+            setErrorModal("Por favor especifica una categoría válida.");
             return;
         }
         if (precioNum <= 0) {
@@ -158,30 +268,48 @@ function Productos() {
                 const subida = await subirImagen(token, archivo);
                 imagenFinal = subida.url;
             }
+
+            if (esCategoriaNueva && categoriaFinal) {
+                const actualizadas = guardarPersonalizada(STORAGE_CAT_KEY, categoriaFinal);
+                setCustomCategorias(actualizadas);
+            }
+            if (esMarcaNueva && marcaFinal) {
+                const actualizadas = guardarPersonalizada(STORAGE_MARCA_KEY, marcaFinal);
+                setCustomMarcas(actualizadas);
+            }
+
+            const payload = {
+                nombre: nombreLimpio,
+                categoria: categoriaFinal,
+                precio: precioNum,
+                stock: Math.trunc(stockNum),
+                imagen: imagenFinal,
+                descripcion: form.descripcion.trim(),
+                marca: marcaFinal,
+                especificaciones: form.especificaciones ?? [],
+            };
+
             if (formId === null) {
-                await crearProducto(token, {
-                    nombre: nombreLimpio,
-                    categoria: form.categoria,
-                    precio: precioNum,
-                    stock: Math.trunc(stockNum),
+                await crearProducto(token, payload);
+                setPopupExito({
+                    visible: true,
+                    titulo: "¡Producto Registrado con Éxito!",
+                    mensaje: `El producto "${nombreLimpio}" fue agregado correctamente con su ficha técnica e imagen.`,
                     imagen: imagenFinal,
-                    descripcion: form.descripcion.trim(),
-                    marca: form.marca?.trim() || "Genérico",
-                    especificaciones: form.especificaciones ?? [],
                 });
             } else if (formId !== undefined) {
                 await actualizarProducto(token, formId, {
-                    nombre: nombreLimpio,
-                    categoria: form.categoria,
-                    precio: precioNum,
-                    stock: Math.trunc(stockNum),
-                    imagen: imagenFinal,
-                    descripcion: form.descripcion.trim(),
+                    ...payload,
                     activo: editando?.activo ?? true,
-                    marca: form.marca?.trim() || "Genérico",
-                    especificaciones: form.especificaciones ?? [],
+                });
+                setPopupExito({
+                    visible: true,
+                    titulo: "¡Producto Actualizado!",
+                    mensaje: `Los cambios en "${nombreLimpio}" se guardaron correctamente.`,
+                    imagen: imagenFinal,
                 });
             }
+
             setFormId(undefined);
             await refrescar();
         } catch (err) {
@@ -227,8 +355,8 @@ function Productos() {
                 />
                 <select className={`${selectClass} w-full sm:w-auto`} value={categoria} onChange={(e) => setCategoria(e.target.value)}>
                     <option>Todas</option>
-                    {CATEGORIAS.map((c) => (
-                        <option key={c.nombre}>{c.nombre}</option>
+                    {listaCategoriasDisponibles.map((c) => (
+                        <option key={c} value={c}>{c}</option>
                     ))}
                 </select>
                 <select className={`${selectClass} w-full sm:w-auto`} value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)}>
@@ -252,6 +380,7 @@ function Productos() {
                         <tr>
                             <th>Producto</th>
                             <th>Categoría</th>
+                            <th>Marca</th>
                             <th>Precio</th>
                             <th>Stock</th>
                             <th>Estado</th>
@@ -270,6 +399,7 @@ function Productos() {
                                     </div>
                                 </td>
                                 <td className="text-xs text-slate-500">{p.categoria}</td>
+                                <td className="text-xs text-slate-500">{p.marca || "Genérico"}</td>
                                 <td className="font-mono font-bold text-xs">S/ {p.precio.toLocaleString("es-PE")}</td>
                                 <td className="font-mono font-bold text-xs">{p.stock}</td>
                                 <td>
@@ -289,7 +419,7 @@ function Productos() {
                                             aria-label={p.activo ? "Desactivar producto" : "Activar producto"}
                                         >
                                             {p.activo ? (
-                                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" x2="23" y1="1" y2="23"/></svg>
+                                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" x2="23" y1="1" y2="23"/></svg>
                                             ) : (
                                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M12 20h.01"/></svg>
                                             )}
@@ -310,7 +440,7 @@ function Productos() {
             {/* Paginación */}
             <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
-            {/* Modal nuevo / editar */}
+            {/* Modal nuevo / editar (Protegido contra clics fuera) */}
             {formId !== undefined && (
                 <div className="modal-fondo">
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -327,31 +457,100 @@ function Productos() {
 
                         <form onSubmit={guardar} className="space-y-3.5">
                             <div className="space-y-1">
-                                <label className="text-xs font-semibold text-slate-500">Nombre del producto</label>
-                                <input className={inputClass} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+                                <label className="text-xs font-semibold text-slate-500">Nombre del producto *</label>
+                                <input
+                                    className={inputClass}
+                                    placeholder="ej: Laptop Asus ZenBook 14"
+                                    value={form.nombre}
+                                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                                    required
+                                />
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Categoría dinámica */}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Categoría</label>
+                                    <label className="text-xs font-semibold text-slate-500">Categoría *</label>
                                     <select
                                         className={selectClass + " w-full"}
-                                        value={form.categoria}
+                                        value={esCategoriaNueva ? "__OTRA__" : form.categoria}
                                         onChange={(e) => {
-                                            const nuevaCat = e.target.value;
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                categoria: nuevaCat,
-                                                especificaciones: formId === null ? generarEspecificacionesPorDefecto(nuevaCat) : prev.especificaciones,
-                                            }));
+                                            const val = e.target.value;
+                                            if (val === "__OTRA__") {
+                                                setEsCategoriaNueva(true);
+                                            } else {
+                                                setEsCategoriaNueva(false);
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    categoria: val,
+                                                    especificaciones: formId === null ? generarEspecificacionesPorDefecto(val) : prev.especificaciones,
+                                                }));
+                                            }
                                         }}
                                     >
-                                        {CATEGORIAS.map((c) => (
-                                            <option key={c.nombre}>{c.nombre}</option>
+                                        {listaCategoriasDisponibles.map((c) => (
+                                            <option key={c} value={c}>{c}</option>
                                         ))}
+                                        <option value="__OTRA__">+ Otra categoría...</option>
                                     </select>
+                                    {esCategoriaNueva && (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Nombre nueva categoría..."
+                                            value={nombreCategoriaNueva}
+                                            onChange={(e) => setNombreCategoriaNueva(e.target.value)}
+                                            className="mt-1 w-full px-2.5 py-1.5 text-xs rounded-lg border border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/30 text-slate-900 dark:text-white focus:outline-none"
+                                        />
+                                    )}
                                 </div>
+
+                                {/* Marca dinámica */}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Precio (S/)</label>
+                                    <label className="text-xs font-semibold text-slate-500">Marca *</label>
+                                    <select
+                                        className={selectClass + " w-full"}
+                                        value={esMarcaNueva ? "__OTRA__" : form.marca}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === "__OTRA__") {
+                                                setEsMarcaNueva(true);
+                                            } else {
+                                                setEsMarcaNueva(false);
+                                                setForm({ ...form, marca: val });
+                                            }
+                                        }}
+                                    >
+                                        {listaMarcasDisponibles.map((m) => (
+                                            <option key={m} value={m}>{m}</option>
+                                        ))}
+                                        <option value="__OTRA__">+ Otra marca...</option>
+                                    </select>
+                                    {esMarcaNueva && (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Nombre nueva marca..."
+                                            value={nombreMarcaNueva}
+                                            onChange={(e) => setNombreMarcaNueva(e.target.value)}
+                                            className="mt-1 w-full px-2.5 py-1.5 text-xs rounded-lg border border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/30 text-slate-900 dark:text-white focus:outline-none"
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Unidad de Medida (Exclusivamente NIU) */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-500">Unidad de Medida</label>
+                                    <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center justify-between">
+                                        <span>NIU - Unidad</span>
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">1 u.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-500">Precio Venta (S/) *</label>
                                     <input
                                         className={inputClass}
                                         type="text"
@@ -362,10 +561,8 @@ function Productos() {
                                         required
                                     />
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Stock {formId === null ? "inicial" : "actual"}</label>
+                                    <label className="text-xs font-semibold text-slate-500">Stock {formId === null ? "inicial" : "actual"} *</label>
                                     <input
                                         className={inputClass}
                                         type="text"
@@ -377,8 +574,14 @@ function Productos() {
                                         disabled={formId !== null}
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-500">Imagen (subir desde PC)</label>
+                            </div>
+
+                            {/* Carga de Imagen a Cloudinary */}
+                            <div className="space-y-1.5 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    Imagen del Producto (Carga a Cloudinary)
+                                </label>
+                                <div className="flex flex-col sm:flex-row gap-3 items-center">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -387,33 +590,60 @@ function Productos() {
                                             setArchivo(f);
                                             setPreview(f ? URL.createObjectURL(f) : "");
                                         }}
-                                        className={inputClass}
+                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
                                         disabled={subiendo}
                                     />
-                                    {preview && (
-                                        <div className="mt-2">
-                                            <img src={preview} alt="Vista previa" className="w-full h-28 object-contain rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2" />
-                                        </div>
+                                    {subiendo && (
+                                        <span className="text-xs text-emerald-600 font-bold animate-pulse shrink-0">
+                                            Subiendo a Cloudinary...
+                                        </span>
                                     )}
                                 </div>
+
+                                {preview && (
+                                    <div className="mt-2 flex items-center gap-3 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                        <img
+                                            src={preview}
+                                            alt="Vista previa"
+                                            className="w-16 h-16 object-contain rounded-md bg-slate-50 dark:bg-slate-900 border"
+                                        />
+                                        <div className="text-xs min-w-0 flex-1">
+                                            <span className="font-bold text-slate-700 dark:text-slate-300 block truncate">
+                                                {archivo ? archivo.name : "Imagen del producto"}
+                                            </span>
+                                            <span className="text-[11px] text-emerald-600 font-medium">
+                                                ✓ Lista para subida y almacenamiento
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setArchivo(null);
+                                                setPreview("");
+                                                setForm({ ...form, imagen: "" });
+                                            }}
+                                            className="text-xs text-red-500 hover:underline cursor-pointer"
+                                        >
+                                            Quitar
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-slate-500">Marca</label>
-                                <input
-                                    className={inputClass}
-                                    placeholder="Ej. Samsung, Sony, Logitech..."
-                                    value={form.marca ?? ""}
-                                    onChange={(e) => setForm({ ...form, marca: e.target.value })}
-                                />
-                            </div>
+
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-slate-500">Descripción</label>
-                                <textarea className={inputClass} rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+                                <textarea
+                                    className={inputClass}
+                                    rows={2}
+                                    placeholder="Descripción general del producto..."
+                                    value={form.descripcion}
+                                    onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                                />
                             </div>
 
                             {/* Ficha técnica estandarizada */}
                             <EditorEspecificaciones
-                                categoria={form.categoria}
+                                categoria={esCategoriaNueva ? nombreCategoriaNueva : form.categoria}
                                 especificaciones={form.especificaciones ?? []}
                                 onChange={(nuevas) => setForm({ ...form, especificaciones: nuevas })}
                             />
@@ -427,11 +657,49 @@ function Productos() {
                                 <button type="button" className="btn-mini sec" onClick={() => setFormId(undefined)}>
                                     Cancelar
                                 </button>
-                                <button type="submit" disabled={guardando} className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer disabled:opacity-60">
-                                    {formId === null ? "Crear producto" : "Guardar cambios"}
+                                <button
+                                    type="submit"
+                                    disabled={guardando || subiendo}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer disabled:opacity-60"
+                                >
+                                    {guardando || subiendo ? "Guardando en Cloudinary..." : formId === null ? "Crear producto" : "Guardar cambios"}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Pop up Modal de Confirmación de Éxito al Registrar / Actualizar */}
+            {popupExito && popupExito.visible && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl font-bold">
+                            ✓
+                        </div>
+
+                        {popupExito.imagen && (
+                            <div className="w-20 h-20 mx-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border">
+                                <img src={popupExito.imagen} alt="Producto" className="w-full h-full object-contain" />
+                            </div>
+                        )}
+
+                        <div className="space-y-1">
+                            <h3 className="text-base font-black text-slate-900 dark:text-white">
+                                {popupExito.titulo}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                {popupExito.mensaje}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setPopupExito(null)}
+                            className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm cursor-pointer transition-colors"
+                        >
+                            Aceptar
+                        </button>
                     </div>
                 </div>
             )}

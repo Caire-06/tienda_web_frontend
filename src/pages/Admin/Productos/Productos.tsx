@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import {
     listarProductosPaginado,
     crearProducto,
     actualizarProducto,
     darDeBajaLogicaProducto,
+    subirImagen,
 } from "../../../services/productosApi";
-import type { EspecificacionInv, ProductoInv } from "../../../context/InventarioContext";
-import { ImagenProducto } from "../../../components/ImagenProducto/ImagenProducto";
+import type { ProductoInv, EspecificacionInv } from "../../../context/InventarioContext";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import { EditorEspecificaciones } from "../../../components/EditorEspecificaciones/EditorEspecificaciones";
 import { generarEspecificacionesPorDefecto } from "../../../data/plantillasEspecificaciones";
@@ -17,33 +17,62 @@ import {
     parsearNumeroSeguro,
 } from "../../../utils/validaciones";
 
-const CATALOGO_CATEGORIAS = [
-    { id: 1, nombre: "Computadoras", codigo: "CAT-01" },
-    { id: 2, nombre: "Smartphones", codigo: "CAT-02" },
-    { id: 3, nombre: "Audio", codigo: "CAT-03" },
-    { id: 4, nombre: "Periféricos", codigo: "CAT-04" },
-    { id: 5, nombre: "Accesorios", codigo: "CAT-05" },
-    { id: 6, nombre: "Monitores", codigo: "CAT-06" },
-    { id: 7, nombre: "Laptops", codigo: "CAT-07" },
-    { id: 8, nombre: "Componentes", codigo: "CAT-08" },
+const CATEGORIAS_BASE = [
+    "Laptops",
+    "Smartphones",
+    "Audio",
+    "Periféricos",
+    "Accesorios",
+    "Monitores",
 ];
 
-const CATALOGO_MARCAS = [
-    { id: 1, nombre: "Apple" },
-    { id: 2, nombre: "Samsung" },
-    { id: 3, nombre: "Sony" },
-    { id: 4, nombre: "Logitech" },
-    { id: 5, nombre: "Xiaomi" },
-    { id: 6, nombre: "Lenovo" },
-    { id: 7, nombre: "Redragon" },
-    { id: 8, nombre: "JBL" },
+const MARCAS_BASE = [
+    "Apple",
+    "Samsung",
+    "Sony",
+    "Logitech",
+    "Xiaomi",
+    "Lenovo",
+    "Redragon",
+    "JBL",
+    "HP",
+    "ASUS",
+    "Motorola",
+    "HONOR",
+    "Kingston",
+    "UGREEN",
 ];
 
-const CATALOGO_UNIDADES = [
-    { id: 1, codigo: "NIU", descripcion: "Unidad (Bienes)" },
-    { id: 2, codigo: "BX", descripcion: "Caja" },
-    { id: 3, codigo: "SET", descripcion: "Juego / Kit" },
-];
+const STORAGE_CAT_KEY = "techstore_custom_categorias";
+const STORAGE_MARCA_KEY = "techstore_custom_marcas";
+
+function obtenerGuardadas(key: string): string[] {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch {
+        return [];
+    }
+}
+
+function guardarPersonalizada(key: string, valor: string): string[] {
+    const limpio = valor.trim();
+    if (!limpio) return obtenerGuardadas(key);
+    const formateado = limpio.charAt(0).toUpperCase() + limpio.slice(1);
+    try {
+        const actuales = obtenerGuardadas(key);
+        if (!actuales.some((a) => a.toLowerCase() === formateado.toLowerCase())) {
+            const nuevas = [...actuales, formateado];
+            localStorage.setItem(key, JSON.stringify(nuevas));
+            return nuevas;
+        }
+        return actuales;
+    } catch {
+        return [];
+    }
+}
 
 interface FormProductoState {
     id?: number;
@@ -68,6 +97,21 @@ function Productos() {
     const [filtroCategoria, setFiltroCategoria] = useState("Todas");
     const [filtroEstado, setFiltroEstado] = useState("Todos");
 
+    // Categorías y Marcas dinámicas (Base + Personalizadas persistidas)
+    const [customCategorias, setCustomCategorias] = useState<string[]>(() => obtenerGuardadas(STORAGE_CAT_KEY));
+    const [customMarcas, setCustomMarcas] = useState<string[]>(() => obtenerGuardadas(STORAGE_MARCA_KEY));
+
+    // Inputs para cuando se elige "Otra (Personalizada)"
+    const [esCategoriaNueva, setEsCategoriaNueva] = useState(false);
+    const [nombreCategoriaNueva, setNombreCategoriaNueva] = useState("");
+    const [esMarcaNueva, setEsMarcaNueva] = useState(false);
+    const [nombreMarcaNueva, setNombreMarcaNueva] = useState("");
+
+    // Manejo de imagen con Cloudinary
+    const [archivoImagen, setArchivoImagen] = useState<File | null>(null);
+    const [previewImagen, setPreviewImagen] = useState<string>("");
+    const [subiendoImagen, setSubiendoImagen] = useState(false);
+
     // Modal Crear / Editar
     const [modalAbierto, setModalAbierto] = useState(false);
     const [modoEdicion, setModoEdicion] = useState(false);
@@ -76,15 +120,33 @@ function Productos() {
     const [stockTexto, setStockTexto] = useState("0");
     const [errorModal, setErrorModal] = useState<string | null>(null);
 
+    // Pop up de Confirmación de Registro Exitoso
+    const [popupExito, setPopupExito] = useState<{
+        visible: boolean;
+        titulo: string;
+        mensaje: string;
+        imagen?: string;
+    } | null>(null);
+
     const [pagina, setPagina] = useState(1);
     const [totalPaginas, setTotalPaginas] = useState(1);
     const [totalRegistros, setTotalRegistros] = useState(0);
 
+    const listaCategoriasDisponibles = useMemo(() => {
+        const todas = [...CATEGORIAS_BASE, ...customCategorias.filter((c) => !CATEGORIAS_BASE.includes(c))];
+        return todas;
+    }, [customCategorias]);
+
+    const listaMarcasDisponibles = useMemo(() => {
+        const todas = [...MARCAS_BASE, ...customMarcas.filter((m) => !MARCAS_BASE.includes(m))];
+        return todas;
+    }, [customMarcas]);
+
     const [form, setForm] = useState<FormProductoState>({
         nombre: "",
-        categoria: CATALOGO_CATEGORIAS[0].nombre,
-        marca: CATALOGO_MARCAS[0].nombre,
-        unidadMedida: CATALOGO_UNIDADES[0].codigo,
+        categoria: CATEGORIAS_BASE[0],
+        marca: MARCAS_BASE[0],
+        unidadMedida: "NIU",
         precio: 0,
         stock: 0,
         imagen: "",
@@ -101,8 +163,8 @@ function Productos() {
             setProductos(res.contenido);
             setTotalPaginas(res.totalPaginas);
             setTotalRegistros(res.totalElementos);
-        } catch (err: any) {
-            setError(err.message || "Error al cargar productos");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Error al cargar productos");
         } finally {
             setCargando(false);
         }
@@ -110,22 +172,29 @@ function Productos() {
 
     useEffect(() => {
         cargar(pagina);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token, pagina, filtroCategoria, busqueda]);
 
     const abrirCrear = () => {
         setModoEdicion(false);
-        const catInicial = CATALOGO_CATEGORIAS[0].nombre;
+        const catInicial = listaCategoriasDisponibles[0] || "Laptops";
         setForm({
             nombre: "",
             categoria: catInicial,
-            marca: CATALOGO_MARCAS[0].nombre,
-            unidadMedida: CATALOGO_UNIDADES[0].codigo,
+            marca: listaMarcasDisponibles[0] || "Apple",
+            unidadMedida: "NIU",
             precio: 0,
             stock: 0,
             imagen: "",
             descripcion: "",
             especificaciones: generarEspecificacionesPorDefecto(catInicial),
         });
+        setEsCategoriaNueva(false);
+        setNombreCategoriaNueva("");
+        setEsMarcaNueva(false);
+        setNombreMarcaNueva("");
+        setArchivoImagen(null);
+        setPreviewImagen("");
         setPrecioTexto("");
         setStockTexto("0");
         setErrorModal(null);
@@ -134,32 +203,88 @@ function Productos() {
 
     const abrirEditar = (p: ProductoInv) => {
         setModoEdicion(true);
+        const cat = p.categoria || "Laptops";
+        const marc = p.marca || "Genérico";
+
+        // Si la categoría o marca no están en la lista base, registrarlas
+        if (!listaCategoriasDisponibles.includes(cat)) {
+            const actualizadas = guardarPersonalizada(STORAGE_CAT_KEY, cat);
+            setCustomCategorias(actualizadas);
+        }
+        if (!listaMarcasDisponibles.includes(marc)) {
+            const actualizadas = guardarPersonalizada(STORAGE_MARCA_KEY, marc);
+            setCustomMarcas(actualizadas);
+        }
+
         setForm({
             id: p.id,
             nombre: p.nombre,
-            categoria: p.categoria || CATALOGO_CATEGORIAS[0].nombre,
-            marca: p.marca || CATALOGO_MARCAS[0].nombre,
-            unidadMedida: CATALOGO_UNIDADES[0].codigo,
+            categoria: cat,
+            marca: marc,
+            unidadMedida: "NIU",
             precio: p.precio,
             stock: p.stock,
             imagen: p.imagen || "",
             descripcion: p.descripcion || "",
             especificaciones: (p.especificaciones ?? []).map((e) => ({ ...e })),
         });
+        setEsCategoriaNueva(false);
+        setNombreCategoriaNueva("");
+        setEsMarcaNueva(false);
+        setNombreMarcaNueva("");
+        setArchivoImagen(null);
+        setPreviewImagen(p.imagen || "");
         setPrecioTexto(String(p.precio));
         setStockTexto(String(p.stock));
         setErrorModal(null);
         setModalAbierto(true);
     };
 
+    // Selección de archivo y previsualización inmediata
+    const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setArchivoImagen(file);
+            setPreviewImagen(URL.createObjectURL(file));
+        }
+    };
+
     const handleGuardar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token) return;
         setErrorModal(null);
+
         const nombreLimpio = form.nombre.trim();
         const precioNum = parsearNumeroSeguro(precioTexto);
         const stockNum = parsearNumeroSeguro(stockTexto);
-        const imagenLimpia = form.imagen.trim();
+
+        // Resolver categoría final (si eligió crear una nueva)
+        let categoriaFinal = form.categoria;
+        if (esCategoriaNueva) {
+            const limpiaCat = nombreCategoriaNueva.trim();
+            if (!limpiaCat) {
+                setErrorModal("Ingresa el nombre de la nueva categoría.");
+                return;
+            }
+            const formateada = limpiaCat.charAt(0).toUpperCase() + limpiaCat.slice(1);
+            categoriaFinal = formateada;
+            const actualizadas = guardarPersonalizada(STORAGE_CAT_KEY, formateada);
+            setCustomCategorias(actualizadas);
+        }
+
+        // Resolver marca final (si eligió crear una nueva)
+        let marcaFinal = form.marca;
+        if (esMarcaNueva) {
+            const limpiaMarca = nombreMarcaNueva.trim();
+            if (!limpiaMarca) {
+                setErrorModal("Ingresa el nombre de la nueva marca.");
+                return;
+            }
+            const formateada = limpiaMarca.charAt(0).toUpperCase() + limpiaMarca.slice(1);
+            marcaFinal = formateada;
+            const actualizadas = guardarPersonalizada(STORAGE_MARCA_KEY, formateada);
+            setCustomMarcas(actualizadas);
+        }
 
         if (nombreLimpio.length < 2) {
             setErrorModal("El nombre del producto debe tener al menos 2 caracteres.");
@@ -173,41 +298,69 @@ function Productos() {
             setErrorModal("El stock físico no puede ser negativo.");
             return;
         }
-        if (imagenLimpia && !/^https?:\/\/.+|^\/.+/i.test(imagenLimpia)) {
-            setErrorModal("La URL de imagen debe iniciar con http://, https:// o /.");
-            return;
-        }
 
         setGuardando(true);
         try {
+            // 1. Si se seleccionó un archivo de imagen, subirlo a Cloudinary primero
+            let urlImagenFinal = form.imagen.trim();
+            if (archivoImagen) {
+                setSubiendoImagen(true);
+                try {
+                    const resCloudinary = await subirImagen(token, archivoImagen);
+                    if (resCloudinary.url) {
+                        urlImagenFinal = resCloudinary.url;
+                    }
+                } catch (cloudErr) {
+                    throw new Error(
+                        cloudErr instanceof Error
+                            ? `Error al subir imagen a Cloudinary: ${cloudErr.message}`
+                            : "Error al subir imagen a Cloudinary."
+                    );
+                } finally {
+                    setSubiendoImagen(false);
+                }
+            }
+
+            // 2. Guardar o actualizar producto
             if (modoEdicion && form.id) {
                 const actualizado = await actualizarProducto(token, form.id, {
                     nombre: nombreLimpio,
-                    categoria: form.categoria,
+                    categoria: categoriaFinal,
                     precio: precioNum,
                     stock: Math.trunc(stockNum),
-                    imagen: imagenLimpia,
+                    imagen: urlImagenFinal,
                     descripcion: form.descripcion.trim(),
-                    marca: form.marca,
+                    marca: marcaFinal,
                     especificaciones: form.especificaciones,
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
-                alert("Producto actualizado exitosamente.");
+                setModalAbierto(false);
+                setPopupExito({
+                    visible: true,
+                    titulo: "¡Producto Actualizado!",
+                    mensaje: `"${nombreLimpio}" se actualizó correctamente en el catálogo.`,
+                    imagen: urlImagenFinal || undefined,
+                });
             } else {
                 const creado = await crearProducto(token, {
                     nombre: nombreLimpio,
-                    categoria: form.categoria,
+                    categoria: categoriaFinal,
                     precio: precioNum,
                     stock: Math.trunc(stockNum),
-                    imagen: imagenLimpia,
+                    imagen: urlImagenFinal,
                     descripcion: form.descripcion.trim(),
-                    marca: form.marca,
+                    marca: marcaFinal,
                     especificaciones: form.especificaciones,
                 });
                 setProductos((prev) => [creado, ...prev]);
-                alert("Producto registrado exitosamente.");
+                setModalAbierto(false);
+                setPopupExito({
+                    visible: true,
+                    titulo: "¡Producto Registrado con Éxito!",
+                    mensaje: `"${nombreLimpio}" ha sido registrado en el catálogo de TechStore.`,
+                    imagen: urlImagenFinal || undefined,
+                });
             }
-            setModalAbierto(false);
         } catch (err: unknown) {
             setErrorModal(err instanceof Error ? err.message : "Error al procesar el producto.");
         } finally {
@@ -221,8 +374,8 @@ function Productos() {
         try {
             const actualizado = await darDeBajaLogicaProducto(token, p.id);
             setProductos((prev) => prev.map((item) => (item.id === p.id ? actualizado : item)));
-        } catch (err: any) {
-            alert(err.message || "No se pudo dar de baja al producto");
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : "No se pudo dar de baja al producto");
         }
     };
 
@@ -249,7 +402,7 @@ function Productos() {
                         Catálogo de Productos
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Control general de catálogo: inventario físico, precios, categorías y disponibilidad.
+                        Control general de catálogo: inventario físico, precios, marcas, Cloudinary y especificaciones 3FN.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -282,13 +435,21 @@ function Productos() {
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                 />
-                <select className={`${selectClass} w-full sm:w-auto`} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+                <select
+                    className={`${selectClass} w-full sm:w-auto`}
+                    value={filtroCategoria}
+                    onChange={(e) => setFiltroCategoria(e.target.value)}
+                >
                     <option value="Todas">Todas las Categorías</option>
-                    {CATALOGO_CATEGORIAS.map((c) => (
-                        <option key={c.codigo} value={c.nombre}>{c.nombre}</option>
+                    {listaCategoriasDisponibles.map((c) => (
+                        <option key={c} value={c}>{c}</option>
                     ))}
                 </select>
-                <select className={`${selectClass} w-full sm:w-auto`} value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+                <select
+                    className={`${selectClass} w-full sm:w-auto`}
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                >
                     <option value="Todos">Todos los Estados</option>
                     <option value="Disponible">Disponible</option>
                     <option value="Stock bajo">Stock bajo (&lt;10)</option>
@@ -298,85 +459,89 @@ function Productos() {
             </div>
 
             {/* Tabla de Productos */}
-            <div className="tabla-wrap">
-                <table className="tabla">
-                    <thead>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                         <tr>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th>Precio Unitario</th>
-                            <th>Stock Físico</th>
-                            <th>Vendidos</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
+                            <th className="p-3.5">Producto</th>
+                            <th className="p-3.5">Categoría</th>
+                            <th className="p-3.5">Marca</th>
+                            <th className="p-3.5">Precio</th>
+                            <th className="p-3.5">Stock</th>
+                            <th className="p-3.5">Estado</th>
+                            <th className="p-3.5 text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {cargando ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
+                                <td colSpan={7} className="p-8 text-center text-slate-400">
                                     Cargando catálogo...
                                 </td>
                             </tr>
                         ) : visibles.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-8 text-sm text-slate-500">
-                                    No se encontraron productos coincidentes.
+                                <td colSpan={7} className="p-8 text-center text-slate-400">
+                                    No se encontraron productos.
                                 </td>
                             </tr>
                         ) : (
                             visibles.map((p) => {
-                                const est = estadoDe(p.stock, p.activo);
-                                const badgeClass =
-                                    est === "Disponible" ? "ok" : est === "Stock bajo" ? "pend" : "off";
+                                const estado = estadoDe(p.stock, p.activo);
                                 return (
-                                    <tr key={p.id}>
-                                        <td>
+                                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                        <td className="p-3.5">
                                             <div className="flex items-center gap-3">
-                                                <ImagenProducto
-                                                    src={p.imagen}
-                                                    alt={p.nombre}
-                                                    compact
-                                                    className="w-10 h-10 rounded-lg object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                                                />
-                                                <div>
-                                                    <div className="font-semibold text-slate-900 dark:text-white line-clamp-1">
+                                                <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 p-1 shrink-0 overflow-hidden flex items-center justify-center">
+                                                    {p.imagen ? (
+                                                        <img src={p.imagen} alt={p.nombre} className="h-full w-full object-contain" />
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400">Sin foto</span>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="font-semibold text-slate-900 dark:text-white block truncate">
                                                         {p.nombre}
-                                                    </div>
-                                                    <div className="text-[11px] text-slate-400 line-clamp-1">
-                                                        {p.descripcion || "Sin descripción"}
-                                                    </div>
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">ID #{p.id}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <span className="badge font-medium">{p.categoria}</span>
+                                        <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">{p.categoria}</td>
+                                        <td className="p-3.5 text-slate-500">{p.marca || "Genérico"}</td>
+                                        <td className="p-3.5 font-mono font-bold text-slate-900 dark:text-white">
+                                            S/ {p.precio.toFixed(2)}
                                         </td>
-                                        <td className="font-mono font-bold text-slate-900 dark:text-white">
-                                            S/ {Number(p.precio).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                        <td className="p-3.5 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                            {p.stock}
                                         </td>
-                                        <td className="font-mono">
-                                            <span className={p.stock < 10 ? "text-rose-600 font-bold" : "font-medium"}>
-                                                {p.stock}
+                                        <td className="p-3.5">
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                    estado === "Disponible"
+                                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400"
+                                                        : estado === "Stock bajo"
+                                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400"
+                                                        : estado === "Sin stock"
+                                                        ? "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400"
+                                                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                                }`}
+                                            >
+                                                {estado}
                                             </span>
                                         </td>
-                                        <td className="font-mono text-slate-500">{p.vendidos}</td>
-                                        <td>
-                                            <span className={`badge ${badgeClass}`}>{est}</span>
-                                        </td>
-                                        <td>
-                                            <div className="flex items-center gap-1.5">
+                                        <td className="p-3.5 text-right">
+                                            <div className="flex items-center justify-end gap-1.5">
                                                 <button
                                                     onClick={() => abrirEditar(p)}
-                                                    className="btn-mini"
-                                                    title="Editar producto"
+                                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
                                                 >
                                                     Editar
                                                 </button>
                                                 {p.activo && (
                                                     <button
                                                         onClick={() => handleBajaLogica(p)}
-                                                        className="btn-mini text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                                        className="px-2 py-1 rounded-lg text-[11px] font-semibold border border-red-200 dark:border-red-900/50 hover:bg-red-50 text-red-600 dark:text-red-400 cursor-pointer transition-colors"
                                                         title="Dar de baja"
                                                     >
                                                         Baja
@@ -395,7 +560,7 @@ function Productos() {
             {/* Paginación */}
             <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={totalRegistros} onCambiar={setPagina} />
 
-            {/* Modal CRUD: Crear o Editar Producto */}
+            {/* Modal CRUD: Crear o Editar Producto (Protegido contra clics accidentales fuera) */}
             {modalAbierto && (
                 <div className="modal-fondo">
                     <div className="modal-mediano max-w-xl" onClick={(e) => e.stopPropagation()}>
@@ -412,7 +577,7 @@ function Productos() {
                                 </label>
                                 <input
                                     required
-                                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none"
                                     placeholder="ej: Laptop Asus ZenBook 14"
                                     value={form.nombre}
                                     onChange={(e) => setForm({ ...form, nombre: e.target.value })}
@@ -420,54 +585,89 @@ function Productos() {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Categoría con opción de añadir otra */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         Categoría *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                                        value={form.categoria}
+                                        value={esCategoriaNueva ? "__OTRA__" : form.categoria}
                                         onChange={(e) => {
-                                            const nuevaCat = e.target.value;
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                categoria: nuevaCat,
-                                                especificaciones: !modoEdicion ? generarEspecificacionesPorDefecto(nuevaCat) : prev.especificaciones,
-                                            }));
+                                            const val = e.target.value;
+                                            if (val === "__OTRA__") {
+                                                setEsCategoriaNueva(true);
+                                            } else {
+                                                setEsCategoriaNueva(false);
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    categoria: val,
+                                                    especificaciones: !modoEdicion ? generarEspecificacionesPorDefecto(val) : prev.especificaciones,
+                                                }));
+                                            }
                                         }}
                                     >
-                                        {CATALOGO_CATEGORIAS.map((c) => (
-                                            <option key={c.codigo} value={c.nombre}>{c.nombre}</option>
+                                        {listaCategoriasDisponibles.map((c) => (
+                                            <option key={c} value={c}>{c}</option>
                                         ))}
+                                        <option value="__OTRA__">+ Otra categoría...</option>
                                     </select>
+                                    {esCategoriaNueva && (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Nombre nueva categoría..."
+                                            value={nombreCategoriaNueva}
+                                            onChange={(e) => setNombreCategoriaNueva(e.target.value)}
+                                            className="mt-1.5 w-full px-2.5 py-1.5 text-xs rounded-lg border border-blue-400 bg-blue-50/40 dark:bg-blue-950/30 text-slate-900 dark:text-white focus:outline-none"
+                                        />
+                                    )}
                                 </div>
+
+                                {/* Marca con opción de añadir otra */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         Marca *
                                     </label>
                                     <select
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                                        value={form.marca}
-                                        onChange={(e) => setForm({ ...form, marca: e.target.value })}
+                                        value={esMarcaNueva ? "__OTRA__" : form.marca}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === "__OTRA__") {
+                                                setEsMarcaNueva(true);
+                                            } else {
+                                                setEsMarcaNueva(false);
+                                                setForm({ ...form, marca: val });
+                                            }
+                                        }}
                                     >
-                                        {CATALOGO_MARCAS.map((m) => (
-                                            <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                                        {listaMarcasDisponibles.map((m) => (
+                                            <option key={m} value={m}>{m}</option>
                                         ))}
+                                        <option value="__OTRA__">+ Otra marca...</option>
                                     </select>
+                                    {esMarcaNueva && (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Nombre nueva marca..."
+                                            value={nombreMarcaNueva}
+                                            onChange={(e) => setNombreMarcaNueva(e.target.value)}
+                                            className="mt-1.5 w-full px-2.5 py-1.5 text-xs rounded-lg border border-blue-400 bg-blue-50/40 dark:bg-blue-950/30 text-slate-900 dark:text-white focus:outline-none"
+                                        />
+                                    )}
                                 </div>
+
+                                {/* Unidad de Medida (Exclusivamente NIU - Unidad) */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                        Unidad de Medida *
+                                        Unidad de Medida
                                     </label>
-                                    <select
-                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                                        value={form.unidadMedida}
-                                        onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
-                                    >
-                                        {CATALOGO_UNIDADES.map((u) => (
-                                            <option key={u.codigo} value={u.codigo}>{u.codigo} - {u.descripcion}</option>
-                                        ))}
-                                    </select>
+                                    <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center justify-between">
+                                        <span>NIU - Unidad (Bienes)</span>
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">1 u.</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -502,17 +702,53 @@ function Productos() {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    URL de Imagen
+                            {/* Carga de Imagen a Cloudinary con Vista Previa */}
+                            <div className="space-y-1.5 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    Imagen del Producto (Carga a Cloudinary)
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                                    placeholder="https://... (opcional)"
-                                    value={form.imagen}
-                                    onChange={(e) => setForm({ ...form, imagen: e.target.value })}
-                                />
+                                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleArchivoChange}
+                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                                    />
+                                    {subiendoImagen && (
+                                        <span className="text-xs text-blue-600 font-bold animate-pulse shrink-0">
+                                            Subiendo imagen...
+                                        </span>
+                                    )}
+                                </div>
+
+                                {previewImagen && (
+                                    <div className="mt-2 flex items-center gap-3 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                        <img
+                                            src={previewImagen}
+                                            alt="Vista previa"
+                                            className="w-16 h-16 object-contain rounded-md bg-slate-50 dark:bg-slate-900 border"
+                                        />
+                                        <div className="text-xs min-w-0 flex-1">
+                                            <span className="font-bold text-slate-700 dark:text-slate-300 block truncate">
+                                                {archivoImagen ? archivoImagen.name : "Imagen del producto"}
+                                            </span>
+                                            <span className="text-[11px] text-emerald-600 font-medium">
+                                                ✓ Lista para subida y almacenamiento en la nube
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setArchivoImagen(null);
+                                                setPreviewImagen("");
+                                                setForm({ ...form, imagen: "" });
+                                            }}
+                                            className="text-xs text-red-500 hover:underline cursor-pointer"
+                                        >
+                                            Quitar
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -530,7 +766,7 @@ function Productos() {
 
                             {/* Ficha técnica estandarizada */}
                             <EditorEspecificaciones
-                                categoria={form.categoria}
+                                categoria={esCategoriaNueva ? nombreCategoriaNueva : form.categoria}
                                 especificaciones={form.especificaciones ?? []}
                                 onChange={(nuevas) => setForm({ ...form, especificaciones: nuevas })}
                             />
@@ -551,13 +787,47 @@ function Productos() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={guardando}
+                                    disabled={guardando || subiendoImagen}
                                     className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm cursor-pointer disabled:opacity-50"
                                 >
-                                    {guardando ? "Guardando..." : modoEdicion ? "Guardar Cambios" : "Crear Producto"}
+                                    {guardando || subiendoImagen ? "Procesando en Cloudinary..." : modoEdicion ? "Guardar Cambios" : "Crear Producto"}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Pop up Modal de Confirmación de Éxito al Registrar / Actualizar */}
+            {popupExito && popupExito.visible && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl font-bold">
+                            ✓
+                        </div>
+
+                        {popupExito.imagen && (
+                            <div className="w-20 h-20 mx-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border">
+                                <img src={popupExito.imagen} alt="Producto" className="w-full h-full object-contain" />
+                            </div>
+                        )}
+
+                        <div className="space-y-1">
+                            <h3 className="text-base font-black text-slate-900 dark:text-white">
+                                {popupExito.titulo}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                {popupExito.mensaje}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setPopupExito(null)}
+                            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer transition-colors"
+                        >
+                            Aceptar
+                        </button>
                     </div>
                 </div>
             )}

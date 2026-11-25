@@ -3,6 +3,7 @@ import { normalizarRespuestaPaginada, type RespuestaPaginada } from "./apiPagina
 
 export interface Proveedor {
     id: number;
+    idProveedor?: number;
     nombre: string;
     ruc?: string;
     contacto?: string;
@@ -12,14 +13,28 @@ export interface Proveedor {
     activo: boolean;
 }
 
+function normalizarProveedor(raw: any): Proveedor {
+    return {
+        id: Number(raw.id ?? raw.idProveedor ?? 0),
+        idProveedor: Number(raw.idProveedor ?? raw.id ?? 0),
+        nombre: String(raw.nombre || ""),
+        ruc: raw.ruc ? String(raw.ruc) : undefined,
+        contacto: raw.contacto ? String(raw.contacto) : undefined,
+        telefono: raw.telefono ? String(raw.telefono) : undefined,
+        email: raw.email ? String(raw.email) : undefined,
+        direccion: raw.direccion ? String(raw.direccion) : undefined,
+        activo: Boolean(raw.activo !== false),
+    };
+}
+
 /** GET /api/proveedores -> listar proveedores activos (catálogo para registrar entradas). */
 export async function listarProveedores(token: string): Promise<Proveedor[]> {
     const resp = await fetch(apiUrl("/api/proveedores"), {
         headers: { Authorization: `Bearer ${token}` },
     });
-    const data = (await resp.json().catch(() => [])) as Proveedor[] | Proveedor;
+    const data = (await resp.json().catch(() => [])) as any[];
     if (!resp.ok) throw new Error("No se pudo listar los proveedores");
-    const lista = Array.isArray(data) ? data : [];
+    const lista = Array.isArray(data) ? data.map(normalizarProveedor) : [];
     return lista;
 }
 
@@ -35,7 +50,7 @@ export async function listarProveedoresPaginado(
     });
     const data = await resp.json().catch(() => []);
     if (!resp.ok) throw new Error("No se pudo listar los proveedores");
-    return normalizarRespuestaPaginada(data, (item: Proveedor) => item, pagina, limite);
+    return normalizarRespuestaPaginada(data, normalizarProveedor, pagina, limite);
 }
 
 /** POST /api/proveedores -> registrar un nuevo proveedor. */

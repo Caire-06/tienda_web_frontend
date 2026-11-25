@@ -69,6 +69,9 @@ function Entradas() {
                 setTotalPaginas(resEntradas.totalPaginas);
                 setTotalRegistros(resEntradas.totalElementos);
                 setProveedores(listaProveedores);
+                if (listaProveedores.length > 0) {
+                    setProveedorId((prev) => (prev === 0 ? listaProveedores[0].id : prev));
+                }
                 const primerActivo = listaProductos.find((p) => p.activo);
                 if (primerActivo) {
                     setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));

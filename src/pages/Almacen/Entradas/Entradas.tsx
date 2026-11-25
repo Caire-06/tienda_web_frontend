@@ -69,13 +69,6 @@ function Entradas() {
                 setTotalPaginas(resEntradas.totalPaginas);
                 setTotalRegistros(resEntradas.totalElementos);
                 setProveedores(listaProveedores);
-                if (listaProveedores.length > 0) {
-                    setProveedorId((prev) => (prev === 0 ? listaProveedores[0].id : prev));
-                }
-                const primerActivo = listaProductos.find((p) => p.activo);
-                if (primerActivo) {
-                    setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));
-                }
             })
             .catch(() => {
                 if (activo) setProductos([]);
@@ -117,26 +110,31 @@ function Entradas() {
     }, [productosFiltrados]);
 
     // Producto seleccionado
-    const prod = productos.find((p) => p.id === productoId) ?? productosFiltrados[0];
+    const prod = productos.find((p) => p.id === productoId);
     const stockActual = prod?.stock ?? 0;
     const cantidad = parsearNumeroSeguro(cantidadTexto);
     const costo = parsearNumeroSeguro(costoTexto);
     const nuevoStock = stockActual + Math.max(0, cantidad);
 
-    // Al cambiar la categoría, asegurar que el producto seleccionado pertenezca al filtro
+    // Al cambiar la categoría, si el producto actual no pertenece al filtro, restablecer selección
     const cambiarCategoriaFiltro = (nuevaCat: string) => {
         setCategoriaFiltro(nuevaCat);
-        const disponibles = nuevaCat === "Todas" ? activos : activos.filter((p) => p.categoria === nuevaCat);
-        if (disponibles.length > 0 && !disponibles.some((p) => p.id === productoId)) {
-            const primero = disponibles[0];
-            setProductoId(primero.id);
-            setCostoTexto(primero.precio.toFixed(2));
+        if (productoId > 0 && nuevaCat !== "Todas") {
+            const prodActual = productos.find((p) => p.id === productoId);
+            if (prodActual && prodActual.categoria !== nuevaCat) {
+                setProductoId(0);
+                setCostoTexto("");
+            }
         }
     };
 
     // Al seleccionar un producto en el dropdown, precargar su costo sugerido
     const seleccionarProducto = (nuevoId: number) => {
         setProductoId(nuevoId);
+        if (nuevoId <= 0) {
+            setCostoTexto("");
+            return;
+        }
         const seleccionado = productos.find((p) => p.id === nuevoId);
         if (seleccionado) {
             setCostoTexto(seleccionado.precio.toFixed(2));
@@ -144,6 +142,8 @@ function Entradas() {
     };
 
     const limpiarFormulario = () => {
+        setProductoId(0);
+        setProveedorId(0);
         setCantidadTexto("");
         setCostoTexto("");
         setMotivo("");
@@ -242,11 +242,16 @@ function Entradas() {
                     </div>
                     <select
                         className={inputClass + " cursor-pointer"}
-                        value={prod?.id ?? 0}
+                        value={productoId}
                         onChange={(e) => seleccionarProducto(Number(e.target.value) || 0)}
                         disabled={cargando}
+                        required
                     >
-                        {cargando && <option value={0}>Cargando productos...</option>}
+                        {cargando ? (
+                            <option value={0}>Cargando productos...</option>
+                        ) : (
+                            <option value={0}>-- Selecciona un producto --</option>
+                        )}
                         {!cargando && productosFiltrados.length === 0 && (
                             <option value={0}>Sin productos en esta categoría</option>
                         )}
@@ -274,7 +279,7 @@ function Entradas() {
                         disabled={cargando}
                         required
                     >
-                        <option value={0}>Selecciona el proveedor</option>
+                        <option value={0}>-- Selecciona un proveedor --</option>
                         {proveedores.map((p) => (
                             <option key={p.id} value={p.id}>
                                 {p.nombre} {p.ruc ? `(RUC: ${p.ruc})` : ""}
@@ -349,7 +354,7 @@ function Entradas() {
                 </div>
 
                 {/* Cálculo automático de existencias */}
-                {prod && (
+                {prod ? (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
                         <div>
                             <span className="block text-[11px] font-semibold text-slate-400">Stock Actual</span>
@@ -371,6 +376,10 @@ function Entradas() {
                                 {nuevoStock}
                             </strong>
                         </div>
+                    </div>
+                ) : (
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700/60 text-center text-xs text-slate-400">
+                        Selecciona un producto y un proveedor para visualizar el stock actual y la proyección.
                     </div>
                 )}
 

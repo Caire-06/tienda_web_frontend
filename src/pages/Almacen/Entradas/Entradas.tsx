@@ -23,9 +23,9 @@ function Entradas() {
     const [productoId, setProductoId] = useState(0);
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [proveedorId, setProveedorId] = useState(0);
-    const [cantidadTexto, setCantidadTexto] = useState("20");
+    const [cantidadTexto, setCantidadTexto] = useState("");
     const [costoTexto, setCostoTexto] = useState("");
-    const [motivo, setMotivo] = useState("Ingreso de mercadería");
+    const [motivo, setMotivo] = useState("");
     const [ok, setOk] = useState("");
     const [errorForm, setErrorForm] = useState("");
     const [pagina, setPagina] = useState(1);
@@ -75,9 +75,6 @@ function Entradas() {
                 const primerActivo = listaProductos.find((p) => p.activo);
                 if (primerActivo) {
                     setProductoId((prev) => (prev === 0 ? primerActivo.id : prev));
-                    if (!costoTexto) {
-                        setCostoTexto(primerActivo.precio.toFixed(2));
-                    }
                 }
             })
             .catch(() => {
@@ -146,6 +143,13 @@ function Entradas() {
         }
     };
 
+    const limpiarFormulario = () => {
+        setCantidadTexto("");
+        setCostoTexto("");
+        setMotivo("");
+        setErrorForm("");
+    };
+
     const registrar = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorForm("");
@@ -163,8 +167,8 @@ function Entradas() {
             setErrorForm("La cantidad a ingresar debe ser mayor a 0.");
             return;
         }
-        if (costo < 0) {
-            setErrorForm("El costo unitario no puede ser negativo.");
+        if (!costoTexto.trim() || costo < 0) {
+            setErrorForm("Ingresa un costo unitario válido de compra.");
             return;
         }
         try {
@@ -176,9 +180,7 @@ function Entradas() {
                     proveedores.find((p) => p.id === proveedorId)?.nombre ?? proveedorId
                 }`
             );
-            setCantidadTexto("20");
-            setCostoTexto(prod.precio.toFixed(2));
-            setMotivo("Ingreso de mercadería");
+            limpiarFormulario();
             await refrescar();
         } catch (err) {
             console.error("Error al registrar entrada", err);
@@ -396,10 +398,7 @@ function Entradas() {
                         type="button"
                         className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-all cursor-pointer"
                         onClick={() => {
-                            setCantidadTexto("20");
-                            setCostoTexto(prod ? prod.precio.toFixed(2) : "");
-                            setMotivo("Ingreso de mercadería");
-                            setErrorForm("");
+                            limpiarFormulario();
                             setOk("");
                         }}
                     >

@@ -118,6 +118,7 @@ function Productos() {
     const [guardando, setGuardando] = useState(false);
     const [precioTexto, setPrecioTexto] = useState("");
     const [stockTexto, setStockTexto] = useState("0");
+    const [costoInicialTexto, setCostoInicialTexto] = useState("");
     const [errorModal, setErrorModal] = useState<string | null>(null);
 
     // Pop up de Confirmación de Registro Exitoso
@@ -197,6 +198,7 @@ function Productos() {
         setPreviewImagen("");
         setPrecioTexto("");
         setStockTexto("0");
+        setCostoInicialTexto("");
         setErrorModal(null);
         setModalAbierto(true);
     };
@@ -236,6 +238,7 @@ function Productos() {
         setPreviewImagen(p.imagen || "");
         setPrecioTexto(String(p.precio));
         setStockTexto(String(p.stock));
+        setCostoInicialTexto(p.costoUnitarioInicial != null ? String(p.costoUnitarioInicial) : "");
         setErrorModal(null);
         setModalAbierto(true);
     };
@@ -257,6 +260,9 @@ function Productos() {
         const nombreLimpio = form.nombre.trim();
         const precioNum = parsearNumeroSeguro(precioTexto);
         const stockNum = parsearNumeroSeguro(stockTexto);
+        const costoInicialNum = costoInicialTexto.trim()
+            ? parsearNumeroSeguro(costoInicialTexto)
+            : undefined;
 
         // Resolver categoría final (si eligió crear una nueva)
         let categoriaFinal = form.categoria;
@@ -298,6 +304,10 @@ function Productos() {
             setErrorModal("El stock físico no puede ser negativo.");
             return;
         }
+        if (costoInicialNum !== undefined && costoInicialNum < 0) {
+            setErrorModal("El costo unitario inicial no puede ser negativo.");
+            return;
+        }
 
         setGuardando(true);
         try {
@@ -332,6 +342,7 @@ function Productos() {
                     descripcion: form.descripcion.trim(),
                     marca: marcaFinal,
                     especificaciones: form.especificaciones,
+                    costoUnitarioInicial: costoInicialNum,
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
                 setModalAbierto(false);
@@ -351,6 +362,7 @@ function Productos() {
                     descripcion: form.descripcion.trim(),
                     marca: marcaFinal,
                     especificaciones: form.especificaciones,
+                    costoUnitarioInicial: costoInicialNum,
                 });
                 setProductos((prev) => [creado, ...prev]);
                 setModalAbierto(false);
@@ -671,7 +683,7 @@ function Productos() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         Precio Venta (S/) *
@@ -699,6 +711,22 @@ function Productos() {
                                         value={stockTexto}
                                         onChange={(e) => setStockTexto(limpiarEnteroNoNegativo(e.target.value))}
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Costo unitario inicial (S/)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0.00"
+                                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                        value={costoInicialTexto}
+                                        onChange={(e) => setCostoInicialTexto(limpiarDecimal(e.target.value))}
+                                    />
+                                    <p className="mt-1 text-[10px] text-slate-400">
+                                        No es el precio de venta; valoriza el inventario inicial en el Kardex.
+                                    </p>
                                 </div>
                             </div>
 

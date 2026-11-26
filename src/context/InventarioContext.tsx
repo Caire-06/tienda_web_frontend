@@ -22,6 +22,9 @@ export interface ProductoInv {
     marca?: string;
     fechaCreacion?: string;
     especificaciones?: EspecificacionInv[];
+    /** Costo unitario del stock físico inicial (independiente del precio de venta). */
+    costoUnitarioInicial?: number;
+    fechaInventarioInicial?: string;
 }
 
 // Un movimiento del Kardex
@@ -30,20 +33,23 @@ export interface Movimiento {
     fecha: string; // ISO, para poder filtrar por rango
     productoId: number;
     producto: string;
-    tipo: "Entrada" | "Salida";
+    tipo: "Entrada" | "Salida" | "Inventario inicial";
     cantidad: number;
     valorUnitario?: number;
     valorTotal?: number;
     stockAnterior: number;
     stockNuevo: number;
     saldoValorAnterior?: number;
-    saldoValNuevo?: number;
+    saldoValorNuevo?: number;
     saldoPromedio?: number;
     guia?: string;
     factura?: string;
     detalle?: string;
     motivo: string;
     usuario: string;
+    /** Saldo negativo histórico o salida sin costo valorizado: se muestra, no se oculta. */
+    inconsistente?: boolean;
+    observacion?: string;
 }
 
 const CLAVE = "techstore-inventario-v2";
@@ -109,6 +115,7 @@ export interface DatosProducto {
     descripcion: string;
     marca?: string;
     especificaciones?: EspecificacionInv[];
+    costoUnitarioInicial?: number;
 }
 
 interface InventarioContexto {
@@ -198,18 +205,25 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
                 fechaCreacion: new Date().toISOString(),
             };
             setProductos((prev) => [...prev, nuevo]);
+            const costo = datos.costoUnitarioInicial ?? 0;
             setMovimientos((prev) => [
                 {
                     id: `M${Date.now()}`,
                     fecha: new Date().toISOString(),
                     productoId: nuevo.id,
                     producto: nuevo.nombre,
-                    tipo: "Entrada",
+                    tipo: "Inventario inicial",
                     cantidad: nuevo.stock,
+                    valorUnitario: costo,
+                    valorTotal: costo * nuevo.stock,
+                    saldoValorNuevo: costo * nuevo.stock,
+                    saldoPromedio: costo,
                     stockAnterior: 0,
                     stockNuevo: nuevo.stock,
-                    motivo: "Stock inicial",
+                    detalle: "Inventario inicial",
+                    motivo: "Stock físico registrado al crear el producto",
                     usuario: "Almacén",
+                    inconsistente: false,
                 },
                 ...prev,
             ]);

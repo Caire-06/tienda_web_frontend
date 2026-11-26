@@ -116,6 +116,7 @@ function Productos() {
     const [form, setForm] = useState<DatosProducto>(VACIO);
     const [precioTexto, setPrecioTexto] = useState("");
     const [stockTexto, setStockTexto] = useState("0");
+    const [costoInicialTexto, setCostoInicialTexto] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [archivo, setArchivo] = useState<File | null>(null);
     const [subiendo, setSubiendo] = useState(false);
@@ -200,6 +201,7 @@ function Productos() {
         setNombreMarcaNueva("");
         setPrecioTexto("");
         setStockTexto("0");
+        setCostoInicialTexto("");
         setArchivo(null);
         setPreview("");
         setErrorModal(null);
@@ -227,6 +229,7 @@ function Productos() {
         });
         setPrecioTexto(String(p.precio));
         setStockTexto(String(p.stock));
+        setCostoInicialTexto(p.costoUnitarioInicial != null ? String(p.costoUnitarioInicial) : "");
         setArchivo(null);
         setPreview(p.imagen || "");
         setErrorModal(null);
@@ -242,6 +245,9 @@ function Productos() {
         const marcaFinal = (esMarcaNueva ? nombreMarcaNueva : form.marca || "Genérico").trim();
         const precioNum = parsearNumeroSeguro(precioTexto);
         const stockNum = parsearNumeroSeguro(stockTexto);
+        const costoInicialNum = costoInicialTexto.trim()
+            ? parsearNumeroSeguro(costoInicialTexto)
+            : undefined;
 
         if (nombreLimpio.length < 2) {
             setErrorModal("Ingresa un nombre válido para el producto (mínimo 2 caracteres).");
@@ -257,6 +263,10 @@ function Productos() {
         }
         if (stockNum < 0) {
             setErrorModal("El stock no puede ser negativo.");
+            return;
+        }
+        if (costoInicialNum !== undefined && costoInicialNum < 0) {
+            setErrorModal("El costo unitario inicial no puede ser negativo.");
             return;
         }
 
@@ -287,6 +297,7 @@ function Productos() {
                 descripcion: form.descripcion.trim(),
                 marca: marcaFinal,
                 especificaciones: form.especificaciones ?? [],
+                costoUnitarioInicial: costoInicialNum,
             };
 
             if (formId === null) {
@@ -548,7 +559,7 @@ function Productos() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-slate-500">Precio Venta (S/) *</label>
                                     <input
@@ -573,6 +584,20 @@ function Productos() {
                                         required
                                         disabled={formId !== null}
                                     />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-slate-500">Costo unitario inicial (S/)</label>
+                                    <input
+                                        className={inputClass}
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0.00"
+                                        value={costoInicialTexto}
+                                        onChange={(e) => setCostoInicialTexto(limpiarDecimal(e.target.value))}
+                                    />
+                                    <p className="text-[10px] text-slate-400">
+                                        No es el precio de venta; valoriza el inventario inicial en el Kardex.
+                                    </p>
                                 </div>
                             </div>
 

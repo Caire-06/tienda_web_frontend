@@ -16,6 +16,8 @@ interface ProductoBackend {
     marca?: string;
     fechaCreacion?: string;
     especificaciones?: EspecificacionInv[];
+    costoUnitarioInicial?: number;
+    fechaInventarioInicial?: string;
 }
 
 // Convierte el producto del backend al formato utilizado por el frontend.
@@ -33,6 +35,8 @@ function aProductoInv(p: ProductoBackend): ProductoInv {
         marca: p.marca || "Genérico",
         fechaCreacion: p.fechaCreacion,
         especificaciones: Array.isArray(p.especificaciones) ? p.especificaciones : [],
+        costoUnitarioInicial: p.costoUnitarioInicial ?? undefined,
+        fechaInventarioInicial: p.fechaInventarioInicial ?? undefined,
     };
 }
 
@@ -130,6 +134,7 @@ export async function crearProducto(
         descripcion: string;
         marca?: string;
         especificaciones?: EspecificacionInv[];
+        costoUnitarioInicial?: number;
     }
 ): Promise<ProductoInv> {
     const resp = await fetch(apiUrl("/api/productos"), {
@@ -148,6 +153,7 @@ export async function crearProducto(
             activo: true,
             marca: datos.marca || "Genérico",
             especificaciones: normalizarEspecificaciones(datos.especificaciones),
+            costoUnitarioInicial: datos.costoUnitarioInicial ?? null,
         }),
     });
 
@@ -248,6 +254,7 @@ export async function actualizarProducto(
         activo?: boolean;
         marca?: string;
         especificaciones?: EspecificacionInv[];
+        costoUnitarioInicial?: number;
     }
 ): Promise<ProductoInv> {
     const body: Record<string, unknown> = { ...datos };

@@ -32,8 +32,16 @@ export interface Movimiento {
     producto: string;
     tipo: "Entrada" | "Salida";
     cantidad: number;
+    valorUnitario?: number;
+    valorTotal?: number;
     stockAnterior: number;
     stockNuevo: number;
+    saldoValorAnterior?: number;
+    saldoValNuevo?: number;
+    saldoPromedio?: number;
+    guia?: string;
+    factura?: string;
+    detalle?: string;
     motivo: string;
     usuario: string;
 }

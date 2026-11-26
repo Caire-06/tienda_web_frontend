@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { confirmarPagoTransferencia, listarPedidosAdminPaginado } from "../../../services/pedidosApi";
+import { listarComprasPaginado } from "../../../services/entradasApi";
+import type { Entrada } from "../../../services/entradasApi";
+import { listarProductos } from "../../../services/productosApi";
+import type { ProductoInv } from "../../../context/InventarioContext";
+import { listarProveedores } from "../../../services/proveedoresApi";
+import type { Proveedor } from "../../../services/proveedoresApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 import {
     etiquetaTipoEntrega,
@@ -9,7 +15,7 @@ import {
     obtenerSerieComprobante,
     type Pedido,
 } from "../../../data/pedidos";
-import { descargarComprobantePdf } from "../../../services/comprobantePdf";
+import { descargarComprobantePdf, descargarFacturaCompraPdf } from "../../../services/comprobantePdf";
 
 function badgeDeEstado(estado?: string) {
     const e = (estado || "Pendiente").toLowerCase();
@@ -39,6 +45,16 @@ function Ventas() {
     const [totalPaginas, setTotalPaginas] = useState(1);
     const [totalRegistros, setTotalRegistros] = useState(0);
 
+    // Compras (vista dentro del mismo módulo de Ventas → "Registro de Ventas / Compras")
+    const [vista, setVista] = useState<"ventas" | "compras">("ventas");
+    const [compras, setCompras] = useState<Entrada[]>([]);
+    const [productos, setProductos] = useState<ProductoInv[]>([]);
+    const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+    const [comprando, setComprando] = useState(true);
+    const [paginaCompras, setPaginaCompras] = useState(1);
+    const [totalPaginasCompras, setTotalPaginasCompras] = useState(1);
+    const [totalRegistrosCompras, setTotalRegistrosCompras] = useState(0);
+
     const cargar = async (p: number = pagina) => {
         if (!token) return;
         setCargando(true);
@@ -55,13 +71,41 @@ function Ventas() {
         }
     };
 
+    const cargarCompras = async (p: number = paginaCompras) => {
+        if (!token) return;
+        setComprando(true);
+        setError(null);
+        try {
+            const data = await listarComprasPaginado(token, p, REGISTROS_POR_PAGINA);
+            setCompras(data.contenido);
+            setTotalPaginasCompras(data.totalPaginas);
+            setTotalRegistrosCompras(data.totalElementos);
+            const listaProductos = await listarProductos(token);
+            setProductos(listaProductos);
+            const listaProveedores = await listarProveedores(token);
+            setProveedores(listaProveedores);
+        } catch (err: any) {
+            setError(err.message || "Error al cargar compras");
+        } finally {
+            setComprando(false);
+        }
+    };
+
     useEffect(() => {
-        cargar(pagina);
-    }, [token, pagina]);
+        if (token) {
+            if (vista === "ventas") {
+                cargar(pagina);
+            } else {
+                cargarCompras(paginaCompras);
+            }
+        }
+    }, [token, pagina, vista, paginaCompras]);
 
     const pendientesVerificar = ventas.filter(
         (v) => v.estadoPago === "Por verificar" || v.estado === "Pendiente de pago"
     ).length;
+
+    const mostrarBanner = vista === "ventas" && pendientesVerificar > 0;
 
     const handleConfirmarPago = async (numero: string, aprobado: boolean) => {
         if (!token) return;
@@ -77,6 +121,48 @@ function Ventas() {
             alert(err instanceof Error ? err.message : "No se pudo verificar el pago.");
         } finally {
             setProcesandoPago(false);
+        }
+    };
+
+    const totalCompra = (c: Entrada) =>
+        (c.items ?? []).reduce((acc, it) => acc + (Number(it.cantidad) || 0) * (Number(it.costoUnitario) || 0), 0);
+
+    const filtradasCompras = compras.filter((c) => {
+        if (desde && c.fecha.slice(0, 10) < desde) return false;
+        if (hasta && c.fecha.slice(0, 10) > hasta) return false;
+        const q = busqueda.trim().toLowerCase();
+        if (q) {
+            const nMatch = String(c.id).includes(q);
+            const pMatch = (c.items ?? []).some((it) => {
+                const prod = productos.find((p) => p.id === it.idProducto);
+                const prov = it.idProveedor ? proveedores.find((p) => p.id === it.idProveedor) : undefined;
+                const hay = `${prod?.nombre ?? ""} ${prod?.nombre ?? ""} ${prov?.nombre ?? ""}`.toLowerCase();
+                return hay.includes(q);
+            });
+            if (!nMatch && !pMatch) return false;
+        }
+        return true;
+    });
+
+    const descargarCompra = async (c: Entrada) => {
+        try {
+            const proveedorId = c.items?.[0]?.idProveedor;
+            const prov = proveedorId ? proveedores.find((p) => p.id === proveedorId) : undefined;
+            await descargarFacturaCompraPdf({
+                numero: String(c.id),
+                fecha: c.fecha,
+                items: (c.items ?? []).map((it) => ({
+                    nombre: productos.find((p) => p.id === it.idProducto)?.nombre ?? `Producto #${it.idProducto}`,
+                    cantidad: it.cantidad,
+                    costoUnitario: it.costoUnitario,
+                })),
+                total: totalCompra(c),
+                proveedor: prov
+                    ? { nombre: prov.nombre, ruc: prov.ruc, contacto: prov.contacto, direccion: prov.direccion }
+                    : null,
+            });
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : "No se pudo generar la factura de compra en PDF.");
         }
     };
 
@@ -101,6 +187,7 @@ function Ventas() {
 
     useEffect(() => {
         setPagina(1);
+        setPaginaCompras(1);
     }, [busqueda, desde, hasta, soloPorVerificar]);
 
     return (
@@ -108,14 +195,53 @@ function Ventas() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-                        Registro de Ventas
+                        {vista === "ventas" ? "Registro de Ventas" : "Registro de Compras"}
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Supervisión de compras, emisión de comprobantes oficiales y estado logístico gestionado por Almacén.
+                        {vista === "ventas"
+                            ? "Supervisión de compras, emisión de comprobantes oficiales y estado logístico gestionado por Almacén."
+                            : "Registro y control de compras de mercadería con su factura de compra asociada."}
                     </p>
                 </div>
+                <div className="flex gap-2 self-start sm:self-auto">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setVista("ventas");
+                            setSoloPorVerificar(false);
+                            setBusqueda("");
+                            setDesde("");
+                            setHasta("");
+                            setPagina(1);
+                        }}
+                        className={`px-3.5 py-2 text-xs font-bold rounded-xl cursor-pointer transition-colors ${
+                            vista === "ventas"
+                                ? "bg-blue-600 text-white"
+                                : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
+                        }`}
+                    >
+                        Ventas
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setVista("compras");
+                            setBusqueda("");
+                            setDesde("");
+                            setHasta("");
+                            setPaginaCompras(1);
+                        }}
+                        className={`px-3.5 py-2 text-xs font-bold rounded-xl cursor-pointer transition-colors ${
+                            vista === "compras"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
+                        }`}
+                    >
+                        Compras
+                    </button>
+                </div>
                 <button
-                    onClick={() => cargar()}
+                    onClick={() => (vista === "ventas" ? cargar() : cargarCompras())}
                     className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
                 >
                     ↻ Actualizar
@@ -128,7 +254,7 @@ function Ventas() {
                 </div>
             )}
 
-            {pendientesVerificar > 0 && (
+            {mostrarBanner && (
                 <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
                     <span>
                         Tienes <strong>{pendientesVerificar}</strong> {pendientesVerificar === 1 ? "transferencia bancaria pendiente" : "transferencias bancarias pendientes"} de verificación antes de pasar a Almacén.
@@ -147,6 +273,8 @@ function Ventas() {
                 </div>
             )}
 
+            {vista === "ventas" && (
+            <>
             {/* Filtros */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
                 <input
@@ -501,6 +629,103 @@ function Ventas() {
                         </div>
                     </div>
                 </div>
+            )}
+            </>
+            )}
+
+            {vista === "compras" && (
+            <>
+            {/* Filtros (Compras) */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex flex-wrap gap-3 items-center shadow-xs">
+                <input
+                    className="w-full sm:flex-1 sm:min-w-[220px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Buscar por N° compra, proveedor o producto..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                />
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span>Desde:</span>
+                    <input
+                        type="date"
+                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        value={desde}
+                        onChange={(e) => setDesde(e.target.value)}
+                    />
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span>Hasta:</span>
+                    <input
+                        type="date"
+                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        value={hasta}
+                        onChange={(e) => setHasta(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            {comprando ? (
+                <div className="tabla-wrap">
+                    <div className="text-center py-8 text-sm text-slate-500">Cargando compras...</div>
+                </div>
+            ) : filtradasCompras.length === 0 ? (
+                <div className="tabla-wrap">
+                    <div className="text-center py-8 text-sm text-slate-500">No hay compras registradas para los filtros seleccionados.</div>
+                </div>
+            ) : (
+                <div className="tabla-wrap">
+                    <table className="tabla">
+                        <thead>
+                            <tr>
+                                <th>N° Compra</th>
+                                <th>Proveedor</th>
+                                <th>Fecha</th>
+                                <th>Detalle</th>
+                                <th>Total</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtradasCompras.map((c) => {
+                                const proveedorId = c.items?.[0]?.idProveedor;
+                                const proveedorNombre = proveedorId ? proveedores.find((p) => p.id === proveedorId)?.nombre : undefined;
+                                const detalle = (c.items ?? [])
+                                    .map((it) => {
+                                        const prod = productos.find((p) => p.id === it.idProducto);
+                                        const importe = (Number(it.cantidad) || 0) * (Number(it.costoUnitario) || 0);
+                                        return `${prod?.nombre ?? `Producto #${it.idProducto}`} × Cant: ${it.cantidad} · Costo: S/ ${Number(it.costoUnitario || 0).toFixed(2)} · Importe: S/ ${importe.toFixed(2)}`;
+                                    })
+                                    .join(" | ");
+                                return (
+                                    <tr key={c.id}>
+                                        <td>
+                                            <div className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">Compra #{c.id}</div>
+                                        </td>
+                                        <td className="font-semibold text-slate-900 dark:text-white">{proveedorNombre || "Proveedor"}</td>
+                                        <td className="text-xs text-slate-500 font-mono">{c.fecha.slice(0, 10)}</td>
+                                        <td className="text-xs text-slate-600 dark:text-slate-300">{detalle}</td>
+                                        <td className="font-mono font-bold text-slate-900 dark:text-white">
+                                            S/ {totalCompra(c).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                        </td>
+                                        <td>
+                                            <button className="btn-mini" onClick={() => descargarCompra(c)}>
+                                                Descargar factura (PDF)
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            <Paginacion
+                paginaActual={paginaCompras}
+                totalPaginas={totalPaginasCompras}
+                totalRegistros={totalRegistrosCompras}
+                onCambiar={setPaginaCompras}
+            />
+            </>
             )}
         </div>
     );

@@ -403,3 +403,206 @@ export async function descargarComprobantePdf(pedido: Pedido): Promise<void> {
 
     doc.save(`${serie}.pdf`);
 }
+
+/**
+ * Genera y descarga en el navegador una Factura de Compra (compra de mercadería al proveedor).
+ * Reutiliza la presentación de la factura/boleta de venta adaptando el contenido a una compra.
+ */
+export async function descargarFacturaCompraPdf(params: {
+    numero: string;
+    fecha: string;
+    items: Array<{ nombre: string; cantidad: number; costoUnitario: number }>;
+    total: number;
+    proveedor: { nombre: string; ruc?: string; contacto?: string; direccion?: string } | null;
+}): Promise<void> {
+    const [{ jsPDF: JsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+    ]);
+
+    const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" }) as JsPdfConAutoTable;
+    const serie = `C001-${params.numero}`;
+    const total = Number(params.total ?? 0);
+    const base = params.items.reduce((acc, it) => acc + (Number(it.costoUnitario) || 0) * (Number(it.cantidad) || 0), 0);
+
+    // Franja superior corporativa
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, 210, 6, "F");
+
+    // Datos del emisor (izquierda)
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("TechStore", 14, 20);
+
+    doc.setFontSize(9.5);
+    doc.setTextColor(37, 99, 235);
+    doc.text(EMISOR.razonSocial, 14, 26);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(EMISOR.direccion, 14, 31.5);
+    doc.text(EMISOR.contacto, 14, 36.5);
+
+    // Recuadro oficial SUNAT (derecha)
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(0.6);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(130, 12, 66, 28, 2.5, 2.5, "FD");
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.text(`R.U.C. ${EMISOR.ruc}`, 163, 18.5, { align: "center" });
+
+    doc.setFillColor(37, 99, 235);
+    doc.rect(130, 21, 66, 8.5, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8.5);
+    doc.text("COMPRA ELECTRONICA", 163, 26.5, { align: "center" });
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("courier", "bold");
+    doc.setFontSize(11);
+    doc.text(serie, 163, 36.2, { align: "center" });
+
+    // Datos del proveedor (receptor de la compra) y operación
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.35);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, 45, 182, 31, 2, 2, "FD");
+
+    doc.setFontSize(8.5);
+    const escribirDato = (etiqueta: string, valor: string, x: number, y: number, anchoMax: number) => {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(71, 85, 105);
+        doc.text(etiqueta, x, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(15, 23, 42);
+        const recorte = doc.splitTextToSize(valor, anchoMax);
+        doc.text(recorte[0] || "—", x + 28, y);
+    };
+
+    const proveedor = params.proveedor;
+    const receptor =
+        proveedor?.nombre ||
+        `Proveedor #${params.numero.replace("C001-", "")}`;
+    const documento = proveedor?.ruc || "00000000";
+    const direccionReceptor = proveedor?.direccion || "Sin dirección registrada";
+
+    escribirDato("Proveedor:", receptor, 18, 51.5, 76);
+    escribirDato("R.U.C.:", documento, 18, 57.5, 76);
+    escribirDato("Dirección:", direccionReceptor, 18, 63.5, 76);
+    escribirDato("Tipo:", "Compra a proveedor", 18, 69.5, 76);
+
+    escribirDato("Emisión:", formatearFechaHora(params.fecha), 118, 51.5, 48);
+    escribirDato("N° Compra:", params.numero, 118, 57.5, 48);
+    escribirDato("Moneda:", "SOLES (PEN)", 118, 63.5, 48);
+    escribirDato("Operación:", "Compra de mercadería", 118, 69.5, 48);
+
+    // Tabla de detalle de productos adquiridos
+    const filas = params.items.map((item, idx) => {
+        const costoUnit = Number(item.costoUnitario) || 0;
+        const importe = costoUnit * (Number(item.cantidad) || 0);
+        return [
+            String(idx + 1),
+            item.nombre,
+            String(item.cantidad),
+            `S/ ${costoUnit.toFixed(2)}`,
+            `S/ ${importe.toFixed(2)}`,
+        ];
+    });
+
+    autoTable(doc, {
+        startY: 81,
+        margin: { left: 14, right: 14 },
+        head: [["#", "Descripción", "Cant.", "P. Costo.", "Importe"]],
+        body: filas,
+        theme: "grid",
+        styles: {
+            font: "helvetica",
+            fontSize: 8.5,
+            cellPadding: 3,
+            textColor: [30, 41, 59],
+            lineColor: [226, 232, 240],
+            lineWidth: 0.25,
+        },
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+            halign: "left",
+        },
+        columnStyles: {
+            0: { cellWidth: 10, halign: "center" },
+            1: { cellWidth: "auto" },
+            2: { cellWidth: 16, halign: "center" },
+            3: { cellWidth: 28, halign: "right" },
+            4: { cellWidth: 30, halign: "right", fontStyle: "bold" },
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252],
+        },
+    });
+
+    const yTabla = doc.lastAutoTable?.finalY ?? 140;
+    let yBloqueTotales = yTabla + 8;
+    if (yBloqueTotales > 225) {
+        doc.addPage();
+        yBloqueTotales = 20;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    const letrasLineas = doc.splitTextToSize(numeroALetrasSoles(total), 108);
+    doc.text(letrasLineas, 14, yBloqueTotales + 5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    let yExtra = yBloqueTotales + 5 + letrasLineas.length * 4.5 + 2;
+    doc.text(`Base de la compra: S/ ${base.toFixed(2)}`, 14, yExtra);
+    yExtra += 4.5;
+
+    // Totales (derecha)
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(130, yBloqueTotales, 66, 26, 2, 2, "FD");
+
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Base:", 134, yBloqueTotales + 6.5);
+    doc.text(`S/ ${base.toFixed(2)}`, 192, yBloqueTotales + 6.5, { align: "right" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(37, 99, 235);
+    doc.text("IMPORTE TOTAL:", 134, yBloqueTotales + 21.8);
+    doc.text(`S/ ${total.toFixed(2)}`, 192, yBloqueTotales + 21.8, { align: "right" });
+
+    // Pie con QR simulado
+    const yPie = Math.max(yBloqueTotales + 36, 245);
+    dibujarQrSimulado(doc, 15.5, yPie, 24, `${EMISOR.ruc}|${serie}|${total.toFixed(2)}|${documento}`);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Representación impresa de Comprobante de Compra", 46, yPie + 5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+        "Comprobante simulado generado en el sistema TechStore para fines académicos y demostración.",
+       46,
+        yPie + 10.5
+    );
+    doc.text("Documento sin validez tributaria ante SUNAT.", 46, yPie + 15);
+    doc.setFont("courier", "normal");
+    doc.text(`Hash Ref.: ${serie} | ${documento} | S/ ${total.toFixed(2)}`, 46, yPie + 20.5);
+
+    doc.save(`${serie}.pdf`);
+}

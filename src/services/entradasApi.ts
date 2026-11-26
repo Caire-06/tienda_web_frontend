@@ -6,12 +6,29 @@ export interface ItemEntrada {
     idProveedor: number;
     cantidad: number;
     costoUnitario: number;
+    guia?: string;
+    factura?: string;
 }
 
 export interface Entrada {
     id: number;
     fecha: string;
     items: ItemEntrada[];
+}
+
+/** GET /api/entradas/todas -> listado de compras (facturas de compra) registradas. */
+export async function listarComprasPaginado(
+    token: string,
+    pagina: number = 1,
+    limite: number = 10
+): Promise<RespuestaPaginada<Entrada>> {
+    const page0 = Math.max(0, pagina - 1);
+    const resp = await fetch(apiUrl(`/api/entradas/todas?page=${page0}&size=${limite}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error("No se pudo listar las compras");
+    return normalizarRespuestaPaginada(data, (item: Entrada) => item, pagina, limite);
 }
 
 /** POST /api/entradas — registrar una entrada de mercadería (3FN: entrada + líneas). */

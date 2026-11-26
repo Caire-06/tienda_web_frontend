@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarMovimientosPaginado } from "../../../services/kardexApi";
 import type { Movimiento } from "../../../context/InventarioContext";
@@ -12,6 +12,11 @@ function fechaCorta(iso: string) {
 
 function diaISO(iso: string) {
     return iso.slice(0, 10);
+}
+
+function fmtImporte(valor?: number) {
+    const n = valor ?? 0;
+    return Number(n).toFixed(2);
 }
 
 function Kardex() {
@@ -53,6 +58,25 @@ function Kardex() {
     const totalEntradas = filtrados.filter((m) => m.tipo === "Entrada").length;
     const totalSalidas = filtrados.filter((m) => m.tipo === "Salida").length;
 
+    // Cuadro 1: totales del movimiento (entradas, salidas y saldo final)
+    const movEntradasFiltrados = filtrados.filter((m) => m.tipo === "Entrada");
+    const movSalidasFiltrados = filtrados.filter((m) => m.tipo === "Salida");
+    const totalEntradasCant = movEntradasFiltrados.reduce((acc, m) => acc + (m.cantidad || 0), 0);
+    const totalEntradasVal = movEntradasFiltrados.reduce((acc, m) => acc + (m.valorTotal ?? 0), 0);
+    const totalSalidasCant = movSalidasFiltrados.reduce((acc, m) => acc + (m.cantidad || 0), 0);
+    const totalSalidasVal = movSalidasFiltrados.reduce((acc, m) => acc + (m.valorTotal ?? 0), 0);
+    const ultimoMovimiento = filtrados.length > 0
+        ? filtrados.reduce((a, b) => (a.fecha > b.fecha ? a : b))
+        : null;
+    const saldoFinalCant = ultimoMovimiento?.stockNuevo ?? 0;
+    const saldoFinalVal = ultimoMovimiento?.saldoValNuevo ?? 0;
+
+    // Cuadro 2: costo de ventas = inventario inicial + compras netas - inventario final
+    const comprasNetas = totalEntradasVal;
+    const inventarioFinal = saldoFinalVal;
+    const inventarioInicial = inventarioFinal - comprasNetas + totalSalidasVal;
+    const costoVentas = inventarioInicial + comprasNetas - inventarioFinal;
+
     const selectClass =
         "px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer";
 
@@ -76,11 +100,59 @@ function Kardex() {
         return () => { activo = false; };
     }, [token, pagina]);
 
+    const exportarCSV = () => {
+        const header = ["#", "Fecha", "Guía", "Factura", "Detalle", "Ent. Cant.", "Ent. P.U.", "Ent. P.T.", "Sal. Cant.", "Sal. P.U.", "Sal. P.T.", "Saldo Cant.", "Saldo P.U.", "Saldo P.T."];
+        const filas = filtrados.map((m) => [
+            m.id,
+            m.fecha,
+            m.guia ?? "",
+            m.factura ?? "",
+            m.detalle ?? m.tipo,
+            m.tipo === "Entrada" ? String(m.cantidad) : "",
+            m.tipo === "Entrada" ? fmtImporte(m.valorUnitario) : "",
+            m.tipo === "Entrada" ? fmtImporte(m.valorTotal) : "",
+            m.tipo === "Salida" ? String(m.cantidad) : "",
+            m.tipo === "Salida" ? fmtImporte(m.valorUnitario) : "",
+            m.tipo === "Salida" ? fmtImporte(m.valorTotal) : "",
+            String(m.stockNuevo),
+            m.saldoPromedio != null ? fmtImporte(m.saldoPromedio) : "",
+            fmtImporte(m.saldoValNuevo),
+        ]);
+        const csv = [header, ...filas].map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `kardex_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const imprimir = () => { window.print(); };
+
+    const Th = ({ children, colSpan, rowSpan, className }: { children?: ReactNode; colSpan?: number; rowSpan?: number; className?: string }) => (
+        <th colSpan={colSpan} rowSpan={rowSpan} className={className}>{children}</th>
+    );
+
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white">Kardex Físico y Valorado</h1>
-                <p className="text-sm text-slate-500 mt-1">Control cronológico detallado de entradas, salidas y existencias.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">Kardex Valorizado</h1>
+                    <p className="text-sm text-slate-500 mt-1">Control cronológico detallado de entradas, salidas y existencias (promedio ponderado móvil).</p>
+                </div>
+                <button
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                    onClick={exportarCSV}
+                >
+                    Exportar CSV
+                </button>
+                <button
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                    onClick={imprimir}
+                >
+                    Imprimir
+                </button>
             </div>
 
             {/* Filtros */}
@@ -115,6 +187,49 @@ function Kardex() {
                 </button>
             </div>
 
+            {/* Cuadros de resumen */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Cuadro 1: Totales del movimiento</h3>
+                    <div className="mt-3 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Total entradas (cant. / valor):</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{totalEntradasCant} · S/ {fmtImporte(totalEntradasVal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Total salidas (cant. / valor):</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{totalSalidasCant} · S/ {fmtImporte(totalSalidasVal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-2">
+                            <span className="text-slate-500">Saldo final:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{saldoFinalCant} · S/ {fmtImporte(saldoFinalVal)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Cuadro 2: Cálculo del costo de ventas</h3>
+                    <div className="mt-3 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Inventario inicial:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(inventarioInicial)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Compras netas:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(comprasNetas)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Inventario final:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(inventarioFinal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-2">
+                            <span className="text-slate-500">Costo de ventas (COGS):</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(costoVentas)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Chips de Resumen */}
             <div className="flex flex-wrap gap-2">
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
@@ -132,38 +247,59 @@ function Kardex() {
                 <table className="tabla">
                     <thead>
                         <tr>
-                            <th>Fecha</th>
-                            <th>Producto</th>
-                            <th>Tipo</th>
-                            <th>Cantidad</th>
-                            <th>Stock Anterior</th>
-                            <th>Stock Resultante</th>
-                            <th>Motivo / Referencia</th>
-                            <th>Operador</th>
+                            <Th>#</Th>
+                            <Th>Fecha</Th>
+                            <Th>Guía</Th>
+                            <Th>Factura</Th>
+                            <Th>Detalle</Th>
+                            <Th colSpan={3} className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300">Entradas</Th>
+                            <Th colSpan={3} className="bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">Salidas</Th>
+                            <Th colSpan={3} className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Saldos</Th>
+                        </tr>
+                        <tr>
+                            <Th />
+                            <Th />
+                            <Th />
+                            <Th />
+                            <Th />
+                            <Th className="text-emerald-700 dark:text-emerald-400">Cant.</Th>
+                            <Th className="text-emerald-700 dark:text-emerald-400">P.U.</Th>
+                            <Th className="text-emerald-700 dark:text-emerald-400">P.T.</Th>
+                            <Th className="text-red-700 dark:text-red-400">Cant.</Th>
+                            <Th className="text-red-700 dark:text-red-400">P.U.</Th>
+                            <Th className="text-red-700 dark:text-red-400">P.T.</Th>
+                            <Th className="text-slate-700 dark:text-slate-300">Cant.</Th>
+                            <Th className="text-slate-700 dark:text-slate-300">P.U.</Th>
+                            <Th className="text-slate-700 dark:text-slate-300">P.T.</Th>
                         </tr>
                     </thead>
                     <tbody>
                         {cargando ? (
                             <tr>
-                                <td colSpan={8} className="text-center py-10 text-sm text-slate-500">Cargando movimientos...</td>
+                                <td colSpan={14} className="text-center py-10 text-sm text-slate-500">Cargando movimientos...</td>
                             </tr>
                         ) : (
                             visibles.map((m) => (
                                 <tr key={m.id}>
+                                    <td className="text-xs text-slate-500 font-mono">{m.id}</td>
                                     <td className="text-xs text-slate-500">{fechaCorta(m.fecha)}</td>
-                                    <td className="font-semibold text-xs">{m.producto}</td>
+                                    <td className="text-xs text-slate-600 dark:text-slate-400 font-mono">{m.guia || "—"}</td>
+                                    <td className="text-xs text-slate-600 dark:text-slate-400 font-mono">{m.factura || "—"}</td>
                                     <td>
                                         <span className={`badge ${m.tipo === "Entrada" ? "ok" : "off"}`}>
                                             {m.tipo === "Entrada" ? "↑ Entrada" : "↓ Salida"}
-                                        </span>
+                                        </span>{" "}
+                                        <span className="text-xs text-slate-600 dark:text-slate-400">{m.detalle || m.tipo}</span>
                                     </td>
-                                    <td className={`font-mono font-bold text-xs ${m.tipo === "Entrada" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                        {m.tipo === "Entrada" ? `+${m.cantidad}` : `-${m.cantidad}`}
-                                    </td>
-                                    <td className="font-mono text-xs text-slate-500">{m.stockAnterior}</td>
-                                    <td className="font-mono font-bold text-xs">{m.stockNuevo}</td>
-                                    <td className="text-xs text-slate-600 dark:text-slate-400">{m.motivo}</td>
-                                    <td className="text-xs text-slate-500">{m.usuario}</td>
+                                    <td className="font-mono text-xs text-emerald-700 dark:text-emerald-400">{m.tipo === "Entrada" ? m.cantidad : ""}</td>
+                                    <td className="font-mono text-xs text-emerald-700 dark:text-emerald-400">{m.tipo === "Entrada" ? fmtImporte(m.valorUnitario) : ""}</td>
+                                    <td className="font-mono text-xs text-emerald-700 dark:text-emerald-400">{m.tipo === "Entrada" ? fmtImporte(m.valorTotal) : ""}</td>
+                                    <td className="font-mono text-xs text-red-600 dark:text-red-400">{m.tipo === "Salida" ? m.cantidad : ""}</td>
+                                    <td className="font-mono text-xs text-red-600 dark:text-red-400">{m.tipo === "Salida" ? fmtImporte(m.valorUnitario) : ""}</td>
+                                    <td className="font-mono text-xs text-red-600 dark:text-red-400">{m.tipo === "Salida" ? fmtImporte(m.valorTotal) : ""}</td>
+                                    <td className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">{m.stockNuevo}</td>
+                                    <td className="font-mono text-xs text-slate-800 dark:text-slate-200">{m.saldoPromedio != null ? fmtImporte(m.saldoPromedio) : "—"}</td>
+                                    <td className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">S/ {fmtImporte(m.saldoValNuevo)}</td>
                                 </tr>
                             ))
                         )}

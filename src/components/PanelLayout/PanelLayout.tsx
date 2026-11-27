@@ -83,7 +83,7 @@ export function PanelLayout({
         "w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0";
 
     return (
-        <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors overflow-x-hidden">
+        <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors overflow-x-clip lg:h-dvh lg:overflow-hidden">
             {/* Backdrop oscuro en móvil/tablet cuando el menú desplegable está abierto */}
             {menuAbierto && (
                 <div
@@ -96,7 +96,7 @@ export function PanelLayout({
             {/* Barra lateral: drawer desplegable en < lg y sticky fija en >= lg */}
             <aside
                 aria-label={`Menú de ${headerTitulo}`}
-                className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col p-4 transform transition-transform duration-200 ease-out shadow-2xl lg:shadow-none lg:static lg:w-64 lg:shrink-0 lg:h-screen lg:sticky lg:top-0 lg:z-40 lg:translate-x-0 ${
+                className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col p-4 transform transition-transform duration-200 ease-out shadow-2xl lg:shadow-none lg:static lg:w-64 lg:shrink-0 lg:h-full lg:z-40 lg:translate-x-0 ${
                     menuAbierto ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
@@ -193,8 +193,8 @@ export function PanelLayout({
             </aside>
 
             {/* Contenido Principal */}
-            <div className="flex-1 flex flex-col min-w-0">
-                <header className="h-16 px-3.5 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 sticky top-0 z-30">
+            <div className="flex-1 flex flex-col min-w-0 lg:min-h-0 lg:overflow-y-auto">
+                <header className="h-16 shrink-0 px-3.5 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 sticky top-0 z-30">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <button
                             type="button"

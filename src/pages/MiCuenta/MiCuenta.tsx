@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../utils/formatoImporte";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
@@ -241,7 +242,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                     </div>
                     <div className="admin-card cursor-pointer" onClick={() => navigate("/mis-compras")}>
                         <span>Total compras</span>
-                        <strong>S/ {totalGastado.toLocaleString("es-PE")}</strong>
+                        <strong>S/ {formatoImporte(totalGastado)}</strong>
                     </div>
                     <div className="admin-card">
                         <span>Items adquiridos</span>
@@ -455,7 +456,7 @@ function MiCuentaDetalle({ usuario, logout, actualizarNombre, marcarPasswordActu
                                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                                     <span className="text-xs font-bold uppercase text-slate-500">Total</span>
                                     <strong className="font-mono text-lg font-black text-slate-900 dark:text-white">
-                                        S/ {ultimoPedido.total.toLocaleString("es-PE")}
+                                        S/ {formatoImporte(ultimoPedido.total)}
                                     </strong>
                                 </div>
                             </div>

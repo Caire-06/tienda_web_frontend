@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -304,8 +305,8 @@ function Productos() {
             setErrorModal("El stock físico no puede ser negativo.");
             return;
         }
-        if (costoInicialNum !== undefined && costoInicialNum < 0) {
-            setErrorModal("El costo unitario inicial no puede ser negativo.");
+        if (!modoEdicion && stockNum > 0 && (costoInicialNum === undefined || !Number.isFinite(costoInicialNum) || costoInicialNum <= 0)) {
+            setErrorModal("Ingresa un costo unitario inicial mayor a cero cuando exista stock.");
             return;
         }
 
@@ -337,12 +338,10 @@ function Productos() {
                     nombre: nombreLimpio,
                     categoria: categoriaFinal,
                     precio: precioNum,
-                    stock: Math.trunc(stockNum),
                     imagen: urlImagenFinal,
                     descripcion: form.descripcion.trim(),
                     marca: marcaFinal,
                     especificaciones: form.especificaciones,
-                    costoUnitarioInicial: costoInicialNum,
                 });
                 setProductos((prev) => prev.map((item) => (item.id === form.id ? actualizado : item)));
                 setModalAbierto(false);
@@ -522,7 +521,7 @@ function Productos() {
                                         <td className="p-3.5 text-slate-600 dark:text-slate-300 font-medium">{p.categoria}</td>
                                         <td className="p-3.5 text-slate-500">{p.marca || "Genérico"}</td>
                                         <td className="p-3.5 font-mono font-bold text-slate-900 dark:text-white">
-                                            S/ {p.precio.toFixed(2)}
+                                            S/ {formatoImporte(p.precio)}
                                         </td>
                                         <td className="p-3.5 font-mono font-semibold text-slate-700 dark:text-slate-300">
                                             {p.stock}
@@ -708,6 +707,7 @@ function Productos() {
                                         inputMode="numeric"
                                         placeholder="0"
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                        readOnly={modoEdicion}
                                         value={stockTexto}
                                         onChange={(e) => setStockTexto(limpiarEnteroNoNegativo(e.target.value))}
                                     />
@@ -721,6 +721,7 @@ function Productos() {
                                         inputMode="decimal"
                                         placeholder="0.00"
                                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                        readOnly={modoEdicion}
                                         value={costoInicialTexto}
                                         onChange={(e) => setCostoInicialTexto(limpiarDecimal(e.target.value))}
                                     />

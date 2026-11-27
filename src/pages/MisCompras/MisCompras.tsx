@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../utils/formatoImporte";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -453,9 +454,7 @@ function MisCompras() {
                                                 </span>
                                                 <strong className="font-mono text-lg font-black text-slate-900 dark:text-white">
                                                     S/{" "}
-                                                    {p.total.toLocaleString("es-PE", {
-                                                        minimumFractionDigits: 2,
-                                                    })}
+                                                    {formatoImporte(p.total)}
                                                 </strong>
                                             </div>
 
@@ -757,14 +756,10 @@ function MisCompras() {
                                                 <td className="font-semibold text-xs">{it.nombre}</td>
                                                 <td className="font-mono text-xs">{it.cantidad}</td>
                                                 <td className="font-mono text-xs">
-                                                    S/ {it.precio.toLocaleString("es-PE", {
-                                                        minimumFractionDigits: 2,
-                                                    })}
+                                                    S/ {formatoImporte(it.precio)}
                                                 </td>
                                                 <td className="font-mono font-bold text-xs">
-                                                    S/ {(it.precio * it.cantidad).toLocaleString("es-PE", {
-                                                        minimumFractionDigits: 2,
-                                                    })}
+                                                    S/ {formatoImporte((it.precio * it.cantidad))}
                                                 </td>
                                             </tr>
                                         ))}
@@ -777,9 +772,7 @@ function MisCompras() {
                                 <div className="flex justify-between text-slate-500">
                                     <span>Subtotal productos</span>
                                     <span className="font-mono">
-                                        S/ {(detalle.total - (detalle.costoEnvio || 0)).toLocaleString("es-PE", {
-                                            minimumFractionDigits: 2,
-                                        })}
+                                        S/ {formatoImporte((detalle.total - (detalle.costoEnvio || 0)))}
                                     </span>
                                 </div>
 
@@ -788,9 +781,7 @@ function MisCompras() {
                                     <span className="font-mono">
                                         {(detalle.costoEnvio || 0) === 0
                                             ? "Gratis"
-                                            : `S/ ${Number(detalle.costoEnvio).toLocaleString("es-PE", {
-                                                minimumFractionDigits: 2,
-                                            })}`}
+                                            : `S/ ${formatoImporte(Number(detalle.costoEnvio))}`}
                                     </span>
                                 </div>
 
@@ -801,9 +792,7 @@ function MisCompras() {
                                             : "Total pagado"}
                                     </span>
                                     <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
-                                        S/ {detalle.total.toLocaleString("es-PE", {
-                                            minimumFractionDigits: 2,
-                                        })}
+                                        S/ {formatoImporte(detalle.total)}
                                     </strong>
                                 </div>
                             </div>

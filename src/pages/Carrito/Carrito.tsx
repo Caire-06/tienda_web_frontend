@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../utils/formatoImporte";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header/Header";
@@ -381,7 +382,7 @@ function Carrito() {
                                     ¡Pedido registrado! Pago pendiente de verificación
                                 </h2>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
-                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
+                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {formatoImporte(totalPagado)}</strong>.
                                     Registramos tu solicitud con el número de operación bancaria; un administrador confirmará el abono para iniciar la preparación en almacén.
                                 </p>
                             </>
@@ -397,7 +398,7 @@ function Carrito() {
                                     ¡Pago procesado con éxito!
                                 </h2>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto">
-                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {totalPagado.toLocaleString("es-PE")}</strong>.
+                                    Pedido <strong className="text-slate-900 dark:text-white font-mono">{pedidoOk}</strong> por <strong className="text-slate-900 dark:text-white font-mono">S/ {formatoImporte(totalPagado)}</strong>.
                                     Tu comprobante electrónico ha sido emitido satisfactoriamente.
                                 </p>
                             </>
@@ -421,10 +422,10 @@ function Carrito() {
                                             <div><strong>Dirección:</strong> {comprobanteEmitido.direccion}</div>
                                         )}
                                         <div className="flex flex-col gap-1 border-t border-amber-200 dark:border-amber-900/40 pt-3 mt-2 text-xs text-slate-600 dark:text-slate-400">
-                                            <span>Op. Gravada referencial: S/ {comprobanteEmitido.subtotal.toFixed(2)}</span>
-                                            <span>IGV referencial (18%): S/ {comprobanteEmitido.igv.toFixed(2)}</span>
+                                            <span>Op. Gravada referencial: S/ {formatoImporte(comprobanteEmitido.subtotal)}</span>
+                                            <span>IGV referencial (18%): S/ {formatoImporte(comprobanteEmitido.igv)}</span>
                                             <strong className="text-base font-bold text-amber-700 dark:text-amber-400 mt-1">
-                                                Total a confirmar: S/ {comprobanteEmitido.total.toFixed(2)}
+                                                Total a confirmar: S/ {formatoImporte(comprobanteEmitido.total)}
                                             </strong>
                                         </div>
                                     </div>
@@ -453,10 +454,10 @@ function Carrito() {
                                             <div><strong>Dirección:</strong> {comprobanteEmitido.direccion}</div>
                                         )}
                                         <div className="flex flex-col gap-1 border-t border-slate-200 dark:border-slate-800 pt-3 mt-2 text-xs text-slate-600 dark:text-slate-400">
-                                            <span>Op. Gravada: S/ {comprobanteEmitido.subtotal.toFixed(2)}</span>
-                                            <span>IGV (18%): S/ {comprobanteEmitido.igv.toFixed(2)}</span>
+                                            <span>Op. Gravada: S/ {formatoImporte(comprobanteEmitido.subtotal)}</span>
+                                            <span>IGV (18%): S/ {formatoImporte(comprobanteEmitido.igv)}</span>
                                             <strong className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                                                Total: S/ {comprobanteEmitido.total.toFixed(2)}
+                                                Total: S/ {formatoImporte(comprobanteEmitido.total)}
                                             </strong>
                                         </div>
                                         {pedidoEmitido && (
@@ -530,7 +531,7 @@ function Carrito() {
                                 {envioGratis ? (
                                     <span><strong className="text-emerald-600 dark:text-emerald-400 font-bold">¡Tienes envío gratis!</strong> Aprovecha tu compra.</span>
                                 ) : (
-                                    <span>Te faltan <strong className="text-blue-600 dark:text-blue-400 font-bold">S/ {faltante.toLocaleString("es-PE")}</strong> para envío gratis</span>
+                                    <span>Te faltan <strong className="text-blue-600 dark:text-blue-400 font-bold">S/ {formatoImporte(faltante)}</strong> para envío gratis</span>
                                 )}
                             </div>
                             <div className="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -570,7 +571,7 @@ function Carrito() {
                                                 {producto.nombre}
                                             </h3>
                                             <span className="text-xs text-slate-500 dark:text-slate-400 font-mono block mt-1">
-                                                S/ {producto.precio.toLocaleString("es-PE")} c/u
+                                                S/ {formatoImporte(producto.precio)} c/u
                                             </span>
 
                                             <div className="flex items-center gap-3 mt-3">
@@ -613,7 +614,7 @@ function Carrito() {
                                             ) : null}
                                         </div>
                                         <div className="text-right sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800 sm:self-center font-mono text-lg font-black text-slate-900 dark:text-white whitespace-nowrap">
-                                            <strong>S/ {(producto.precio * cantidad).toLocaleString("es-PE")}</strong>
+                                            <strong>S/ {formatoImporte((producto.precio * cantidad))}</strong>
                                         </div>
                                     </article>
                                 ))}
@@ -633,11 +634,11 @@ function Carrito() {
                                 </h2>
                                 <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400 mb-2.5 font-medium">
                                     <span>Subtotal (Base Imponible)</span>
-                                    <span className="font-mono text-slate-800 dark:text-slate-200">S/ {baseImponible.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                                    <span className="font-mono text-slate-800 dark:text-slate-200">S/ {formatoImporte(baseImponible)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400 mb-2.5 font-medium">
                                     <span>I.G.V. (18%)</span>
-                                    <span className="font-mono text-slate-800 dark:text-slate-200">S/ {igv.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                                    <span className="font-mono text-slate-800 dark:text-slate-200">S/ {formatoImporte(igv)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400 mb-2.5 font-medium">
                                     <span>Envío / Entrega</span>
@@ -647,14 +648,14 @@ function Carrito() {
                                         <span className="text-amber-600 dark:text-amber-400 font-bold text-xs">Pago en destino</span>
                                     ) : (
                                         <span className={envioGratis ? "text-emerald-600 dark:text-emerald-400 font-bold" : "font-mono text-slate-800 dark:text-slate-200"}>
-                                            {envioGratis ? "Gratis (Zona)" : `S/ ${envio.toFixed(2)}`}
+                                            {envioGratis ? "Gratis (Zona)" : `S/ ${formatoImporte(envio)}`}
                                         </span>
                                     )}
                                 </div>
                                 <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-800 my-4 pt-4 text-base font-bold text-slate-900 dark:text-white">
                                     <span>Total</span>
                                     <strong className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                                        S/ {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                        S/ {formatoImporte(total)}
                                     </strong>
                                 </div>
 
@@ -1055,21 +1056,21 @@ function Carrito() {
                                                             ? "Agencia (Pago en destino)"
                                                             : envio === 0
                                                                 ? "Delivery Propio (Gratis)"
-                                                                : `Delivery Propio (S/ ${envio.toFixed(2)})`}
+                                                                : `Delivery Propio (S/ ${formatoImporte(envio)})`}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                                                 <span>Op. Gravada:</span>
-                                                <span className="font-mono text-slate-800 dark:text-slate-200">S/ {baseImponible.toFixed(2)}</span>
+                                                <span className="font-mono text-slate-800 dark:text-slate-200">S/ {formatoImporte(baseImponible)}</span>
                                             </div>
                                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                                                 <span>I.G.V. (18%):</span>
-                                                <span className="font-mono text-slate-800 dark:text-slate-200">S/ {igv.toFixed(2)}</span>
+                                                <span className="font-mono text-slate-800 dark:text-slate-200">S/ {formatoImporte(igv)}</span>
                                             </div>
                                             <div className="flex justify-between items-center border-t border-dashed border-slate-300 dark:border-slate-700 pt-2 text-slate-900 dark:text-white text-sm font-bold">
                                                 <span>Total a pagar:</span>
                                                 <strong className="text-blue-600 dark:text-blue-400 font-mono text-base">
-                                                    S/ {total.toFixed(2)}
+                                                    S/ {formatoImporte(total)}
                                                 </strong>
                                             </div>
                                         </div>
@@ -1242,7 +1243,7 @@ function Carrito() {
                                                         <span className="text-[10px] font-bold mt-1 text-slate-700">Escanear QR</span>
                                                     </div>
                                                     <div className="text-xs text-slate-700 dark:text-slate-300 flex flex-col gap-1.5 flex-1">
-                                                        <p>Monto a yapear/plinear: <strong className="text-blue-600 dark:text-blue-400 font-mono text-sm">S/ {total.toFixed(2)}</strong></p>
+                                                        <p>Monto a yapear/plinear: <strong className="text-blue-600 dark:text-blue-400 font-mono text-sm">S/ {formatoImporte(total)}</strong></p>
                                                         <p>Titular: <strong className="text-slate-900 dark:text-white">TechStore Perú S.A.C.</strong></p>
                                                         <p>Número: <strong className="font-mono text-slate-900 dark:text-white">+51 999 888 777</strong></p>
                                                     </div>
@@ -1347,8 +1348,8 @@ function Carrito() {
                                                 {procesandoPago
                                                     ? "Registrando pedido..."
                                                     : metodoPago === "transferencia"
-                                                        ? `Registrar Transferencia (S/ ${total.toFixed(2)})`
-                                                        : `Confirmar y Pagar S/ ${total.toFixed(2)}`}
+                                                        ? `Registrar Transferencia (S/ ${formatoImporte(total)})`
+                                                        : `Confirmar y Pagar S/ ${formatoImporte(total)}`}
                                             </button>
                                         </div>
                                     </div>

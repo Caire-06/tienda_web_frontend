@@ -1,13 +1,8 @@
+import { formatoImporte as fmtImporte } from "../../../utils/formatoImporte";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import {
-    listarMovimientos,
-    listarInventariosIniciales,
-    listarPendientesRegularizacion,
-    regularizarInventarioInicial,
-} from "../../../services/kardexApi";
-import type { Movimiento, ProductoInv } from "../../../context/InventarioContext";
-import { limpiarDecimal, parsearNumeroSeguro } from "../../../utils/validaciones";
+import { listarMovimientos } from "../../../services/kardexApi";
+import type { Movimiento } from "../../../context/InventarioContext";
 
 const REGISTROS_POR_PAGINA = 8;
 
@@ -23,11 +18,6 @@ function diaISO(iso: string) {
     return iso.slice(0, 10);
 }
 
-function fmtImporte(valor?: number) {
-    const n = valor ?? 0;
-    return Number(n).toFixed(2);
-}
-
 function esEntrada(m: Movimiento) {
     return m.tipo === "Entrada" || m.tipo === "Inventario inicial";
 }
@@ -38,23 +28,6 @@ function esSalida(m: Movimiento) {
 
 function suma(lista: Movimiento[], selector: (m: Movimiento) => number | undefined) {
     return lista.reduce((acc, m) => acc + (selector(m) || 0), 0);
-}
-
-async function cargarDatos(token: string): Promise<{
-    movimientos: Movimiento[];
-    pendientes: ProductoInv[];
-    inicialesRegistrados: number;
-}> {
-    const [movimientos, pendientes, iniciales] = await Promise.all([
-        listarMovimientos(token),
-        listarPendientesRegularizacion(token),
-        listarInventariosIniciales(token),
-    ]);
-    return {
-        movimientos,
-        pendientes,
-        inicialesRegistrados: iniciales.length,
-    };
 }
 
 function Kardex() {
@@ -69,21 +42,11 @@ function Kardex() {
     const [hasta, setHasta] = useState("");
     const [pagina, setPagina] = useState(1);
 
-    // Regularización de productos que ya existían antes del control de costo inicial.
-    const [pendientes, setPendientes] = useState<ProductoInv[]>([]);
-    const [inicialesRegistrados, setInicialesRegistrados] = useState(0);
-    const [costos, setCostos] = useState<Record<number, string>>({});
-    const [guardandoId, setGuardandoId] = useState<number | null>(null);
-    const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
-
     const aplicarFiltros = async () => {
         if (!token) return;
         setCargando(true);
         try {
-            const datos = await cargarDatos(token);
-            setMovimientos(datos.movimientos);
-            setPendientes(datos.pendientes);
-            setInicialesRegistrados(datos.inicialesRegistrados);
+            setMovimientos(await listarMovimientos(token));
             setErrorCarga(null);
         } catch (err) {
             setErrorCarga(err instanceof Error ? err.message : "No se pudo cargar el Kardex");
@@ -103,13 +66,13 @@ function Kardex() {
     }, [token]);
 
     const productosDisponibles = useMemo(
-        () => Array.from(new Set(movimientos.map((m) => m.producto).filter(Boolean))).sort(),
+        () => Array.from(new Map(movimientos.map((m) => [m.productoId, m.producto])).entries()).sort((a, b) => a[1].localeCompare(b[1])),
         [movimientos]
     );
 
     // Los filtros se aplican sobre el histórico completo, no solo sobre la página visible.
     const filtrados = useMemo(() => movimientos.filter((m) => {
-        if (producto !== "Todos" && m.producto !== producto) return false;
+        if (producto !== "Todos" && String(m.productoId) !== producto) return false;
         if (tipo !== "Todos" && m.tipo !== tipo) return false;
         if (desde && diaISO(m.fecha) < desde) return false;
         if (hasta && diaISO(m.fecha) > hasta) return false;
@@ -136,80 +99,38 @@ function Kardex() {
         paginaActual * REGISTROS_POR_PAGINA
     );
 
-    // ===== Cuadros calculados sobre TODOS los movimientos (no sobre la página ni los filtros) =====
-    const entradas = movimientos.filter(esEntrada);
-    const compras = movimientos.filter((m) => m.tipo === "Entrada");
-    const iniciales = movimientos.filter((m) => m.tipo === "Inventario inicial");
-    const salidas = movimientos.filter(esSalida);
-    const inconsistentes = movimientos.filter((m) => m.inconsistente);
-
-    const totalEntradasCant = suma(entradas, (m) => m.cantidad);
-    const totalEntradasVal = suma(entradas, (m) => m.valorTotal);
-    const totalSalidasCant = suma(salidas, (m) => m.cantidad);
-    const totalSalidasVal = suma(salidas, (m) => m.valorTotal);
-
-    // Último saldo de cada producto. El backend entrega los movimientos del más reciente
-    // al más antiguo; se compara fecha/id para no depender del orden de la respuesta.
-    const ultimosPorProducto = new Map<number, Movimiento>();
-    movimientos.forEach((m) => {
-        const actual = ultimosPorProducto.get(m.productoId);
-        if (!actual || `${m.fecha}|${m.id}` > `${actual.fecha}|${actual.id}`) {
-            ultimosPorProducto.set(m.productoId, m);
-        }
-    });
-    const saldoFinalCant = Array.from(ultimosPorProducto.values())
-        .reduce((acc, m) => acc + (m.stockNuevo || 0), 0);
-    const saldoFinalVal = Array.from(ultimosPorProducto.values())
-        .reduce((acc, m) => acc + (m.saldoValorNuevo || 0), 0);
-
-    const inventarioInicialVal = suma(iniciales, (m) => m.valorTotal);
-    const comprasNetas = suma(compras, (m) => m.valorTotal);
-    const inventarioFinal = saldoFinalVal;
-    const costoVentas = inventarioInicialVal + comprasNetas - inventarioFinal;
+    // Saldos reales por producto, sin excluir movimientos por tipo.
+    const alcance = movimientos.filter(m => producto === "Todos" || String(m.productoId) === producto);
+    const periodo = alcance.filter(m => (!desde || diaISO(m.fecha) >= desde) && (!hasta || diaISO(m.fecha) <= hasta));
+    const entradas = periodo.filter(esEntrada);
+    const compras = periodo.filter(m => m.tipo === "Entrada");
+    const iniciales = periodo.filter(m => m.tipo === "Inventario inicial");
+    const salidas = periodo.filter(esSalida);
+    const inconsistentes = filtrados.filter(m => m.inconsistente);
+    const totalEntradasCant = suma(entradas, m => m.cantidad);
+    const totalEntradasVal = suma(entradas, m => m.valorTotal);
+    const totalSalidasCant = suma(salidas, m => m.cantidad);
+    const totalSalidasVal = suma(salidas, m => m.valorTotal);
+    const ultimoSaldo = (lista: Movimiento[]) => {
+        const ultimos = new Map<number, Movimiento>();
+        lista.forEach(m => { if (!ultimos.has(m.productoId)) ultimos.set(m.productoId, m); });
+        return [...ultimos.values()];
+    };
+    const apertura = desde ? ultimoSaldo(alcance.filter(m => diaISO(m.fecha) < desde)) : [];
+    const cierre = ultimoSaldo(alcance.filter(m => !hasta || diaISO(m.fecha) <= hasta));
+    const saldoFinalCant = suma(cierre, m => m.stockNuevo);
+    const saldoFinalVal = suma(cierre, m => m.saldoValorNuevo);
+    const inventarioInicialVal = suma(apertura, m => m.saldoValorNuevo) + suma(iniciales, m => m.valorTotal);
+    const comprasNetas = suma(compras, m => m.valorTotal);
+    const costoVentas = inventarioInicialVal + comprasNetas - saldoFinalVal;
 
     const selectClass =
         "px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer";
 
-    const regularizar = async (p: ProductoInv) => {
-        if (!token) return;
-        const texto = (costos[p.id] ?? "").trim();
-        if (!texto) {
-            setAviso({ ok: false, texto: `Ingresa el costo unitario inicial de "${p.nombre}".` });
-            return;
-        }
-        const costo = parsearNumeroSeguro(texto);
-        if (!Number.isFinite(costo) || costo < 0) {
-            setAviso({ ok: false, texto: "El costo unitario inicial debe ser un número mayor o igual a cero." });
-            return;
-        }
-
-        setGuardandoId(p.id);
-        setAviso(null);
-        try {
-            await regularizarInventarioInicial(token, p.id, costo);
-            setAviso({
-                ok: true,
-                texto: `"${p.nombre}" regularizado con su stock físico actual (${p.stock} u.). No se duplicaron existencias ni se recontabilizaron ventas.`,
-            });
-            setCostos((prev) => {
-                const copia = { ...prev };
-                delete copia[p.id];
-                return copia;
-            });
-            await aplicarFiltros();
-        } catch (err) {
-            setAviso({
-                ok: false,
-                texto: err instanceof Error ? err.message : "No se pudo regularizar el inventario inicial.",
-            });
-        } finally {
-            setGuardandoId(null);
-        }
-    };
-
     const exportarCSV = () => {
+        const fmtCSV = (valor?: number) => Number(valor ?? 0).toFixed(2);
         const header = [
-            "#", "Fecha", "Tipo", "Guía", "Factura", "Detalle",
+            "#", "Fecha", "Tipo", "Guía", "Factura", "Producto", "Detalle",
             "Ent. Cant.", "Ent. P.U.", "Ent. P.T.",
             "Sal. Cant.", "Sal. P.U.", "Sal. P.T.",
             "Saldo Cant.", "Saldo P.U.", "Saldo P.T.", "Observación",
@@ -220,16 +141,17 @@ function Kardex() {
             m.tipo,
             m.guia ?? "",
             m.factura ?? "",
+            m.producto,
             m.detalle ?? m.tipo,
             esEntrada(m) ? String(m.cantidad) : "",
-            esEntrada(m) ? fmtImporte(m.valorUnitario) : "",
-            esEntrada(m) ? fmtImporte(m.valorTotal) : "",
+            esEntrada(m) ? fmtCSV(m.valorUnitario) : "",
+            esEntrada(m) ? fmtCSV(m.valorTotal) : "",
             esSalida(m) ? String(m.cantidad) : "",
-            esSalida(m) ? fmtImporte(m.valorUnitario) : "",
-            esSalida(m) ? fmtImporte(m.valorTotal) : "",
+            esSalida(m) ? fmtCSV(m.valorUnitario) : "",
+            esSalida(m) ? fmtCSV(m.valorTotal) : "",
             String(m.stockNuevo),
-            m.saldoPromedio != null ? fmtImporte(m.saldoPromedio) : "",
-            fmtImporte(m.saldoValorNuevo),
+            m.saldoPromedio != null ? fmtCSV(m.saldoPromedio) : "",
+            fmtCSV(m.saldoValorNuevo),
             m.observacion ?? "",
         ]);
         const csv = [header, ...filas]
@@ -251,7 +173,7 @@ function Kardex() {
     );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Kardex Valorizado</h1>
@@ -281,20 +203,17 @@ function Kardex() {
                     onChange={(e) => cambiarFiltro(setProducto, e.target.value)}
                 >
                     <option value="Todos">Todos los productos</option>
-                    {productosDisponibles.map((nombre) => (
-                        <option key={nombre} value={nombre}>{nombre}</option>
+                    {productosDisponibles.map(([id, nombre]) => (
+                        <option key={id} value={String(id)}>{nombre}</option>
                     ))}
                 </select>
 
-                <select
-                    className={selectClass}
-                    value={tipo}
-                    onChange={(e) => cambiarFiltro(setTipo, e.target.value)}
-                >
-                    <option value="Todos">Todos los tipos</option>
-                    <option value="Entrada">Entrada</option>
+                <select className={selectClass} aria-label="Tipo de movimiento" value={tipo}
+                    onChange={(e) => cambiarFiltro(setTipo, e.target.value)}>
+                    <option value="Todos">Todos</option>
                     <option value="Inventario inicial">Inventario inicial</option>
-                    <option value="Salida">Salida</option>
+                    <option value="Entrada">Entradas</option>
+                    <option value="Salida">Salidas</option>
                 </select>
 
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -330,76 +249,36 @@ function Kardex() {
                 </div>
             )}
 
-            {/* Cuadros de resumen: siempre sobre el histórico completo */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                        Cuadro 1: Totales del movimiento
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Histórico completo · {movimientos.length} movimientos</p>
-                    <div className="mt-3 space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Inventario inicial (cant. / valor):</span>
-                            <span className="font-bold text-amber-700 dark:text-amber-400">
-                                {suma(iniciales, (m) => m.cantidad)} · S/ {fmtImporte(inventarioInicialVal)}
-                            </span>
+            {/* Resumen histórico, separado de los filtros de movimientos. */}
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <h2 className="text-sm font-black text-slate-900 dark:text-white">Resumen del inventario</h2>
+                <p className="text-xs text-slate-500 mt-1">{producto === "Todos" ? "Todos los productos" : productosDisponibles.find(([id]) => String(id) === producto)?.[1]} · {periodo.length} movimientos del período. El saldo incluye todos los tipos de movimiento.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3 text-xs">
+                    {[
+                        [desde ? "Apertura + inventarios iniciales" : "Inventario inicial", suma(apertura, m => m.stockNuevo) + suma(iniciales, m => m.cantidad), inventarioInicialVal],
+                        ["Compras posteriores", suma(compras, (m) => m.cantidad), comprasNetas],
+                        ["Salidas de pedidos", totalSalidasCant, totalSalidasVal],
+                        ["Saldo disponible", saldoFinalCant, saldoFinalVal],
+                    ].map(([nombre, cantidad, valor]) => (
+                        <div key={String(nombre)} className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                            <p className="text-slate-500">{nombre}</p>
+                            <p className="font-bold mt-1">{cantidad} unidades</p>
+                            <p className="font-bold">S/ {fmtImporte(Number(valor))}</p>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Compras / entradas (cant. / valor):</span>
-                            <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                                {suma(compras, (m) => m.cantidad)} · S/ {fmtImporte(comprasNetas)}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Total entradas (cant. / valor):</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                                {totalEntradasCant} · S/ {fmtImporte(totalEntradasVal)}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Total salidas (cant. / valor):</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                                {totalSalidasCant} · S/ {fmtImporte(totalSalidasVal)}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-2">
-                            <span className="text-slate-500">Saldo final:</span>
-                            <span className={`font-bold ${saldoFinalCant < 0 ? "text-red-600 dark:text-red-400" : "text-slate-800 dark:text-slate-200"}`}>
-                                {saldoFinalCant} · S/ {fmtImporte(saldoFinalVal)}
-                            </span>
-                        </div>
-                    </div>
+                    ))}
                 </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                        Cuadro 2: Cálculo del costo de ventas
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Salidas valorizadas al costo promedio vigente</p>
-                    <div className="mt-3 space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Inventario inicial:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(inventarioInicialVal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Compras netas:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(comprasNetas)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Inventario final:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(inventarioFinal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Salidas valorizadas (Kardex):</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(totalSalidasVal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-2">
-                            <span className="text-slate-500">Costo de ventas (COGS):</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">S/ {fmtImporte(costoVentas)}</span>
-                        </div>
+                <p className="mt-2 text-xs text-slate-500">Selección visible: {filtrados.length} movimientos · {suma(filtrados, m => m.cantidad)} unidades movidas · S/ {fmtImporte(suma(filtrados, m => m.valorTotal))} (importe bruto de movimientos, no saldo).</p>
+                <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-300">Ver conciliación del costo de las salidas</summary>
+                    <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
+                        <p>Inventario inicial + compras − saldo disponible = S/ {fmtImporte(costoVentas)}</p>
+                        <p>Salidas valorizadas al costo promedio: S/ {fmtImporte(totalSalidasVal)}</p>
+                        <p>Total entradas: {totalEntradasCant} unidades · S/ {fmtImporte(totalEntradasVal)}</p>
+                        <p>Incluye pedidos activos que reservan stock; no equivale necesariamente al costo contable de ventas entregadas.</p>
+                        {Math.abs(costoVentas - totalSalidasVal) > 0.01 && <p className="text-red-600">Advertencia: diferencia en la conciliación.</p>}
                     </div>
-                </div>
-            </div>
+                </details>
+            </section>
 
             {/* Chips de resumen */}
             <div className="flex flex-wrap gap-2">
@@ -413,76 +292,12 @@ function Kardex() {
                     Salidas: {salidas.length}
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    Total: {movimientos.length}
+                    Total: {periodo.length}
                 </span>
                 {inconsistentes.length > 0 && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400">
                         ⚠ Inconsistencias: {inconsistentes.length}
                     </span>
-                )}
-            </div>
-
-            {/* Regularización de inventario inicial */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                            Regularizar inventario inicial
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                            Productos que ya existían antes de registrar el costo inicial. Se usa su <b>stock físico actual</b>
-                            como cantidad del evento; no duplica existencias ni recontabiliza compras o ventas históricas.
-                        </p>
-                    </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400">
-                        {inicialesRegistrados} registrados · {pendientes.length} pendientes
-                    </span>
-                </div>
-
-                {aviso && (
-                    <p className={`mt-3 rounded-lg px-3 py-2 text-xs font-semibold ${
-                        aviso.ok
-                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
-                            : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300"
-                    }`}>
-                        {aviso.texto}
-                    </p>
-                )}
-
-                {pendientes.length === 0 ? (
-                    <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                        Todos los productos activos tienen su costo unitario inicial registrado.
-                    </p>
-                ) : (
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                        {pendientes.map((p) => (
-                            <div
-                                key={p.id}
-                                className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40"
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{p.nombre}</p>
-                                    <p className="text-[10px] text-slate-500">Stock físico: {p.stock} u.</p>
-                                </div>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    placeholder="Costo S/"
-                                    className="w-24 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                                    value={costos[p.id] ?? ""}
-                                    onChange={(e) => setCostos((prev) => ({ ...prev, [p.id]: limpiarDecimal(e.target.value) }))}
-                                />
-                                <button
-                                    type="button"
-                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 cursor-pointer"
-                                    disabled={guardandoId !== null}
-                                    onClick={() => void regularizar(p)}
-                                >
-                                    {guardandoId === p.id ? "..." : "Regularizar"}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
                 )}
             </div>
 
@@ -494,13 +309,14 @@ function Kardex() {
                             <Th>Fecha</Th>
                             <Th>Guía</Th>
                             <Th>Factura</Th>
+                            <Th>Producto</Th>
                             <Th>Detalle</Th>
                             <Th colSpan={3} className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300">Entradas</Th>
                             <Th colSpan={3} className="bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">Salidas</Th>
                             <Th colSpan={3} className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Saldos</Th>
                         </tr>
                         <tr>
-                            <Th /><Th /><Th /><Th /><Th />
+                            <Th /><Th /><Th /><Th /><Th /><Th />
                             <Th className="text-emerald-700 dark:text-emerald-400">Cant.</Th>
                             <Th className="text-emerald-700 dark:text-emerald-400">P.U.</Th>
                             <Th className="text-emerald-700 dark:text-emerald-400">P.T.</Th>
@@ -515,7 +331,7 @@ function Kardex() {
                     <tbody>
                         {cargando ? (
                             <tr>
-                                <td colSpan={14} className="text-center py-10 text-sm text-slate-500">
+                                <td colSpan={15} className="text-center py-10 text-sm text-slate-500">
                                     Cargando movimientos...
                                 </td>
                             </tr>
@@ -532,6 +348,7 @@ function Kardex() {
                                         <td className="text-xs text-slate-500">{fechaCorta(m.fecha)}</td>
                                         <td className="text-xs text-slate-600 dark:text-slate-400 font-mono">{m.guia || "—"}</td>
                                         <td className="text-xs text-slate-600 dark:text-slate-400 font-mono">{m.factura || "—"}</td>
+                                        <td className="text-xs font-semibold">{m.producto}</td>
                                         <td>
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 <span className={`badge ${
@@ -593,7 +410,7 @@ function Kardex() {
             {filtrados.length > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 pt-2">
                     <span>
-                        Página {paginaActual} de {totalPaginas} · {filtrados.length} de {movimientos.length} movimientos
+                        Página {paginaActual} de {totalPaginas} · {filtrados.length} de {periodo.length} movimientos
                     </span>
                     <div className="flex gap-1">
                         <button
@@ -626,6 +443,7 @@ function Kardex() {
                     </div>
                 </div>
             )}
+
         </div>
     );
 }

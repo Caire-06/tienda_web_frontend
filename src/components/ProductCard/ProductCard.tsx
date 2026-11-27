@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../utils/formatoImporte";
 import { useNavigate } from "react-router-dom";
 import type { Producto } from "../../data/productos";
 import { useCarrito } from "../../context/CarritoContext";
@@ -53,7 +54,7 @@ function ProductCard({ producto }: Props) {
 
         <div className="mt-auto pt-2">
           <span className="text-xl font-extrabold text-slate-900 dark:text-white font-mono">
-            S/ {producto.precio.toLocaleString("es-PE")}
+            S/ {formatoImporte(producto.precio)}
           </span>
           <span
             className={`text-xs font-medium flex items-center gap-1 mt-0.5 ${

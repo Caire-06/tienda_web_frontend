@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -265,8 +266,8 @@ function Productos() {
             setErrorModal("El stock no puede ser negativo.");
             return;
         }
-        if (costoInicialNum !== undefined && costoInicialNum < 0) {
-            setErrorModal("El costo unitario inicial no puede ser negativo.");
+        if (formId === null && stockNum > 0 && (costoInicialNum === undefined || !Number.isFinite(costoInicialNum) || costoInicialNum <= 0)) {
+            setErrorModal("Ingresa un costo unitario inicial mayor a cero cuando exista stock.");
             return;
         }
 
@@ -292,16 +293,16 @@ function Productos() {
                 nombre: nombreLimpio,
                 categoria: categoriaFinal,
                 precio: precioNum,
-                stock: Math.trunc(stockNum),
+                stock: formId === null ? Math.trunc(stockNum) : undefined,
                 imagen: imagenFinal,
                 descripcion: form.descripcion.trim(),
                 marca: marcaFinal,
                 especificaciones: form.especificaciones ?? [],
-                costoUnitarioInicial: costoInicialNum,
+                costoUnitarioInicial: formId === null ? costoInicialNum : undefined,
             };
 
             if (formId === null) {
-                await crearProducto(token, payload);
+                await crearProducto(token, { ...payload, stock: Math.trunc(stockNum) });
                 setPopupExito({
                     visible: true,
                     titulo: "¡Producto Registrado con Éxito!",
@@ -411,7 +412,7 @@ function Productos() {
                                 </td>
                                 <td className="text-xs text-slate-500">{p.categoria}</td>
                                 <td className="text-xs text-slate-500">{p.marca || "Genérico"}</td>
-                                <td className="font-mono font-bold text-xs">S/ {p.precio.toLocaleString("es-PE")}</td>
+                                <td className="font-mono font-bold text-xs">S/ {formatoImporte(p.precio)}</td>
                                 <td className="font-mono font-bold text-xs">{p.stock}</td>
                                 <td>
                                     <span className={`badge ${!p.activo ? "gris" : p.stock === 0 ? "off" : p.stock < 10 ? "pend" : "ok"}`}>
@@ -579,6 +580,7 @@ function Productos() {
                                         type="text"
                                         inputMode="numeric"
                                         placeholder="0"
+                                        readOnly={formId !== null}
                                         value={stockTexto}
                                         onChange={(e) => setStockTexto(limpiarEnteroNoNegativo(e.target.value))}
                                         required
@@ -592,6 +594,7 @@ function Productos() {
                                         type="text"
                                         inputMode="decimal"
                                         placeholder="0.00"
+                                        readOnly={formId !== null}
                                         value={costoInicialTexto}
                                         onChange={(e) => setCostoInicialTexto(limpiarDecimal(e.target.value))}
                                     />

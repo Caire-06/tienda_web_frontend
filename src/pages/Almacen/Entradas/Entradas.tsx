@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { listarProductos } from "../../../services/productosApi";
@@ -25,7 +26,8 @@ function Entradas() {
     const [proveedorId, setProveedorId] = useState(0);
     const [cantidadTexto, setCantidadTexto] = useState("");
     const [costoTexto, setCostoTexto] = useState("");
-    const [motivo, setMotivo] = useState("");
+    const [guia, setGuia] = useState("");
+    const [factura, setFactura] = useState("");
     const [ok, setOk] = useState("");
     const [errorForm, setErrorForm] = useState("");
     const [pagina, setPagina] = useState(1);
@@ -128,17 +130,10 @@ function Entradas() {
         }
     };
 
-    // Al seleccionar un producto en el dropdown, precargar su costo sugerido
+    // Cada compra tiene su propio costo de adquisición, sin sugerir el PVP.
     const seleccionarProducto = (nuevoId: number) => {
         setProductoId(nuevoId);
-        if (nuevoId <= 0) {
-            setCostoTexto("");
-            return;
-        }
-        const seleccionado = productos.find((p) => p.id === nuevoId);
-        if (seleccionado) {
-            setCostoTexto(seleccionado.precio.toFixed(2));
-        }
+        setCostoTexto("");
     };
 
     const limpiarFormulario = () => {
@@ -146,7 +141,8 @@ function Entradas() {
         setProveedorId(0);
         setCantidadTexto("");
         setCostoTexto("");
-        setMotivo("");
+        setGuia("");
+        setFactura("");
         setErrorForm("");
     };
 
@@ -167,16 +163,16 @@ function Entradas() {
             setErrorForm("La cantidad a ingresar debe ser mayor a 0.");
             return;
         }
-        if (!costoTexto.trim() || costo < 0) {
+        if (!costoTexto.trim() || !Number.isFinite(costo) || costo <= 0) {
             setErrorForm("Ingresa un costo unitario válido de compra.");
             return;
         }
         try {
             await registrarEntradaBackend(token, [
-                { idProducto: prod.id, idProveedor: proveedorId, cantidad, costoUnitario: costo },
+                { idProducto: prod.id, idProveedor: proveedorId, cantidad, costoUnitario: costo, guia: guia.trim() || undefined, factura: factura.trim() || undefined },
             ]);
             setOk(
-                `✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${costo.toFixed(2)}) del proveedor ${
+                `✓ Entrada registrada: ${prod.nombre} +${cantidad} unidades (costo S/ ${formatoImporte(costo)}) del proveedor ${
                     proveedores.find((p) => p.id === proveedorId)?.nombre ?? proveedorId
                 }`
             );
@@ -236,7 +232,7 @@ function Entradas() {
                         </label>
                         {prod && (
                             <span className="text-[11px] text-slate-500 font-medium">
-                                PVP venta: <strong className="text-slate-700 dark:text-slate-300">S/ {prod.precio.toFixed(2)}</strong>
+                                PVP venta: <strong className="text-slate-700 dark:text-slate-300">S/ {formatoImporte(prod.precio)}</strong>
                             </span>
                         )}
                     </div>
@@ -259,7 +255,7 @@ function Entradas() {
                             <optgroup key={categoria} label={categoria}>
                                 {listaProds.map((p) => (
                                     <option key={p.id} value={p.id}>
-                                        {p.nombre} (Stock: {p.stock} | S/ {p.precio.toFixed(2)})
+                                        {p.nombre} (Stock: {p.stock} | S/ {formatoImporte(p.precio)})
                                     </option>
                                 ))}
                             </optgroup>
@@ -314,16 +310,7 @@ function Entradas() {
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                 Costo Unitario Compra (S/)
                             </label>
-                            {prod && (
-                                <button
-                                    type="button"
-                                    onClick={() => setCostoTexto(prod.precio.toFixed(2))}
-                                    className="text-[10px] text-emerald-600 hover:underline cursor-pointer"
-                                    title="Restaurar precio de catálogo como sugerencia"
-                                >
-                                    Usar PVP
-                                </button>
-                            )}
+
                         </div>
                         <input
                             className={inputClass}
@@ -331,7 +318,7 @@ function Entradas() {
                             inputMode="decimal"
                             value={costoTexto}
                             onChange={(e) => setCostoTexto(limpiarDecimal(e.target.value))}
-                            placeholder="0.00"
+                            placeholder="Ingresa el costo de esta compra"
                             required
                         />
                         <p className="text-[10px] text-slate-400">
@@ -340,17 +327,16 @@ function Entradas() {
                     </div>
                 </div>
 
-                <div className="space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                        Motivo / Documento de Ingreso
-                    </label>
-                    <input
-                        className={inputClass}
-                        type="text"
-                        value={motivo}
-                        onChange={(e) => setMotivo(e.target.value)}
-                        placeholder="Guía de remisión / Factura / Reabastecimiento"
-                    />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                        <label htmlFor="factura-compra" className="block text-xs font-bold uppercase text-slate-600 dark:text-slate-400">Factura del proveedor</label>
+                        <input id="factura-compra" className={inputClass} value={factura} onChange={e => setFactura(e.target.value)} placeholder="Ej. F001-000123" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label htmlFor="guia-compra" className="block text-xs font-bold uppercase text-slate-600 dark:text-slate-400">Guía de remisión</label>
+                        <input id="guia-compra" className={inputClass} value={guia} onChange={e => setGuia(e.target.value)} placeholder="Ej. T001-000123" />
+                    </div>
+                    <p className="sm:col-span-2 text-[10px] text-slate-500">Registra los números de los documentos recibidos, si corresponde. No se emiten facturas de compra desde TechStore.</p>
                 </div>
 
                 {/* Cálculo automático de existencias */}
@@ -459,13 +445,14 @@ function Entradas() {
                                                         {prodItem?.nombre ?? `Producto #${it.idProducto}`}
                                                     </strong>{" "}
                                                     · Proveedor: {provItem?.nombre ?? `#${it.idProveedor}`}
+                                                    <span className="block text-slate-500">Factura: {it.factura || "—"} · Guía: {it.guia || "—"}</span>
                                                 </span>
                                                 <div className="text-right">
                                                     <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold">
                                                         +{it.cantidad} u.
                                                     </span>
                                                     <span className="font-mono text-slate-500 ml-2">
-                                                        Costo: S/ {Number(it.costoUnitario || 0).toFixed(2)}
+                                                        Costo: S/ {formatoImporte(Number(it.costoUnitario || 0))}
                                                     </span>
                                                 </div>
                                             </div>

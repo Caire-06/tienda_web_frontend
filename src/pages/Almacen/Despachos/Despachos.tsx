@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
@@ -110,7 +111,7 @@ function Despachos() {
                         p.estado !== "Entregado" &&
                         p.estado !== "Cancelado" &&
                         p.estado !== "Pendiente de pago" &&
-                        p.estadoPago !== "Por verificar"
+                        p.estadoPago !== "Por verificar" && p.estadoPago !== "Rechazado"
                 );
 
                 setPedidosActivos(activos);
@@ -230,7 +231,7 @@ function Despachos() {
     const visiblesLotes = lotes.slice((paginaLotes - 1) * 10, paginaLotes * 10);
 
     const elegiblesLote = pedidosFiltrados.filter(
-        (p) => !p.codigoLoteDespacho && p.tipoEntrega !== "recojo"
+        (p) => !p.codigoLoteDespacho && p.tipoEntrega !== "recojo" && p.estado === "Procesando"
     );
 
     const toggleTodos = () => {
@@ -315,7 +316,7 @@ function Despachos() {
         .reduce((acc, p) => acc + Number(p.total || 0), 0);
 
     const porPreparar = pedidosActivos.filter(
-        (p) => (p.estado || "Pendiente") === "Pendiente"
+        (p) => ["Pendiente", "Pagado"].includes(p.estado || "Pendiente")
     ).length;
 
     const enPreparacion = pedidosActivos.filter(
@@ -532,7 +533,7 @@ function Despachos() {
                                         const isSelected = seleccionados.includes(p.numero);
                                         const esRecojo = p.tipoEntrega === "recojo";
                                         const yaEnLote = Boolean(p.codigoLoteDespacho);
-                                        const estadoActual = p.estado || "Pendiente";
+                                        const estadoActual = String(p.estado) === "Pagado" ? "Pendiente" : (p.estado || "Pendiente");
                                         const procesandoAccion = actualizandoNumero === p.numero;
 
                                         const totalUnidades = (p.items || []).reduce(
@@ -557,7 +558,7 @@ function Despachos() {
                                                         >
                                                             <IconoTienda size={16} />
                                                         </span>
-                                                    ) : !yaEnLote ? (
+                                                    ) : !yaEnLote && estadoActual === "Procesando" ? (
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
@@ -567,7 +568,7 @@ function Despachos() {
                                                     ) : (
                                                         <span
                                                             className="inline-flex text-emerald-600"
-                                                            title={`Lote ${p.codigoLoteDespacho}`}
+                                                            title={yaEnLote ? `Lote ${p.codigoLoteDespacho}` : "Primero debe preparar el pedido"}
                                                         >
                                                             <IconoPaquete size={16} />
                                                         </span>
@@ -625,6 +626,7 @@ function Despachos() {
                                                     >
                                                         {estadoActual}
                                                     </span>
+                                                    <span className="block text-[10px] text-slate-500 mt-1">Pago: {p.estadoPago || "No informado"}</span>
 
                                                     {p.codigoLoteDespacho && (
                                                         <div className="text-[10px] text-slate-500 mt-0.5 font-mono inline-flex items-center gap-1">
@@ -829,9 +831,7 @@ function Despachos() {
                             </div>
 
                             <strong className="text-sm font-mono font-black text-emerald-700 dark:text-emerald-300">
-                                S/ {valorSeleccionado.toLocaleString("es-PE", {
-                                    minimumFractionDigits: 2,
-                                })}
+                                S/ {formatoImporte(valorSeleccionado)}
                             </strong>
                         </div>
 
@@ -1039,7 +1039,7 @@ function Despachos() {
                         </div>
 
                         <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                            {pedidoPicking.estado === "Pendiente" && (
+                            {["Pendiente", "Pagado"].includes(pedidoPicking.estado || "Pendiente") && (
                                 <button
                                     onClick={() =>
                                         cambiarEstadoRapido(pedidoPicking, "Procesando")
@@ -1125,9 +1125,7 @@ function Despachos() {
                             <div className="py-2 flex justify-between">
                                 <dt className="text-slate-500">Valorizado Total</dt>
                                 <dd className="font-mono font-black text-emerald-600">
-                                    S/ {Number(loteDetalle.totalValorizado).toLocaleString("es-PE", {
-                                        minimumFractionDigits: 2,
-                                    })}
+                                    S/ {formatoImporte(Number(loteDetalle.totalValorizado))}
                                 </dd>
                             </div>
                         </dl>

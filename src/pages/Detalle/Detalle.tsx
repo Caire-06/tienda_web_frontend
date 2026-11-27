@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../utils/formatoImporte";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/Header/Header";
@@ -113,7 +114,7 @@ function Detalle() {
 
                         <div className="pt-2">
                             <span className="block font-mono text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
-                                S/ {producto.precio.toLocaleString("es-PE")}
+                                S/ {formatoImporte(producto.precio)}
                             </span>
                             <span className={`block text-xs font-semibold mt-1 ${agotado ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
                                 {agotado ? "Sin stock disponible" : `${producto.stock} unidades disponibles en tienda`}

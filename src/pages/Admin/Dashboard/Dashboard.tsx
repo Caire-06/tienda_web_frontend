@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -61,11 +62,11 @@ function Dashboard() {
             <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
                 <div className="admin-card">
                     <span>Ventas hoy</span>
-                    <strong>S/ {Number(totalHoy).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                    <strong>S/ {formatoImporte(Number(totalHoy))}</strong>
                 </div>
                 <div className="admin-card">
                     <span>Ventas mes</span>
-                    <strong>S/ {Number(totalMes).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                    <strong>S/ {formatoImporte(Number(totalMes))}</strong>
                 </div>
                 <div className="admin-card">
                     <span>N° Ventas</span>
@@ -155,7 +156,7 @@ function Dashboard() {
                                             </td>
                                             <td className="text-xs text-slate-500 font-mono">{formatearFechaHora(v.fecha)}</td>
                                             <td className="font-mono font-bold">
-                                                S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                S/ {formatoImporte(Number(v.total))}
                                             </td>
                                         </tr>
                                     ))
@@ -218,7 +219,7 @@ function Dashboard() {
                                         <td className="font-medium">{p.nombre}</td>
                                         <td className="text-xs text-slate-500">{p.categoria}</td>
                                         <td className="font-mono font-bold text-rose-600 dark:text-rose-400">{p.stock}</td>
-                                        <td className="font-mono">S/ {Number(p.precio).toFixed(2)}</td>
+                                        <td className="font-mono">S/ {formatoImporte(Number(p.precio))}</td>
                                         <td>
                                             <span className={`badge ${p.stock === 0 ? "off" : "pend"}`}>
                                                 {p.stock === 0 ? "Agotado (0)" : `Stock bajo (${p.stock})`}

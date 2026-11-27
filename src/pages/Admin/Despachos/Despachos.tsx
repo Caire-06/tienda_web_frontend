@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -314,7 +315,7 @@ function AdminDespachos() {
                                             </div>
                                         </td>
                                         <td className="font-mono font-bold text-xs">
-                                            S/ {Number(l.totalValorizado).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            S/ {formatoImporte(Number(l.totalValorizado))}
                                         </td>
                                         <td className="text-xs text-slate-500">{l.fechaDespacho}</td>
                                         <td>
@@ -390,7 +391,7 @@ function AdminDespachos() {
                                             </span>
                                         </td>
                                         <td className="font-mono font-bold text-xs">
-                                            S/ {Number(p.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            S/ {formatoImporte(Number(p.total))}
                                         </td>
                                     </tr>
                                 ))
@@ -451,7 +452,7 @@ function AdminDespachos() {
                             <div className="py-2.5 flex justify-between">
                                 <dt className="text-slate-500">Valor Total del Lote</dt>
                                 <dd className="font-mono font-black text-blue-600">
-                                    S/ {Number(loteDetalle.totalValorizado).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                    S/ {formatoImporte(Number(loteDetalle.totalValorizado))}
                                 </dd>
                             </div>
                         </dl>

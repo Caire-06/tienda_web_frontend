@@ -204,7 +204,9 @@ export function InventarioProvider({ children }: { children: ReactNode }) {
                 activo: true,
                 fechaCreacion: new Date().toISOString(),
             };
+            if (nuevo.stock > 0 && !(Number(datos.costoUnitarioInicial) > 0)) throw new Error("Costo inicial obligatorio cuando existe stock");
             setProductos((prev) => [...prev, nuevo]);
+            if (nuevo.stock <= 0) return;
             const costo = datos.costoUnitarioInicial ?? 0;
             setMovimientos((prev) => [
                 {

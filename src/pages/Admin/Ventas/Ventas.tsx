@@ -1,3 +1,4 @@
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
@@ -203,42 +204,23 @@ function Ventas() {
                             : "Registro y control de compras de mercadería con su factura de compra asociada."}
                     </p>
                 </div>
-                <div className="flex gap-2 self-start sm:self-auto">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setVista("ventas");
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <label htmlFor="vista-operacion" className="text-xs font-semibold text-slate-500">Ver:</label>
+                    <select id="vista-operacion" value={vista}
+                        className="min-w-36 px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                            const nuevaVista = e.target.value === "compras" ? "compras" : "ventas";
+                            setVista(nuevaVista);
                             setSoloPorVerificar(false);
                             setBusqueda("");
                             setDesde("");
                             setHasta("");
                             setPagina(1);
-                        }}
-                        className={`px-3.5 py-2 text-xs font-bold rounded-xl cursor-pointer transition-colors ${
-                            vista === "ventas"
-                                ? "bg-blue-600 text-white"
-                                : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
-                        }`}
-                    >
-                        Ventas
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setVista("compras");
-                            setBusqueda("");
-                            setDesde("");
-                            setHasta("");
                             setPaginaCompras(1);
-                        }}
-                        className={`px-3.5 py-2 text-xs font-bold rounded-xl cursor-pointer transition-colors ${
-                            vista === "compras"
-                                ? "bg-emerald-600 text-white"
-                                : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
-                        }`}
-                    >
-                        Compras
-                    </button>
+                        }}>
+                        <option value="ventas">Ventas</option>
+                        <option value="compras">Compras</option>
+                    </select>
                 </div>
                 <button
                     onClick={() => (vista === "ventas" ? cargar() : cargarCompras())}
@@ -376,7 +358,7 @@ function Ventas() {
                                             </div>
                                         </td>
                                         <td className="font-mono font-bold text-slate-900 dark:text-white">
-                                            S/ {Number(v.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            S/ {formatoImporte(Number(v.total))}
                                         </td>
                                         <td>
                                             <button className="btn-mini" onClick={() => setDetalle(v)}>
@@ -592,10 +574,10 @@ function Ventas() {
                                             <td className="font-semibold text-xs">{it.nombre}</td>
                                             <td className="font-mono text-xs">{it.cantidad}</td>
                                             <td className="font-mono text-xs">
-                                                S/ {Number(it.precio).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                S/ {formatoImporte(Number(it.precio))}
                                             </td>
                                             <td className="font-mono font-bold text-xs">
-                                                S/ {(Number(it.precio) * it.cantidad).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                S/ {formatoImporte((Number(it.precio) * it.cantidad))}
                                             </td>
                                         </tr>
                                     ))}
@@ -610,7 +592,7 @@ function Ventas() {
                                     {detalle.tipoEntrega === "agencia_destino"
                                         ? "Flete de agencia por pagar al recibir"
                                         : detalle.costoEnvio && detalle.costoEnvio > 0
-                                            ? `Incluye envío S/ ${Number(detalle.costoEnvio).toFixed(2)}`
+                                            ? `Incluye envío S/ ${formatoImporte(Number(detalle.costoEnvio))}`
                                             : "Envío S/ 0.00"}
                                 </span>
                             </div>
@@ -623,7 +605,7 @@ function Ventas() {
                                     Descargar PDF
                                 </button>
                                 <strong className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
-                                    S/ {Number(detalle.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                    S/ {formatoImporte(Number(detalle.total))}
                                 </strong>
                             </div>
                         </div>
@@ -692,7 +674,7 @@ function Ventas() {
                                     .map((it) => {
                                         const prod = productos.find((p) => p.id === it.idProducto);
                                         const importe = (Number(it.cantidad) || 0) * (Number(it.costoUnitario) || 0);
-                                        return `${prod?.nombre ?? `Producto #${it.idProducto}`} × Cant: ${it.cantidad} · Costo: S/ ${Number(it.costoUnitario || 0).toFixed(2)} · Importe: S/ ${importe.toFixed(2)}`;
+                                        return `${prod?.nombre ?? `Producto #${it.idProducto}`} × Cant: ${it.cantidad} · Costo: S/ ${formatoImporte(Number(it.costoUnitario || 0))} · Importe: S/ ${formatoImporte(importe)}`;
                                     })
                                     .join(" | ");
                                 return (
@@ -704,7 +686,7 @@ function Ventas() {
                                         <td className="text-xs text-slate-500 font-mono">{c.fecha.slice(0, 10)}</td>
                                         <td className="text-xs text-slate-600 dark:text-slate-300">{detalle}</td>
                                         <td className="font-mono font-bold text-slate-900 dark:text-white">
-                                            S/ {totalCompra(c).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                            S/ {formatoImporte(totalCompra(c))}
                                         </td>
                                         <td>
                                             <button className="btn-mini" onClick={() => descargarCompra(c)}>

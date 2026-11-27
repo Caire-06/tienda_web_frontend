@@ -1,19 +1,24 @@
+import ReportesAnaliticos, { type TipoAnalitico } from "./ReportesAnaliticos";
+import { formatoImporte } from "../../../utils/formatoImporte";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { obtenerReporteParametrizado } from "../../../services/reportesApi";
 import { Paginacion, REGISTROS_POR_PAGINA } from "../../../components/Paginacion/Paginacion";
 
 type TipoReporte = "ventas" | "inventario" | "usuarios";
+type Pestaña = TipoReporte | TipoAnalitico;
 
 function Reportes() {
     const { token } = useAuth();
-    const [tipoActivo, setTipoActivo] = useState<TipoReporte>("ventas");
+    const [tipoActivo, setTipoActivo] = useState<Pestaña>("ventas");
     const [datos, setDatos] = useState<any>(null);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pagina, setPagina] = useState(1);
 
-    const cargarReporte = async (tipo: TipoReporte) => {
+    const nuevo = tipoActivo === "valorizacion" || tipoActivo === "ventasPeriodo";
+    const cargarReporte = async (tipo: Pestaña) => {
+        if (tipo === "valorizacion" || tipo === "ventasPeriodo") return;
         if (!token) return;
         setCargando(true);
         setError(null);
@@ -28,6 +33,7 @@ function Reportes() {
     };
 
     useEffect(() => {
+        setPagina(1);
         cargarReporte(tipoActivo);
     }, [token, tipoActivo]);
 
@@ -107,7 +113,7 @@ function Reportes() {
                         Consultas analíticas consolidadas de ventas, inventario y usuarios con exportación a Excel.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                {!nuevo && <div className="flex items-center gap-2">
                     <button
                         onClick={() => cargarReporte(tipoActivo)}
                         className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
@@ -120,11 +126,11 @@ function Reportes() {
                     >
                         <span>📥</span> Descargar Excel (.csv)
                     </button>
-                </div>
+                </div>}
             </div>
 
             {/* Pestañas de Selección de Reporte */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+            <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-800 gap-2">
                 <button
                     onClick={() => setTipoActivo("ventas")}
                     className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
@@ -155,8 +161,9 @@ function Reportes() {
                 >
                     3. Usuarios y Accesos
                 </button>
+                {([['valorizacion','4. Valorización del inventario'],['ventasPeriodo','5. Ventas por período']] as const).map(([id,nombre]) => <button key={id} onClick={()=>setTipoActivo(id)} className={`px-4 py-2.5 text-xs font-bold border-b-2 cursor-pointer ${tipoActivo===id?'border-blue-600 text-blue-600 dark:text-blue-400':'border-transparent text-slate-500'}`}>{nombre}</button>)}
             </div>
-
+            {nuevo ? <ReportesAnaliticos key={tipoActivo} tipo={tipoActivo as TipoAnalitico} token={token}/> : <>
             {error && (
                 <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-600 dark:text-red-400">
                     {error}
@@ -175,7 +182,7 @@ function Reportes() {
                             <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="admin-card">
                                     <span>Total Facturado</span>
-                                    <strong>S/ {Number(datos.totalVentas || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                                    <strong>S/ {formatoImporte(Number(datos.totalVentas || 0))}</strong>
                                 </div>
                                 <div className="admin-card">
                                     <span>N° Transacciones</span>
@@ -183,7 +190,7 @@ function Reportes() {
                                 </div>
                                 <div className="admin-card">
                                     <span>Ticket Promedio</span>
-                                    <strong>S/ {Number(datos.ticketPromedio || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                                    <strong>S/ {formatoImporte(Number(datos.ticketPromedio || 0))}</strong>
                                 </div>
                             </section>
 
@@ -197,7 +204,7 @@ function Reportes() {
                                         <div key={fecha} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-center">
                                             <div className="text-[11px] font-mono text-slate-500">{fecha}</div>
                                             <div className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
-                                                S/ {Number(tot).toFixed(2)}
+                                                S/ {formatoImporte(Number(tot))}
                                             </div>
                                         </div>
                                     ))}
@@ -211,7 +218,7 @@ function Reportes() {
                             <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="admin-card">
                                     <span>Stock Valorizado Total</span>
-                                    <strong>S/ {Number(datos.stockValorizado || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</strong>
+                                    <strong>S/ {formatoImporte(Number(datos.stockValorizado || 0))}</strong>
                                 </div>
                                 <div className="admin-card">
                                     <span>Unidades Físicas en Almacén</span>
@@ -304,7 +311,7 @@ function Reportes() {
                                                     </td>
                                                     <td className="text-xs text-slate-500">{f.fecha?.slice(0, 10)}</td>
                                                     <td className="font-mono font-bold">
-                                                        S/ {Number(f.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                        S/ {formatoImporte(Number(f.total))}
                                                     </td>
                                                     <td>
                                                         <span className="badge ok">{f.estado}</span>
@@ -316,10 +323,10 @@ function Reportes() {
                                                 <tr key={idx}>
                                                     <td className="font-semibold">{f.nombre}</td>
                                                     <td className="text-xs text-slate-500">{f.categoria}</td>
-                                                    <td className="font-mono">S/ {Number(f.precio).toFixed(2)}</td>
+                                                    <td className="font-mono">S/ {formatoImporte(Number(f.precio))}</td>
                                                     <td className="font-mono font-bold">{f.stock}</td>
                                                     <td className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                                                        S/ {Number(f.valorizado).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                                                        S/ {formatoImporte(Number(f.valorizado))}
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${f.rotacionCritica ? "off" : "ok"}`}>
@@ -356,6 +363,7 @@ function Reportes() {
 
             {/* Paginación */}
             <Paginacion paginaActual={pagina} totalPaginas={totalPaginas} totalRegistros={filas.length} onCambiar={setPagina} />
+            </>}
         </div>
     );
 }
